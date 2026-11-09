@@ -410,9 +410,10 @@ def cmd_setup(args):
     print("agent name: %s (this worktree)" % name)
     print("git hooks:  .githooks enabled")
     if not BACKEND.fake:
-        p = run(["gh", "auth", "status"], check=False)
+        p = run(["gh", "api", "user", "--jq", ".login"], check=False)
         if p.returncode != 0:
-            die("gh is not logged in. Run: gh auth login")
+            die("gh cannot reach GitHub (not logged in?). Run: gh auth login")
+        print("github:     " + p.stdout.strip())
     comments = sync(force=True)
     active, _, _ = compute_state(comments)
     print("chat:       issue #%d, %d messages" % (CFG["chat_issue"], len(comments)))
