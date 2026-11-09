@@ -1,0 +1,49 @@
+name: agent-coordination
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  claims:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Every changed file must be claimed by the branch's agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 .agents/agentchat.py ci-check-pr
+
+  announce:
+    if: github.event.action != 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .agents
+      - name: Post PR event to the coordination chat
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          NUM: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          ISSUE=$(python3 -c "import json;print(json.load(open('.agents/config.json'))['chat_issue'])" 2>/dev/null || echo 1)
+          if [ "$ACTION" = "closed" ]; then
+            if [ "$MERGED" = "true" ]; then ACTION="merged"; fi
+          fi
+          printf '[github] PROGRESS\nPR #%s %s: %s\nbranch: %s\n%s\n' "$NUM" "$ACTION" "$TITLE" "$BRANCH" "$URL" > body.txt
+          gh issue comment "$ISSUE" --body-file body.txt
