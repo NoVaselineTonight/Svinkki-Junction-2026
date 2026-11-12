@@ -1,3 +1,3 @@
 #!/bin/sh
-# Installed by: python3 .agents/agentchat.py setup --name <agent>
-exec python3 "$(git rev-parse --show-toplevel)/.agents/agentchat.py" git-post-commit "$@"
+# Installed by: python .agents/agentchat.py setup --name <agent>
+exec python "$(git rev-parse --show-toplevel)/.agents/agentchat.py" git-post-commit "$@"
