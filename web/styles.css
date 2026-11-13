@@ -583,3 +583,16 @@ pre.payload { background: var(--bg); border: 1px solid var(--border); border-rad
 .for-you-cards { display: grid; gap: 12px; margin-top: 20px; }
 .for-you-cards:empty { display: none; }
 .for-you-cards > div:empty { display: none; }
+
+/* The simulated bank account at the top of the start page */
+.acct-slot:empty { display: none; }
+.acct-card { display: grid; gap: 6px; width: 100%; text-align: left; border: 0; cursor: pointer;
+  background: var(--green-strongest); color: #fff; border-radius: var(--radius, 16px); padding: 16px 18px; margin-bottom: 18px; }
+.acct-card:focus-visible { outline: 3px solid var(--green-bright); outline-offset: 2px; }
+.acct-top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; opacity: .9; }
+.acct-num { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.acct-bal { font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.1; }
+.acct-rows { display: grid; gap: 2px; font-size: 14px; }
+.acct-row { display: flex; justify-content: space-between; gap: 8px; }
+.acct-row b { font-weight: 700; }
+.acct-demo { font-size: 11px; opacity: .7; }

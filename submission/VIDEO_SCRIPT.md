@@ -17,7 +17,7 @@ computes them. Check every amount below on the recording machine before recordin
 | 0:22-0:32 | Front page: "+ New", previous conversations, "Your things" (savings goal, challenge, kept answers) | "This is my front page: my conversations and the things I keep, like my savings goal. Everything else, I just ask." |
 | 0:32-0:45 | Tap "+ New", then "What can I ask?", scroll once, tap a question | "No menus to learn. Everything it can do is listed here, from my three spending baskets to what's safe to spend; tap one and it's asked for you." |
 | 0:45-1:05 | Ask "How much did I spend on taxis last month?"; open "Transactions used (2)" | "€92.85 on taxis, across two rides, and here are the two rides. Claude chooses the tool and explains; code does the maths. Every number shows where it came from." |
-| 1:05-1:20 | Ask "Can I afford a 300 euro jacket?" | "Yes, and about €35 a day is still left until payday. It checks against what's safe to spend, and against my savings goal." |
+| 1:05-1:20 | Ask "Can I afford a 300 euro jacket?" | "Yes, and about €16 a day is still left until payday. It checks against what's safe to spend, and against my savings goal." |
 | 1:20-1:40 | Ask "What do I buy most?", then "How much do I spend on beer?" | "S Group knows what was in the basket, not only what was paid. Here it answers from receipt lines. In this demo they're simulated; with real S Group purchase data it's the same code." |
 | 1:40-1:52 | Settings (gear): lower the check-in rhythm; open "What the AI saw" | "I control the rhythm, and I can read exactly what the model was given: results, never my name, account or address." |
 | 1:52-2:00 | Logo and one line | "Svinkki. Talk with your own money, inside S-mobiili." |
