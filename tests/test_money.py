@@ -215,5 +215,37 @@ class SafeToSpendFixTests(unittest.TestCase):
         self.assertGreaterEqual(s["next_payday"], "2026-10-01")
 
 
+class NoUnaskedComparisonTests(MoneyBase):
+    """Owner, 14 Nov 2026: comparisons with other people only when the customer asks for one."""
+
+    def chat(self, msg):
+        r = self.a.post("/api/chat", {"message": msg})
+        self.assertEqual(r.status, 200, r.text[:300])
+        return r.json
+
+    PEER = r"people your age|most people|most customers|people like you|compar|turn on comparisons"
+
+    def test_own_questions_get_no_comparison(self):
+        for q in ("How much do I earn?", "How much did I earn last month?", "How much did I spend on taxis last month?",
+                  "How much did I spend on groceries last month?", "What is my balance?"):
+            with self.subTest(q=q):
+                r = self.chat(q)
+                self.assertNotRegex(r["reply"].lower(), self.PEER)
+                for c in r["cards"]:
+                    self.assertNotIn("peer", c.get("data") or {}, q)
+
+    def test_a_comparison_is_given_when_asked(self):
+        r = self.chat("How do I compare with people my age?")
+        self.assertIn(r["tools_used"], (["get_benchmarks"], ["get_averages"]))
+
+    def test_alerts_and_quiz_do_not_compare_with_others(self):
+        for a in (self.a.get("/api/alerts").json.get("alerts") or []):
+            self.assertNotRegex(str(a).lower(), r"people your age|most people|people of your age")
+        q = self.a.get("/api/quiz").json
+        if q.get("quiz_id"):
+            r = self.a.post("/api/quiz/answer", {"quiz_id": q["quiz_id"], "guess": 10}).json
+            self.assertNotIn("peer", r)
+
+
 if __name__ == "__main__":
     unittest.main()

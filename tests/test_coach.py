@@ -410,10 +410,15 @@ class GeminiCoachTests(CoachCase):
         self.assertRegex(fake.raw[1].decode("utf-8"), r"28\.0|14\.2|19\.9", "tool rows (amounts) do reach the model")
 
     def test_declared_tools_match_the_registry_and_a_system_prompt_is_sent(self):
+        # Comparison tools are offered to the model only when the customer asks for a comparison (owner, 14 Nov).
+        cmp_tools = {"get_benchmarks", "get_averages", "get_area_context"}
         _, fake = self.run_gemini([fx.gem_text("Hello")], message="hi")
         body = fake.requests[0]
         decls = [d["name"] for t in body["tools"] for d in t["functionDeclarations"]]
-        self.assertEqual(sorted(decls), sorted(t["name"] for t in self.tools.TOOLS))
+        self.assertEqual(sorted(decls), sorted(t["name"] for t in self.tools.TOOLS if t["name"] not in cmp_tools))
+        _, fake2 = self.run_gemini([fx.gem_text("Hello")], message="How do I compare with people my age?")
+        decls2 = [d["name"] for t in fake2.requests[0]["tools"] for d in t["functionDeclarations"]]
+        self.assertEqual(sorted(decls2), sorted(t["name"] for t in self.tools.TOOLS))
         self.assertTrue(body.get("systemInstruction") or body.get("system_instruction"))
         for t in body["tools"]:
             for d in t["functionDeclarations"]:

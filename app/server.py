@@ -736,11 +736,7 @@ def ep_quiz_answer(req):
     if state.load_quiz(req.cid, quiz_id) is None:
         raise ApiError(404, "unknown_quiz")
     try:
-        if req.consent.get("benchmarks"):
-            res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess,
-                                          profile=db.profile(req.cid), bench_lookup=db.bench)
-        else:
-            res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess)
+        res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess)   # no unasked comparison
     except ValueError:
         raise ApiError(400, "invalid_quiz_id")
     try:
@@ -1287,10 +1283,7 @@ def ep_alerts(req):
     if req.settings.get("suggestion_level") == "off" or not req.consent.get("suggestions"):
         return {"alerts": []}
     feat = _features()
-    if req.consent.get("benchmarks"):
-        res = feat.alerts(req.conn, req.today, db.profile(req.cid), db.bench)
-    else:
-        res = feat.alerts(req.conn, req.today)
+    res = feat.alerts(req.conn, req.today)    # own usual spending only; no comparison with others unasked
     res = dict(res)
     alerts = list(res.get("alerts") or [])
     leak = feat.savings_leakage(req.conn, req.today)
