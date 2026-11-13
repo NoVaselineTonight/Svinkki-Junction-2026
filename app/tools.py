@@ -480,6 +480,9 @@ def _with_peer(res, lab, basket, ctx, ins):
     if target is None or not isinstance(res, dict):
         return res
     res = dict(res)
+    asked = ctx.get("compare_requested") if isinstance(ctx, dict) else getattr(ctx, "compare_requested", False)
+    if not asked:
+        return res          # no comparison with other people unless the customer asked for one
     if _period_days(res.get("period")) < 7:
         # A monthly average scaled down to one evening or a couple of days says nothing useful
         # ("€6 more than people typically spend over 2 days"), so short periods get no comparison.
@@ -712,10 +715,8 @@ def _t_leaks(args, ctx, ins):
 
 
 def _t_alerts(args, ctx, ins):
-    bench = None
-    if (ctx.consent or {}).get("benchmarks"):
-        bench = getattr(ctx, "bench_lookup", None)
-    return _feat().alerts(ctx.conn, ctx.today, getattr(ctx, "profile", None), bench), "alerts"
+    # Alerts compare with the customer's own usual spending only; peer comparisons are given only on request.
+    return _feat().alerts(ctx.conn, ctx.today, getattr(ctx, "profile", None), None), "alerts"
 
 
 def _t_savings_leak(args, ctx, ins):

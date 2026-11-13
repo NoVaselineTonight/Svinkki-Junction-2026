@@ -52,7 +52,7 @@ Core from the brief:
 - Safe to spend this week and until payday, with the working shown and a day-by-day balance forecast.
 - What-if: "What if I cut dining out by 20%?", in chat and with sliders.
 - Spender type and ways to save more.
-- Benchmarks against groups of similar customers (age band, widened when the group is small) and Statistics Finland open data.
+- Benchmarks against groups of similar customers, only when the customer asks for a comparison (age band, widened when the group is small) and Statistics Finland open data.
 - Free exploration of your own data: filter transactions by period, label, basket and text.
 - Questions in English or Finnish ("Paljonko käytin takseihin viime kuussa?").
 
@@ -117,7 +117,7 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 650 tests in 42.6s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
+The last run printed `Ran 653 tests in 54.2s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 
