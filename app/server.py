@@ -10,6 +10,7 @@ import http.server
 import json
 import mimetypes
 import os
+import re
 import secrets
 import sys
 import threading
@@ -18,10 +19,12 @@ import urllib.parse
 from collections import deque
 from types import SimpleNamespace
 
-from . import config, db, state
+from . import classify, config, db, state
 
 COOKIE = "svinkki_sid"
 MAX_BODY = 16 * 1024
+MAX_BODY_EXPLAIN = 24 * 1024   # /api/explain only: a pasted document
+EXPLAIN_MIN, EXPLAIN_MAX = 40, 6000
 MAX_MESSAGE = 2000
 SESSION_IDLE_SECONDS = 2 * 60 * 60
 HISTORY_TURNS = 20
@@ -29,6 +32,11 @@ RATE_CHAT = 60
 RATE_OTHER = 300
 RATE_WINDOW = 60.0
 SUGGESTION_LIMITS = {"off": 0, "few": 1, "normal": 3}
+MAX_ITEM_CHARS = 80
+MAX_PRICE = 1_000_000
+MAX_USED_GROUPS = 6
+USED_ROWS = 20
+_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$")
 
 CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "
        "connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors *")
@@ -63,6 +71,7 @@ NO_MONEY_MESSAGES = {
 NO_CONSENT_PATHS = {
     "/api/demo/personas", "/api/demo/login", "/api/demo/random", "/api/logout", "/api/me",
     "/api/consent", "/api/settings", "/api/privacy/erase",
+    "/api/explain",   # explaining a pasted text looks at no transactions, so it needs a session only
 }
 
 
@@ -94,7 +103,7 @@ class Sessions:
         with self._lock:
             self._purge(now)
             self._s[sid] = {"cid": cid, "name": name, "last": now, "history": [],
-                            "ai_payload": None, "hits": {"chat": deque(), "other": deque()}}
+                            "ai_payload": None, "memory": {}, "hits": {"chat": deque(), "other": deque()}}
         return sid
 
     def get(self, sid):
@@ -214,6 +223,19 @@ def _iso_date(v, name):
     return v
 
 
+def _ts(v, name):
+    """A timestamp as 'YYYY-MM-DD HH:MM:SS', or None when absent. Anything else is a 400."""
+    if v is None or v == "":
+        return None
+    if not isinstance(v, str) or not _TS_RE.match(v):
+        raise ApiError(400, "invalid_" + name)
+    try:
+        dt = datetime.datetime.fromisoformat(v.replace(" ", "T"))
+    except ValueError:
+        raise ApiError(400, "invalid_" + name)
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     server_version = "Svinkki"
     sys_version = ""
@@ -307,7 +329,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return v
         return None
 
-    def _read_json(self):
+    def _read_json(self, max_body=MAX_BODY):
         te = self.headers.get("Transfer-Encoding")
         cl = self.headers.get("Content-Length")
         if te:
@@ -320,7 +342,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             raise ApiError(400, "bad_request")
         if n < 0:
             raise ApiError(400, "bad_request")
-        if n > MAX_BODY:
+        if n > max_body:
             left = min(n, 1 << 20)  # drain a bounded amount so the client sees our reply
             while left > 0:
                 chunk = self.rfile.read(min(left, 65536))
@@ -339,6 +361,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
             raise ApiError(400, "invalid_json")
         return data
 
+    def _drain_body(self):
+        try:
+            left = min(int(self.headers.get("Content-Length") or 0), 1 << 20)
+        except ValueError:
+            return
+        while left > 0:
+            chunk = self.rfile.read(min(left, 65536))
+            if not chunk:
+                break
+            left -= len(chunk)
+
     # -- routing -----------------------------------------------------------
     def _route(self, method, path, query):
         if not path.startswith("/api/"):
@@ -350,7 +383,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route is None:
             raise ApiError(404, "not_found")
         verb, fn = route
-        if method != verb and not (method == "HEAD" and verb == "GET"):
+        verbs = verb.split("|")
+        if method not in verbs and not (method == "HEAD" and "GET" in verbs):
             raise ApiError(405, "method_not_allowed")
 
         srv = self.server
@@ -360,11 +394,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # rate limit (per session; per client address for anonymous calls)
         hits = session["hits"] if session else srv.limiter.anon_hits(self.client_address[0])
-        bucket = "chat" if path == "/api/chat" else "other"
+        bucket = "chat" if path in ("/api/chat", "/api/explain") else "other"
         if not srv.limiter.allow(hits, bucket):
+            self._drain_body()   # so the client sees our reply instead of a reset connection
             raise ApiError(429, "rate_limited")
 
-        body = self._read_json() if verb == "POST" else {}
+        body = (self._read_json(MAX_BODY_EXPLAIN if path == "/api/explain" else MAX_BODY)
+                if method == "POST" else {})
         query_d = {k: v[-1] for k, v in urllib.parse.parse_qs(query, keep_blank_values=False).items()}
 
         req = SimpleNamespace(handler=self, srv=srv, session=session, sid=sid,
@@ -380,7 +416,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     raise ApiError(403, "consent_required")
                 req.settings = state.get_settings(req.cid)
                 req.today = config.today()
-                req.conn = db.sandbox(req.cid, req.today)  # SR-2
+                req.conn = db.sandbox(req.cid, req.today,
+                                      state.list_overrides(req.cid))  # SR-2
             elif session is not None:
                 req.cid = session["cid"]
             result = fn(req)
@@ -539,6 +576,10 @@ def ep_what_if(req):
         if not isinstance(c, dict):
             raise ApiError(400, "invalid_changes")
         target = _short_str(c.get("target"), "target", 60, allow_none=False)
+        kind, val = _insights()._resolve_target(target)
+        known = {l.lower() for l in classify.ALL_LABELS}
+        if kind == "labels" and not all(str(v).lower() in known for v in val):
+            raise ApiError(400, "invalid_target")
         clean.append({"target": target, "pct": _num(c.get("pct"), "pct", -100, 100)})
     months = req.body.get("months", 12)
     months = int(_num(months, "months", 1, 120))
@@ -572,7 +613,17 @@ def ep_mortgage(req):
 def ep_quiz(req):
     if req.settings.get("quiz") == "off":
         raise ApiError(404, "quiz_off")
-    result = _insights().quiz(req.conn, req.today)
+    ins = _insights()
+    if req.query.get("another") in ("1", "true", "yes"):
+        history = state.quiz_history(req.cid)
+        last = history[-1].get("label") if history else None
+        result = ins.quiz(req.conn, req.today, seed=1)
+        for seed in range(2, 14):
+            if result.get("label_or_context") != last:
+                break
+            result = ins.quiz(req.conn, req.today, seed=seed)
+    else:
+        result = ins.quiz(req.conn, req.today)
     state.save_quiz(req.cid, str(result["quiz_id"]), result)
     return result
 
@@ -585,9 +636,18 @@ def ep_quiz_answer(req):
     if state.load_quiz(req.cid, quiz_id) is None:
         raise ApiError(404, "unknown_quiz")
     if req.consent.get("benchmarks"):
-        return _insights().quiz_answer(req.conn, req.today, quiz_id, guess,
-                                       profile=db.profile(req.cid), bench_lookup=db.bench)
-    return _insights().quiz_answer(req.conn, req.today, quiz_id, guess)
+        res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess,
+                                      profile=db.profile(req.cid), bench_lookup=db.bench)
+    else:
+        res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess)
+    try:
+        state.add_quiz_result(req.cid, {
+            "at": datetime.datetime.now().replace(microsecond=0).isoformat(),
+            "label": str(res.get("label_or_context") or "")[:80],
+            "guess": guess, "actual": res.get("actual", 0)})
+    except ValueError:
+        pass
+    return res
 
 
 def ep_checkin(req):
@@ -626,11 +686,109 @@ def ep_transactions(req):
         limit = int(q.get("limit", 50))
     except ValueError:
         raise ApiError(400, "invalid_limit")
-    limit = max(1, min(limit, 50))
+    if limit < 1:
+        raise ApiError(400, "invalid_limit")
+    limit = min(limit, 50)
     kw = {k: _short_str(q.get(k), k, 100) for k in ("label", "basket", "context", "type", "q")}
     frm = _iso_date(q.get("from"), "from")
     to = _iso_date(q.get("to"), "to")
-    return _insights().transactions(req.conn, req.today, frm=frm, to=to, limit=limit, **kw)
+    ts_from = _ts(q.get("ts_from"), "ts_from")
+    ts_to = _ts(q.get("ts_to"), "ts_to")
+    return _insights().transactions(req.conn, req.today, frm=frm, to=to, limit=limit,
+                                    ts_from=ts_from, ts_to=ts_to, **kw)
+
+
+def _used_groups(conn, today, evidence):
+    """The transactions behind each evidence filter of a chat turn (W9)."""
+    ins = _insights()
+    groups, seen = [], set()
+    for ev in evidence or []:
+        if not isinstance(ev, dict):
+            continue
+        kw = {}
+        for k in ("label", "basket", "context", "type", "q"):
+            v = ev.get(k)
+            if isinstance(v, str) and v:
+                kw[k] = v[:100]
+        for src, dst in (("from", "frm"), ("to", "to"), ("ts_from", "ts_from"), ("ts_to", "ts_to")):
+            v = ev.get(src)
+            if isinstance(v, str) and v:
+                kw[dst] = v
+        key = json.dumps(kw, sort_keys=True)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            res = ins.transactions(conn, today, limit=USED_ROWS, **kw)
+        except Exception:
+            continue
+        groups.append({"title": str(ev.get("title") or "Transactions")[:120],
+                       "count": res["count"], "total": res["total"], "spent": res["spent"],
+                       "rows": res["rows"], "truncated": res["truncated"]})
+        if len(groups) >= MAX_USED_GROUPS:
+            break
+    return groups
+
+
+def _apply_override(req, conn, tx_id, label, context, apply_to_merchant):
+    """Remember a category for one of the customer's own transactions (or its merchant)."""
+    if isinstance(tx_id, bool) or not isinstance(tx_id, int) or tx_id < 1:
+        raise ApiError(400, "invalid_tx_id")
+    if not isinstance(label, str) or label not in classify.ALL_LABELS:
+        raise ApiError(400, "invalid_label")
+    if context in (None, False):
+        context = ""
+    if context is True:
+        context = "night_out"
+    if context not in ("", "night_out"):
+        raise ApiError(400, "invalid_context")
+    # the sandbox only holds this customer's rows, so a foreign id is simply "not found"
+    if conn.execute("SELECT 1 FROM tx WHERE id = ?", (tx_id,)).fetchone() is None:
+        raise ApiError(404, "not_found")
+    merchant = db.tx_merchant(req.cid, tx_id)   # looked up here; the client never sends it
+    if apply_to_merchant and merchant is None:
+        raise ApiError(400, "no_merchant")
+    rec = {"scope": "merchant" if apply_to_merchant else "tx", "tx_id": tx_id,
+           "merchant": merchant, "label": label, "context": context}
+    try:
+        ov = state.add_override(req.cid, rec)
+    except ValueError as e:
+        if "too many" in str(e):
+            raise ApiError(400, "too_many_overrides")
+        raise ApiError(400, "invalid_override")
+    if apply_to_merchant:
+        affected = conn.execute("SELECT COUNT(*) FROM tx WHERE merchant = ?", (merchant,)).fetchone()[0]
+    else:
+        affected = 1
+    return ov, int(affected)
+
+
+def _override_public(conn, ov):
+    """Override as shown to the client: no merchant id."""
+    out = {"id": ov["id"], "scope": ov["scope"], "label": ov["label"],
+           "context": ov.get("context") or "", "created": ov.get("created")}
+    if ov["scope"] == "tx":
+        out["tx_id"] = ov.get("tx_id")
+        r = conn.execute("SELECT d, amount FROM tx WHERE id = ?", (ov.get("tx_id"),)).fetchone()
+        out["description"] = ("One purchase on %s (%.2f EUR)" % (r[0], abs(r[1]))) if r else "One purchase"
+    else:
+        n = conn.execute("SELECT COUNT(*) FROM tx WHERE merchant = ?", (ov.get("merchant"),)).fetchone()[0]
+        out["description"] = "Every purchase from the same merchant (%d so far)" % n
+    return out
+
+
+def _customer_figures(req):
+    """{"monthly_income", "housing_cost"} for the area comparison, or None."""
+    ins = _insights()
+    try:
+        income = float(ins.mortgage(req.conn, req.today).get("monthly_income") or 0)
+        housing = ins.spend(req.conn, req.today, period="last_3_months", label="Housing")
+        cost = float(housing.get("total") or 0) / 3.0
+    except Exception:
+        return None
+    if income <= 0:
+        return None
+    return {"monthly_income": income, "housing_cost": cost}
 
 
 def ep_chat(req):
@@ -642,16 +800,65 @@ def ep_chat(req):
     if not msg or len(msg) > MAX_MESSAGE:
         raise ApiError(400, "invalid_message")
     session = req.session
+    changed = {"v": False}
+
+    def remember(tx_id, label, context=None, apply_to_merchant=False):
+        ov, affected = _apply_override(req, req.conn, tx_id, label, context, bool(apply_to_merchant))
+        changed["v"] = True
+        return {"override": _override_public(req.conn, ov), "affected": affected}
+
+    def area_lookup():
+        if not req.consent.get("benchmarks"):
+            return None
+        from . import area
+        return area.area_context(db.postal_code(req.cid) or "", _customer_figures(req))
+
+    def explain(text):
+        return _run_explain(text, req.consent)
+
     ctx = SimpleNamespace(conn=req.conn, today=req.today, profile=db.profile(req.cid),
                           consent=dict(req.consent), settings=dict(req.settings),
-                          bench_lookup=db.bench)
+                          bench_lookup=db.bench, goal=state.get_goal(req.cid),
+                          quiz_history=state.quiz_history(req.cid),
+                          challenge=state.get_challenge(req.cid),
+                          area_lookup=area_lookup, remember=remember,
+                          explain=explain, memory=session.setdefault("memory", {}))
     history = list(session["history"])
     result = coach.chat(msg, history, ctx)
     session["ai_payload"] = result.pop("ai_payload", None)
-    history.append({"role": "user", "content": msg})
+    conn = req.conn
+    if changed["v"]:   # a remembered category changes what the answer's rows look like
+        conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid))
+    try:
+        result["used"] = _used_groups(conn, req.today, result.get("evidence"))
+    finally:
+        if conn is not req.conn:
+            conn.close()
+    # a pasted document never goes into the history that is sent to the AI model on later turns
+    shown = result.pop("history_user", None) or msg
+    history.append({"role": "user", "content": shown})
     history.append({"role": "assistant", "content": str(result.get("reply", ""))})
     session["history"] = history[-2 * HISTORY_TURNS:]
     return result
+
+
+def _run_explain(text, consent):
+    """explain_text with the AI model only when AI consent is on and a key is configured (SR-4)."""
+    from . import explain
+    key = config.gemini_api_key()
+    allow = bool((consent or {}).get("ai")) and bool(key)
+    return explain.explain_text(text, api_key=key if allow else None,
+                                model=config.gemini_model() if allow else None, allow_ai=allow)
+
+
+def ep_explain(req):
+    text = req.body.get("text")
+    if not isinstance(text, str):
+        raise ApiError(400, "invalid_text")
+    text = text.strip()
+    if not EXPLAIN_MIN <= len(text) <= EXPLAIN_MAX:
+        raise ApiError(400, "invalid_text")
+    return _run_explain(text, state.get_consent(req.session["cid"]))   # the text is never logged
 
 
 def ep_ai_payload(req):
@@ -662,7 +869,204 @@ def ep_erase(req):
     state.erase(req.session["cid"])
     req.session["history"] = []
     req.session["ai_payload"] = None
+    req.session.setdefault("memory", {}).clear()
     return {"ok": True}
+
+
+def _features():
+    from . import features
+    return features
+
+
+def _saving_target(req):
+    try:
+        return float(req.settings.get("monthly_saving_target") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def ep_afford(req):
+    item = req.body.get("item")
+    if not isinstance(item, str) or not item.strip() or len(item) > MAX_ITEM_CHARS:
+        raise ApiError(400, "invalid_item")
+    price = _num(req.body.get("price"), "price")
+    if not 0 < price <= MAX_PRICE:
+        raise ApiError(400, "invalid_price")
+    return _features().afford(req.conn, req.today, item.strip(), price,
+                              goal=state.get_goal(req.cid),
+                              monthly_saving_target=_saving_target(req))
+
+
+def ep_goal(req):
+    if req.handler.command != "POST":
+        return {"goal": state.get_goal(req.cid)}
+    if req.body.get("clear") is True:
+        return {"goal": state.set_goal(req.cid, None)}
+    d = {k: req.body.get(k) for k in ("name", "target", "saved")}
+    if d["saved"] is None:
+        d["saved"] = 0
+    return {"goal": state.set_goal(req.cid, d)}
+
+
+def ep_purchase_insight(req):
+    tx_id = None
+    raw = req.query.get("tx_id")
+    if raw not in (None, ""):
+        try:
+            tx_id = int(raw)
+        except ValueError:
+            raise ApiError(400, "invalid_tx_id")
+        if tx_id < 1:
+            raise ApiError(400, "invalid_tx_id")
+    elif req.settings.get("suggestion_level") == "off" or not req.consent.get("suggestions"):
+        return {"text": None, "tx": None, "habit": None, "equivalents": [], "note": None,
+                "explain": "Suggestions are switched off, so no note about the latest purchase is shown.",
+                "evidence": []}
+    return _features().purchase_insight(req.conn, req.today, tx_id)
+
+
+def ep_patterns(req):
+    return _features().patterns(req.conn, req.today)
+
+
+def ep_goal_plan(req):
+    b = req.body
+    name = b.get("name")
+    if not isinstance(name, str) or not name.strip() or len(name) > 60:
+        raise ApiError(400, "invalid_name")
+    name = name.strip()
+    target = _num(b.get("target"), "target", 0.01, 50_000_000, allow_none=True)
+    deadline = b.get("deadline")
+    if deadline in (None, ""):
+        deadline = None
+    elif not isinstance(deadline, str) or not re.fullmatch(r"\d{4}(-(0[1-9]|1[0-2])(-\d{2})?)?", deadline):
+        raise ApiError(400, "invalid_deadline")
+    saved = 0.0
+    goal = state.get_goal(req.cid)
+    if isinstance(goal, dict) and str(goal.get("name") or "").strip().lower() == name.lower():
+        try:
+            saved = max(0.0, float(goal.get("saved") or 0))
+        except (TypeError, ValueError):
+            saved = 0.0
+    return _features().goal_plan(req.conn, req.today, name, target, deadline, saved=saved,
+                                 monthly_saving_target=_saving_target(req))
+
+
+def ep_leaks(req):
+    try:
+        months = int(req.query.get("months", "3"))
+    except ValueError:
+        raise ApiError(400, "invalid_months")
+    if not 1 <= months <= 12:
+        raise ApiError(400, "invalid_months")
+    return _features().leaks(req.conn, req.today, months=months)
+
+
+def ep_alerts(req):
+    if req.settings.get("suggestion_level") == "off" or not req.consent.get("suggestions"):
+        return {"alerts": []}
+    feat = _features()
+    if req.consent.get("benchmarks"):
+        res = feat.alerts(req.conn, req.today, db.profile(req.cid), db.bench)
+    else:
+        res = feat.alerts(req.conn, req.today)
+    res = dict(res)
+    alerts = list(res.get("alerts") or [])
+    leak = feat.savings_leakage(req.conn, req.today)
+    if leak.get("flag"):
+        alerts.append({"id": "savings_leak", "kind": "savings_leak", "severity": "notice",
+                       "title": "Savings are covering the end of the month",
+                       "detail": leak.get("text", ""), "amount": leak.get("total"),
+                       "evidence": leak.get("evidence") or []})
+    res["alerts"] = alerts
+    return res
+
+
+def ep_savings_leakage(req):
+    return _features().savings_leakage(req.conn, req.today)
+
+
+def ep_forecast(req):
+    return _features().forecast(req.conn, req.today, monthly_saving_target=_saving_target(req))
+
+
+def ep_payday_plan(req):
+    return _features().payday_plan(req.conn, req.today, goal=state.get_goal(req.cid),
+                                   monthly_saving_target=_saving_target(req))
+
+
+def ep_overrides(req):
+    if req.handler.command != "POST":
+        return {"overrides": [_override_public(req.conn, o) for o in state.list_overrides(req.cid)]}
+    b = req.body   # any merchant or customer id sent by the client is ignored
+    ov, affected = _apply_override(req, req.conn, b.get("tx_id"), b.get("label"), b.get("context"),
+                                   b.get("apply_to_merchant") is True)
+    conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid))
+    try:
+        return {"override": _override_public(conn, ov), "affected": affected}
+    finally:
+        conn.close()
+
+
+def ep_overrides_remove(req):
+    oid = req.body.get("id")
+    if isinstance(oid, bool) or not isinstance(oid, int):
+        raise ApiError(400, "invalid_id")
+    state.remove_override(req.cid, oid)
+    return {"ok": True}
+
+
+def _challenge_view(req, stored):
+    if not stored:
+        return None
+    try:
+        return _features().challenge_progress(req.conn, req.today, stored)
+    except Exception:
+        return None
+
+
+def ep_challenge(req):
+    enabled = req.settings.get("challenges") == "on"
+    if req.handler.command != "POST":
+        active = _challenge_view(req, state.get_challenge(req.cid))
+        options = []
+        if enabled:
+            options = list(_features().challenge_options(req.conn, req.today).get("options") or [])
+        return {"enabled": enabled, "active": active, "options": options}
+    if req.body.get("stop") is True:
+        state.set_challenge(req.cid, None)
+        return {"active": None}
+    if not enabled:
+        raise ApiError(403, "challenges_off")
+    wanted = req.body.get("id")
+    if not isinstance(wanted, str) or not wanted or len(wanted) > 200:
+        raise ApiError(400, "invalid_id")
+    options = _features().challenge_options(req.conn, req.today).get("options") or []
+    chosen = next((o for o in options if o.get("id") == wanted), None)
+    if chosen is None:
+        raise ApiError(400, "unknown_challenge")
+    stored = dict(chosen)
+    stored["accepted_at"] = datetime.datetime.now().replace(microsecond=0).isoformat()
+    state.set_challenge(req.cid, stored)
+    return {"active": _challenge_view(req, stored)}
+
+
+def ep_quiz_stats(req):
+    return _features().quiz_stats(state.quiz_history(req.cid))
+
+
+def ep_area(req):
+    if not req.consent.get("benchmarks"):
+        raise ApiError(403, "consent_required")
+    from . import area
+    return area.area_context(db.postal_code(req.cid) or "", _customer_figures(req))
+
+
+NOT_OFFERED = ("Salary", "Other income")
+
+
+def ep_labels(req):
+    return {"labels": [l for l in classify.ALL_LABELS if l not in NOT_OFFERED]}
 
 
 ROUTES = {
@@ -687,6 +1091,23 @@ ROUTES = {
     "/api/suggestions/action": ("POST", ep_suggestion_action),
     "/api/transactions": ("GET", ep_transactions),
     "/api/chat": ("POST", ep_chat),
+    "/api/afford": ("POST", ep_afford),
+    "/api/goal": ("GET|POST", ep_goal),
+    "/api/explain": ("POST", ep_explain),
+    "/api/purchase-insight": ("GET", ep_purchase_insight),
+    "/api/patterns": ("GET", ep_patterns),
+    "/api/goal-plan": ("POST", ep_goal_plan),
+    "/api/leaks": ("GET", ep_leaks),
+    "/api/alerts": ("GET", ep_alerts),
+    "/api/savings-leakage": ("GET", ep_savings_leakage),
+    "/api/forecast": ("GET", ep_forecast),
+    "/api/payday-plan": ("GET", ep_payday_plan),
+    "/api/overrides": ("GET|POST", ep_overrides),
+    "/api/overrides/remove": ("POST", ep_overrides_remove),
+    "/api/challenge": ("GET|POST", ep_challenge),
+    "/api/quiz/stats": ("GET", ep_quiz_stats),
+    "/api/area": ("GET", ep_area),
+    "/api/labels": ("GET", ep_labels),
     "/api/privacy/ai-payload": ("GET", ep_ai_payload),
     "/api/privacy/erase": ("POST", ep_erase),
 }

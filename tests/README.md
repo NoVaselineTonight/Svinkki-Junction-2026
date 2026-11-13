@@ -99,3 +99,7 @@ fields. V16 is only the hygiene miniature; run a real secret scan before the dem
 * V17 captures stdout, stderr and the `logging` module; a server that logs to its own file is not seen.
 * The V14 static check is a heuristic (regex over `web/*.js` and `web/*.html`).
 * Rate-limit tests send 100 chat and 330 data requests, so they take a few seconds.
+
+## Changes
+
+* `test_http.py`: expected settings defaults gained `"challenges": "off"`, and `challenges` validation (on/off only) was added, because `.devloop/WAVE2.md` section 2 added that setting after the tests were written (contract change, not a code defect).

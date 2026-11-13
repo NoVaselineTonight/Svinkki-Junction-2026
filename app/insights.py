@@ -186,6 +186,8 @@ def period(today, name):
         a, b = t, t
     elif key == "yesterday":
         a = b = t - timedelta(days=1)
+    elif key == "last_night":     # yesterday 18:00 up to today 06:00 (see period_ts)
+        a, b = t - timedelta(days=1), t
     elif key == "this_week":
         a, b = mon, t
     elif key == "last_week":
@@ -210,6 +212,16 @@ def period(today, name):
     else:
         raise ValueError("unknown period: %s" % name)
     return a.isoformat(), b.isoformat()
+
+
+def period_ts(today, name):
+    """(ts_from, ts_to) for periods that are not whole days (`last_night`), else None.
+    ts_from is inclusive and ts_to exclusive, both 'YYYY-MM-DD HH:MM:SS'."""
+    key = str(name or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if key != "last_night":
+        return None
+    t = _d(today)
+    return ("%s 18:00:00" % (t - timedelta(days=1)).isoformat(), "%s 06:00:00" % t.isoformat())
 
 
 def _resolve_period(today, p):
@@ -303,9 +315,15 @@ def _disp_evidence(label, frm, to, title=None):
 # --------------------------------------------------------------------------- transactions
 
 def transactions(conn, today, frm=None, to=None, label=None, basket=None, context=None, type=None,
-                 q=None, limit=50):
+                 q=None, limit=50, ts_from=None, ts_to=None):
     where = ["d<=?"]
     params = [str(today)[:10]]
+    if ts_from:
+        where.append("ts>=?")
+        params.append(str(ts_from)[:19])
+    if ts_to:
+        where.append("ts<?")
+        params.append(str(ts_to)[:19])
     if frm:
         where.append("d>=?")
         params.append(str(frm)[:10])
@@ -342,10 +360,11 @@ def transactions(conn, today, frm=None, to=None, label=None, basket=None, contex
     agg = _one(conn, "SELECT COUNT(*), COALESCE(SUM(amount),0), "
                      "COALESCE(-SUM(CASE WHEN amount<0 THEN amount END),0) FROM tx WHERE " + wsql, params)
     rows = conn.execute(
-        "SELECT d, ts, amount, label, basket, context, category, merchant, %s FROM tx WHERE %s "
+        "SELECT d, ts, amount, label, basket, context, category, merchant, %s, id FROM tx WHERE %s "
         "ORDER BY ts DESC, rowid DESC LIMIT ?" % (_DISP_SQL, wsql), params + [limit]).fetchall()
     out = [{"d": r[0], "ts": r[1], "amount": _r(r[2]), "label": r[3], "basket": r[4],
-            "context": r[5] or "", "category": r[6], "merchant": r[7], "display_label": r[8]}
+            "context": r[5] or "", "category": r[6], "merchant": r[7], "display_label": r[8],
+            "id": r[9]}
            for r in rows]
     return {"count": int(agg[0]), "total": _r(agg[1]), "spent": _r(agg[2]), "rows": out,
             "truncated": int(agg[0]) > len(out)}
@@ -449,9 +468,20 @@ def _rules_text():
 
 # --------------------------------------------------------------------------- spend
 
-def spend(conn, today, period="last_month", label=None, basket=None, context=None):
+def spend(conn, today, period="last_month", label=None, basket=None, context=None,
+          ts_from=None, ts_to=None):
     frm, to = _resolve_period(today, period)
+    if ts_from is None and ts_to is None and isinstance(period, str):
+        pts = period_ts(today, period)
+        if pts:
+            ts_from, ts_to = pts
     where, params = "", []
+    if ts_from:
+        where += " AND ts>=?"
+        params.append(str(ts_from)[:19])
+    if ts_to:
+        where += " AND ts<?"
+        params.append(str(ts_to)[:19])
     target = None
     if label:
         target = _resolve_target(label)
@@ -507,6 +537,12 @@ def spend(conn, today, period="last_month", label=None, basket=None, context=Non
         evidence = _spend_filters(frm, to)
     if context and str(context).lower() == "night_out" and not label:
         evidence = [_ev("Night out spending", frm, to, context="night_out")]
+    if ts_from or ts_to:
+        for e in evidence:
+            if ts_from:
+                e["ts_from"] = str(ts_from)[:19]
+            if ts_to:
+                e["ts_to"] = str(ts_to)[:19]
     if count == 0:
         explain = "No matching spending in %s." % human_range(frm, to)
     else:

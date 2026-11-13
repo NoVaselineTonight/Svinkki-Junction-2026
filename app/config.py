@@ -7,7 +7,7 @@ DEFAULTS = {
     "SVINKKI_DATA_DIR": "C:/Users/onnik/Desktop/Junction-2026-S-pankki-filtered",
     "SVINKKI_DB": "data/svinkki.db",
     "SVINKKI_STATE_DB": "data/state.db",
-    "SVINKKI_TODAY": "2026-09-24",
+    "SVINKKI_TODAY": "2026-09-26",
     "SVINKKI_PORT": "8000",
     "GEMINI_API_KEY": "",
     "GEMINI_MODEL": "gemini-3.5-flash-lite",

@@ -23,7 +23,7 @@ from app import classify
 
 _REPO = Path(__file__).resolve().parent.parent
 DEFAULT_DATA_DIR = "C:/Users/onnik/Desktop/Junction-2026-S-pankki-filtered"
-DEFAULT_TODAY = "2026-09-24"
+DEFAULT_TODAY = "2026-09-26"
 BATCH = 50_000
 MIN_GROUP = 20
 
@@ -485,7 +485,7 @@ def _build_bench(cstats: dict, customers: dict):
 _NAMES = ["Veeti", "Aino", "Mikko", "Joonas", "Helmi", "Pentti"]
 
 
-def _pick_personas(cstats: dict, customers: dict, mortgage: dict):
+def _pick_personas(cstats: dict, customers: dict, mortgage: dict, bar_last_night=frozenset()):
     """Choose 6 real customers by rule. Returns list of (cid, name, blurb)."""
     info = {}
     for cid, st in cstats.items():
@@ -537,8 +537,13 @@ def _pick_personas(cstats: dict, customers: dict, mortgage: dict):
         spent = last.get("regular", 0.0) + last.get("unexpected", 0.0) + last.get("everyday", 0.0)
         return (last.get("label:Taxi", 0.0) > 0 and last.get("night_out", 0.0) > 0
                 and last.get("income", 0.0) - spent - last.get("savings", 0.0) > 50)
-    c = pick([c for c in young if demo_ready(c)], lambda c: info[c]["eat_share"])         or pick(young, lambda c: info[c]["eat_share"]) or fallback()
-    chosen.append((c, "Eats out and goes out a lot; a young adult starting to live on their own."))
+
+    def demo_best(c):
+        # Also went to a bar "last night" (relative to today), so that question has an answer.
+        return demo_ready(c) and c in bar_last_night
+    # Youngest customer of any age who has all the demo data; then progressively weaker fallbacks.
+    c = pick([c for c in info if demo_best(c)], lambda c: -info[c]["age"])         or pick([c for c in young if demo_ready(c)], lambda c: info[c]["eat_share"])         or pick(young, lambda c: info[c]["eat_share"]) or fallback()
+    chosen.append((c, "Goes out and eats out regularly: taxis, bars and nights out to ask about."))
     saver = [c for c in info if 25 <= info[c]["age"] <= 34 and info[c]["income"] > 0]
     c = pick(saver, lambda c: info[c]["save"]) or fallback()
     chosen.append((c, "Sets money aside every month and wants to know how fast the goals can be reached."))
@@ -566,8 +571,101 @@ def _pick_personas(cstats: dict, customers: dict, mortgage: dict):
 
 # --------------------------------------------------------------------------- build
 
+class _NotGrouped(Exception):
+    """A customer id reappeared after other customers: the CSV is not grouped by customer."""
+
+
+def _parse_tx_row(row):
+    try:
+        amount = float(row[5])
+        balance = float(row[6]) if row[6] != "" else 0.0
+    except ValueError:
+        return None
+    return [row[2], convert_ts(row[3], row[2]), amount, balance, row[7], row[4], row[9], row[8]]
+
+
+def _grouped_stream(tx_path):
+    """Fast path: yield (cid, rows) while the file is grouped by customer. Raises _NotGrouped as
+    soon as a customer id reappears after another customer."""
+    seen = set()
+    cur_cid, cur_rows = None, []
+    with _open_csv(tx_path) as f:
+        reader = csv.reader(f)
+        next(reader)  # header
+        for row in reader:
+            cid = row[0]
+            if cid != cur_cid:
+                if cur_cid is not None:
+                    yield cur_cid, cur_rows
+                if cid in seen:
+                    raise _NotGrouped()
+                seen.add(cid)
+                cur_cid, cur_rows = cid, []
+            parsed = _parse_tx_row(row)
+            if parsed is not None:
+                cur_rows.append(parsed)
+        if cur_cid is not None:
+            yield cur_cid, cur_rows
+
+
+def _sorted_stream(tx_path, raw_path):
+    """Slow path for any row order: spool rows into a temporary SQLite file, then yield
+    (cid, rows) customer by customer in file order within each customer."""
+    for p in (raw_path, raw_path + "-journal"):
+        if os.path.exists(p):
+            os.remove(p)
+    raw = sqlite3.connect(raw_path)
+    try:
+        raw.execute("PRAGMA journal_mode = OFF")
+        raw.execute("PRAGMA synchronous = OFF")
+        raw.execute("CREATE TABLE raw (cid TEXT, d TEXT, ts TEXT, amount REAL, balance REAL, "
+                    "type TEXT, category TEXT, mcc TEXT, merchant TEXT)")
+        buf = []
+        with _open_csv(tx_path) as f:
+            reader = csv.reader(f)
+            next(reader)
+            for row in reader:
+                parsed = _parse_tx_row(row)
+                if parsed is None:
+                    continue
+                buf.append((row[0],) + tuple(parsed))
+                if len(buf) >= BATCH:
+                    _spool(raw, buf)
+                    buf = []
+        _spool(raw, buf)
+        raw.execute("CREATE INDEX raw_cid ON raw(cid)")
+        cids = [r[0] for r in raw.execute("SELECT DISTINCT cid FROM raw ORDER BY cid")]
+        for cid in cids:
+            rows = [list(r) for r in raw.execute(
+                "SELECT d, ts, amount, balance, type, category, mcc, merchant FROM raw "
+                "WHERE cid = ? ORDER BY rowid", (cid,))]
+            yield cid, rows
+    finally:
+        raw.close()
+        for p in (raw_path, raw_path + "-journal"):
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except OSError:
+                    pass
+
+
+def _spool(raw, buf):
+    if buf:
+        raw.executemany("INSERT INTO raw VALUES (?,?,?,?,?,?,?,?,?)", buf)
+
+
 def build(data_dir: str, out_path: str, limit_customers: int | None = None) -> dict:
     t0 = time.time()
+    try:
+        return _build(data_dir, out_path, limit_customers, t0, grouped=True)
+    except _NotGrouped:
+        print("[ingest] customers are interleaved in the CSV: rebuilding with the "
+              "any-order path", flush=True)
+        return _build(data_dir, out_path, limit_customers, t0, grouped=False)
+
+
+def _build(data_dir, out_path, limit_customers, t0, grouped):
     today = _today()
     data_dir = str(data_dir)
     out_path = str(out_path)
@@ -590,52 +688,35 @@ def build(data_dir: str, out_path: str, limit_customers: int | None = None) -> d
     cstats = {}
     total_rows = 0
     batch = []
-    seen = set()
-
-    def flush_customer(cid, rows):
-        nonlocal total_rows, batch
-        if cid in seen:
-            print(f"[ingest] warning: rows of {cid} are not contiguous in the CSV", flush=True)
-        seen.add(cid)
-        out, stats = _process_customer(cid, rows, today)
-        cstats[cid] = stats
-        batch.extend(out)
-        total_rows += len(out)
-        if len(batch) >= BATCH:
-            conn.executemany(insert_sql, batch)
-            batch = []
+    next_report = 500_000
 
     tx_path = os.path.join(data_dir, TX_FILE)
     print(f"[ingest] streaming {tx_path}", flush=True)
-    cur_cid, cur_rows, read = None, [], 0
-    next_report = 500_000
-    done_early = False
-    with _open_csv(tx_path) as f:
-        reader = csv.reader(f)
-        next(reader)  # header
-        for row in reader:
-            cid = row[0]
-            if cid != cur_cid:
-                if cur_cid is not None:
-                    flush_customer(cur_cid, cur_rows)
-                    if limit_customers is not None and len(seen) >= limit_customers:
-                        cur_rows, cur_cid, done_early = [], None, True
-                        break
-                cur_cid, cur_rows = cid, []
-            try:
-                amount = float(row[5])
-                balance = float(row[6]) if row[6] != "" else 0.0
-            except ValueError:
-                continue
-            cur_rows.append([row[2], convert_ts(row[3], row[2]), amount, balance, row[7],
-                             row[4], row[9], row[8]])
-            read += 1
-            if read >= next_report:
-                print(f"[ingest]   {read:,} rows read, {len(seen):,} customers, "
+    stream = (_grouped_stream(tx_path) if grouped
+              else _sorted_stream(tx_path, tmp_path + ".raw"))
+    try:
+        for cid, rows in stream:
+            out, stats = _process_customer(cid, rows, today)
+            cstats[cid] = stats
+            batch.extend(out)
+            total_rows += len(out)
+            if len(batch) >= BATCH:
+                conn.executemany(insert_sql, batch)
+                batch = []
+            if total_rows >= next_report:
+                print(f"[ingest]   {total_rows:,} rows read, {len(cstats):,} customers, "
                       f"{time.time() - t0:.0f}s", flush=True)
                 next_report += 500_000
-        if cur_cid is not None and not done_early:
-            flush_customer(cur_cid, cur_rows)
+            if limit_customers is not None and len(cstats) >= limit_customers:
+                break
+    except _NotGrouped:
+        conn.close()
+        for p in (tmp_path, tmp_path + "-journal"):
+            if os.path.exists(p):
+                os.remove(p)
+        raise
+    finally:
+        stream.close()
     if batch:
         conn.executemany(insert_sql, batch)
         batch = []
@@ -655,7 +736,12 @@ def build(data_dir: str, out_path: str, limit_customers: int | None = None) -> d
     pool = sorted(c for c, st in cstats.items() if st.get("demo"))
     conn.executemany("INSERT INTO demo_pool VALUES (?)", [(c,) for c in pool])
     print(f"[ingest] demo pool: {len(pool)} customers qualify", flush=True)
-    personas = _pick_personas(cstats, customers, mortgage)
+    # Customers with a bar purchase "last night": yesterday 18:00 up to today 06:00.
+    _y = (date.fromisoformat(today) - timedelta(days=1)).isoformat()
+    bar_last_night = frozenset(r[0] for r in conn.execute(
+        "SELECT DISTINCT cid FROM tx WHERE label = 'Bar' AND ts >= ? AND ts < ?",
+        (_y + " 18:00:00", today + " 06:00:00")))
+    personas = _pick_personas(cstats, customers, mortgage, bar_last_night)
     conn.executemany("INSERT INTO personas VALUES (?,?,?)", personas)
 
     conn.executemany("INSERT INTO meta VALUES (?,?)", [

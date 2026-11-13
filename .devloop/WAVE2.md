@@ -196,6 +196,81 @@ population and average age. With `customer` (`{"monthly_income", "housing_cost"}
 sets the customer's income beside the area's median (converted to a monthly figure, stating that
 Paavo incomes are yearly and from the survey year). Unknown postal code: rows `[]` with a note.
 
+## 7. Additions made while wave 2 was running
+
+Three more requirements from the team. Each owner picks up its part.
+
+### 7.1 W9: show the transactions behind every answer, inline
+
+Whenever the customer's own transactions were used to answer, the answer shows which ones, in an
+expandable part directly under it. Example: "How much did I spend at bars last night?" then
+"You spent €100." and under it a closed row "Transactions used (3)" that opens to list them.
+
+- SERVER2: `POST /api/chat` adds `used` to its result: for each evidence filter of the turn (in
+  order, duplicates removed, at most 6 groups), `{"title", "count", "total", "spent", "rows":
+  [...], "truncated"}` from `insights.transactions(conn, today, **filter, limit=20)`. Groups with
+  zero rows are kept with `count: 0` so the UI can say "No transactions matched". Tools that used
+  no transactions (area, quiz stats, refusals) give `used: []`.
+- SERVER2, in `app/insights.py`: `period()` also accepts `today`, `yesterday` and `last_night`
+  (yesterday 18:00 up to today 06:00). `transactions()` and `spend()` accept optional `ts_from`
+  and `ts_to` (`YYYY-MM-DD HH:MM:SS`, inclusive start, exclusive end), and evidence filters carry
+  them when a period is not whole days. `GET /api/transactions` accepts `ts_from` and `ts_to`
+  (validated; 400 when malformed).
+- COACH2: the offline router understands "last night", "yesterday", "today", "this morning" and
+  "on Friday"/"last Friday" style weekday references, plus "at bars", "in bars", "at the pub";
+  `get_spend` and `list_transactions` take a `period` value of `today`, `yesterday` or
+  `last_night`. In Gemini mode the system prompt says: never list individual transactions in the
+  text, the app shows them under the answer.
+- WEB2: under every coach reply whose `used` has at least one group, render a closed disclosure
+  "Transactions used (N)" (N = total rows across groups; a real button with `aria-expanded`).
+  Opened, it shows each group's title, count and total, then its rows (date, label, amount; the
+  "Night out" tag when the context says so), a "Showing 20 of N" line when truncated, and the
+  existing "Change category" action per row. A reply with `used: []` shows no disclosure. Keep the
+  bottom-sheet link for the full list.
+
+### 7.2 W10: balance forecast (extends safe-to-spend)
+
+```python
+# app/features.py
+def forecast(conn, today, monthly_saving_target: float = 0.0, days: int | None = None) -> dict
+```
+Day-by-day projected balance from today to the next payday (or `days` ahead, at most 45). Uses
+the same expected bills as `insights.safe_to_spend` on their due dates, the planned savings on
+their usual day, and the customer's typical everyday spending for each weekday (average of the
+last 8 weeks for that weekday). Returns `{"from", "to", "start_balance", "points": [{"d",
+"balance", "events": [{"label", "amount"}]}], "lowest": {"d", "balance"}, "goes_negative": bool,
+"first_negative": d | None, "end_balance", "text", "explain", "evidence"}`. `text` is one plain
+sentence ("At your usual pace your balance stays above €310 until payday on 15 Oct." or "At your
+usual pace you would dip below zero around 9 Oct, about €85 short.").
+
+- SERVER2: `GET /api/forecast`. COACH2: tool `get_balance_forecast` (card `forecast`) for "will I
+  make it to payday?", "when will I run out?", "balance forecast". WEB2: a small line chart under
+  the safe-to-spend hero's "How this is calculated" (an inline SVG built with
+  `document.createElementNS`, the zero line marked, bill days as dots with their labels in a list
+  below), and the chat card.
+
+### 7.3 W11: payday plan across the three baskets
+
+```python
+# app/features.py
+def payday_plan(conn, today, goal: dict | None = None, monthly_saving_target: float = 0.0) -> dict
+```
+A suggested split of the next salary. Returns `{"next_payday", "expected_salary", "lines":
+[{"key": "regular"|"unexpected"|"savings"|"everyday", "name", "amount", "share", "why"}],
+"everyday_per_week", "everyday_per_day", "goal_line": None | {"name", "amount", "months_to_goal"},
+"text", "explain", "evidence"}`. Regular = expected bills and regular-basket spending for the
+cycle (median of the last 3 full months); unexpected = the customer's average monthly unexpected
+spending (so the buffer refills); savings = the saving target if set, else the usual monthly
+deposit, else 10 % of what is left when that leaves at least 15 EUR a day for everyday spending;
+everyday = the remainder. The four lines sum to `expected_salary`. If the remainder is negative,
+say so plainly and set savings to 0.
+
+- SERVER2: `GET /api/payday-plan`. COACH2: tool `get_payday_plan` (card `payday_plan`) for "plan
+  my payday", "how should I split my salary?", "what should I do with my next salary?". WEB2: an
+  Explore section "Your payday plan" (a four-part stacked bar in the basket colours with the four
+  lines and the per-week everyday amount) and the chat card. Nothing moves money; the card says
+  "This is a plan, not a transfer."
+
 ## 6. Frontend (`web/*`, owner WEB2)
 
 - Home: a "Can I afford this?" quick card (item, price, button) showing the verdict, what is left

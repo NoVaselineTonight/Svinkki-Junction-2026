@@ -27,7 +27,8 @@ GATED_GET = ["/api/overview?month=2026-08", "/api/baskets?period=last_month", "/
 GATED_POST = [("/api/what-if", {"changes": [{"target": "Taxi", "pct": 10}], "months": 12}),
               ("/api/mortgage", {}), ("/api/quiz/answer", {"quiz_id": "x", "guess": 1}),
               ("/api/chat", {"message": "hello"})]
-SETTINGS = {"checkin_frequency": "monthly", "suggestion_level": "few", "quiz": "weekly", "monthly_saving_target": 0}
+SETTINGS = {"checkin_frequency": "monthly", "suggestion_level": "few", "quiz": "weekly", "monthly_saving_target": 0,
+            "challenges": "off"}
 
 
 def tool_args(tool_name, **want):
@@ -232,16 +233,26 @@ class ConsentAndSettingsTests(HttpCase):
         self.assertEqual(c.get("/api/me").json["settings"], SETTINGS)
         r = c.post("/api/settings", dict(SETTINGS, checkin_frequency="off", suggestion_level="normal", quiz="off", monthly_saving_target=250))
         self.assertEqual(r.status, 200)
-        self.assertEqual(r.json["settings"], {"checkin_frequency": "off", "suggestion_level": "normal", "quiz": "off", "monthly_saving_target": 250})
+        self.assertEqual(r.json["settings"], {"checkin_frequency": "off", "suggestion_level": "normal", "quiz": "off", "monthly_saving_target": 250, "challenges": "off"})
         self.assertEqual(c.get("/api/me").json["settings"]["checkin_frequency"], "off")
         for bad in (dict(SETTINGS, checkin_frequency="daily"), dict(SETTINGS, suggestion_level="lots"),
                     dict(SETTINGS, quiz="hourly"), dict(SETTINGS, monthly_saving_target=-5),
                     dict(SETTINGS, monthly_saving_target="abc"), dict(SETTINGS, checkin_frequency=7),
-                    dict(SETTINGS, monthly_saving_target=10 ** 12)):
+                    dict(SETTINGS, monthly_saving_target=10 ** 12),
+                    dict(SETTINGS, challenges="maybe"), dict(SETTINGS, challenges=True), dict(SETTINGS, challenges=1)):
             r = c.post("/api/settings", bad)
             self.assertEqual(r.status, 400, bad)
             self.assertIn("error", r.json)
         self.assertEqual(c.get("/api/me").json["settings"]["quiz"], "off", "rejected input must not change settings")
+
+    def test_challenges_setting_accepts_on_and_off_only(self):
+        c = self.session("A")
+        for v in ("on", "off"):
+            r = c.post("/api/settings", dict(SETTINGS, challenges=v))
+            self.assertEqual(r.status, 200, v)
+            self.assertEqual(r.json["settings"]["challenges"], v)
+        self.assertEqual(c.post("/api/settings", dict(SETTINGS, challenges="ON!")).status, 400)
+        self.assertEqual(c.get("/api/me").json["settings"]["challenges"], "off")
 
     def test_every_checkin_frequency_value_the_contract_names_is_accepted(self):
         c = self.session("A")

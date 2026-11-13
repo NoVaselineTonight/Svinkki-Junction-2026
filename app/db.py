@@ -71,27 +71,87 @@ def profile(cid) -> dict:
         conn.close()
 
 
-def sandbox(cid, today: str) -> sqlite3.Connection:
-    """In-memory database with table `tx` holding only this customer's rows with d <= today."""
+def _apply_overrides(mem, overrides) -> None:
+    """Apply the customer's remembered categories to the in-memory copy (before it turns read-only).
+    Merchant overrides first, then single-transaction overrides, so the more specific one wins."""
+    from app import classify
+    ordered = sorted((o for o in overrides if isinstance(o, dict)),
+                     key=lambda o: (0 if o.get("scope") == "merchant" else 1, o.get("id") or 0))
+    for o in ordered:
+        label = o.get("label")
+        if label not in classify.ALL_LABELS:
+            continue
+        context = o.get("context") or ""
+        if context not in ("", "night_out"):
+            context = ""
+        if o.get("scope") == "tx" and isinstance(o.get("tx_id"), int):
+            rows = mem.execute("SELECT id, type, category, amount FROM tx WHERE id = ?",
+                               (o["tx_id"],)).fetchall()
+        elif o.get("scope") == "merchant" and o.get("merchant"):
+            rows = mem.execute("SELECT id, type, category, amount FROM tx WHERE merchant = ?",
+                               (o["merchant"],)).fetchall()
+        else:
+            continue
+        for rid, typ, cat, amount in rows:
+            basket = o.get("basket") or classify.basket_for(typ, label, cat, amount)
+            mem.execute("UPDATE tx SET label = ?, basket = ?, context = ? WHERE id = ?",
+                        (label, basket, context, rid))
+
+
+def sandbox(cid, today: str, overrides=None) -> sqlite3.Connection:
+    """In-memory database with table `tx` holding only this customer's rows with d <= today.
+
+    The extra integer column `id` (last) is the row's rowid in the main table. `overrides` (the
+    customer's remembered categories, from app.state.list_overrides) are applied before the
+    connection becomes read-only."""
     cols = ", ".join(SANDBOX_COLUMNS)
     src = _ro()
     try:
         rows = src.execute(
-            f"SELECT {cols} FROM tx WHERE cid = ? AND d <= ? ORDER BY ts, rowid",
+            f"SELECT {cols}, rowid FROM tx WHERE cid = ? AND d <= ? ORDER BY ts, rowid",
             (cid, str(today))).fetchall()
     finally:
         src.close()
     mem = sqlite3.connect(":memory:", check_same_thread=False)
     mem.execute(
         "CREATE TABLE tx (d TEXT, ts TEXT, amount REAL, balance REAL, type TEXT, category TEXT, "
-        "mcc TEXT, merchant TEXT, label TEXT, basket TEXT, context TEXT)")
-    mem.executemany(f"INSERT INTO tx VALUES ({', '.join('?' * len(SANDBOX_COLUMNS))})",
+        "mcc TEXT, merchant TEXT, label TEXT, basket TEXT, context TEXT, id INTEGER)")
+    mem.executemany(f"INSERT INTO tx VALUES ({', '.join('?' * (len(SANDBOX_COLUMNS) + 1))})",
                     [tuple(r) for r in rows])
     mem.execute("CREATE INDEX tx_d ON tx(d)")
+    mem.execute("CREATE INDEX tx_id ON tx(id)")
+    if overrides:
+        _apply_overrides(mem, overrides)
     mem.commit()
     mem.execute("PRAGMA query_only = ON")   # the sandbox is read-only from here on
     mem.row_factory = sqlite3.Row
     return mem
+
+
+def tx_merchant(cid, tx_id):
+    """Merchant id of ONE of this customer's own transactions, or None when the row does not exist
+    or belongs to someone else. For server-side use only: it never goes to a client or a model."""
+    if isinstance(tx_id, bool) or not isinstance(tx_id, int):
+        return None
+    conn = _ro()
+    try:
+        r = conn.execute("SELECT merchant FROM tx WHERE rowid = ? AND cid = ?",
+                         (tx_id, cid)).fetchone()
+        if r is None:
+            return None
+        return r["merchant"] or None
+    finally:
+        conn.close()
+
+
+def postal_code(cid):
+    """The customer's postal code, for the area lookup only (never shown to a model)."""
+    conn = _ro()
+    try:
+        r = conn.execute("SELECT postal FROM customers WHERE cid = ?", (cid,)).fetchone()
+        return (r["postal"] or None) if r is not None else None
+    finally:
+        conn.close()
 
 
 def bench(group_keys: list[str], metric: str) -> dict | None:
