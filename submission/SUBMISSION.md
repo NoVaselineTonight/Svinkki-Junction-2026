@@ -9,8 +9,9 @@ Svinkki: talk with your own money
 
 ## One-line pitch
 
-A mobile-first money coach that answers questions from your own transactions, shows the purchases
-behind every number, and only lets an AI model see anonymised data you agreed to share.
+A money coach in one conversation: ask about your own spending in plain English or Finnish, get
+numbers computed from your transactions with the purchases shown, and let an AI model see only the
+anonymised results you agreed to share.
 
 ## Challenge
 
@@ -18,13 +19,21 @@ Personal Economic Trainer (S-Pankki)
 
 ## Description
 
-Banking apps stop at statements. Svinkki lets an S-Bank customer ask their money questions in plain
-language: "How much did I spend on taxis last month?", "What kind of spender am I?", "What can I
-safely spend this week?", "How much could I save if I cut dining out by 20%?".
+Banking apps stop at statements. Svinkki is a coach, not a nag: one conversation inside S-mobiili
+where an S-Bank customer asks their money questions in plain English or Finnish: "How much did I
+spend on taxis last month?", "Can I afford a 300 euro jacket?", "Will I make it to payday?", "How
+much could I save if I cut dining out by 20%?". A "What can I ask?" page lists everything it can do,
+so there are no menus to learn.
 
-**Every number is computed by code, never by the AI model.** The model chooses which of the app's
+**Every number is computed by code, never by the AI model.** Claude chooses which of the app's
 read-only tools to call and explains the result. Each answer carries the transactions it was added
-up from, under "Transactions used", so the customer can check it.
+up from, under "Transactions used", so the customer can check it. If the model is unavailable, the
+same questions are answered by built-in rules with the same figures, and the reply says so.
+
+**Receipt-level insight.** S Group knows what was in the basket, not only what was paid. Svinkki
+answers "What do I buy most?" or "How much do I spend on beer?" from receipt lines. In this
+prototype the receipt lines are simulated, because the challenge data has amounts only; with real
+S Group purchase data and the customer's consent, it is the same code.
 
 **The three baskets are the teaching frame.** Every outflow lands in exactly one basket: regular
 essentials, unexpected necessities, everyday spending. Classification uses context: a kebab or a
@@ -55,15 +64,17 @@ sit in a WebView. Python standard library only on the server.
 |---|---|
 | Financial literacy | Three baskets on every purchase, quiz, check-in, what-if, plain-language explainer |
 | Originality of AI integration | The model plans and explains, code calculates, every figure is traceable to transactions, the customer sees what the model saw |
-| Mobile UX | Phone-width, chat-first, cards on Home, consent and frequency in two screens |
-| Feasibility | Runs on the provided dataset today; TODO test count; Claude via the Messages API with a per-turn cost estimate |
+| Mobile UX | Phone-width, one conversation for everything, "What can I ask?" page, consent and frequency in two screens |
+| Feasibility | Runs on the provided dataset today; checked live with Claude Haiku 5.5; TODO final test count; about 0.15 cents per answer on Haiku |
 | S-mobiili integration | No build step, embeddable in a WebView, identity held server-side, ready for bank login |
 
 ## AI model and cost
 
-Claude through the Anthropic Messages API, with the app's own tools. Claude Haiku 5.5 for everyday
-questions costs about €0.002 per chat turn at list price; see `submission/SLIDES.md` for the
-calculation. TODO: confirm once the Claude integration is merged and a live call has been made.
+Claude through the Anthropic Messages API over plain HTTP (no dependencies), with the app's own
+read-only tools. Checked live on 13 Nov 2026: Claude Haiku 5.5 answered "How much did I spend on
+taxis last month?" with €92.85 and the two transactions, computed by the app's tool. Haiku costs
+about 0.15 cents (USD) per answered question at list price; Opus 5.5 is selectable in Settings for
+harder questions. Calculation in `submission/SLIDES.md`.
 
 ## Links
 
