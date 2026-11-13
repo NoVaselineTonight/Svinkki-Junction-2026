@@ -65,13 +65,15 @@ ALL_LABELS = [
 
 # --------------------------------------------------------------------------- baskets
 
-UNEXPECTED_THRESHOLD = 150.0      # EUR, single purchase, for the unexpected-necessity labels
+UNEXPECTED_THRESHOLD = 150.0      # EUR, single purchase, for Electronics and Furniture only
 BIG_PURCHASE_THRESHOLD = 500.0    # EUR, any purchase in the Health or Home & Tech categories
 
 REGULAR_LABELS = frozenset(
     {"Housing", "Utilities", "Groceries", "Public transport", "Fuel", "Pharmacy"})
-UNEXPECTED_LABELS = frozenset(
-    {"Doctor", "Dentist", "Other health", "Home improvement", "Electronics", "Furniture"})
+UNEXPECTED_ANY_AMOUNT_LABELS = frozenset(
+    {"Doctor", "Dentist", "Other health", "Home improvement"})      # unexpected at any amount
+UNEXPECTED_OVER_THRESHOLD_LABELS = frozenset({"Electronics", "Furniture"})  # from 150 EUR up
+UNEXPECTED_LABELS = UNEXPECTED_ANY_AMOUNT_LABELS | UNEXPECTED_OVER_THRESHOLD_LABELS
 BIG_PURCHASE_CATEGORIES = frozenset({"Health", "Home & Tech"})
 
 BASKETS = ("regular", "unexpected", "everyday", "savings", "income", "transfer")
@@ -81,10 +83,12 @@ BASKET_RULES_TEXT = (
     "Regular essentials are the bills and needs that come back every month: rent or mortgage, "
     "utilities, groceries, public transport, fuel and pharmacy. "
     "Unexpected necessities are things you did not plan but often cannot skip: doctor, dentist and "
-    "other health costs, home repairs, electronics and furniture when a single purchase is "
-    "EUR 150 or more, and any other health or home and tech purchase of EUR 500 or more. "
-    "Everyday spending is everything else you choose to buy: eating out, bars, taxis, shopping, "
-    "hobbies, entertainment, travel. "
+    "other health costs and home repairs at any amount, electronics and furniture when a single "
+    "purchase is EUR 150 or more, and any other health or home and tech purchase of EUR 500 or "
+    "more. "
+    "Everyday spending is everything else you choose to buy: eating out, bars, taxis, parking, "
+    "shopping, clothing, hobbies, entertainment, travel, and electronics or furniture under "
+    "EUR 150. "
     "Money you put into investments counts as savings, not spending."
 )
 
@@ -161,7 +165,9 @@ def basket_for(tx_type: str, label: str, category: str, amount: float) -> str:
     if amount >= 0:
         return "income"  # refunds and unknown inflows are income-side
     size = -amount
-    if label in UNEXPECTED_LABELS and size >= UNEXPECTED_THRESHOLD:
+    if label in UNEXPECTED_ANY_AMOUNT_LABELS:
+        return "unexpected"
+    if label in UNEXPECTED_OVER_THRESHOLD_LABELS and size >= UNEXPECTED_THRESHOLD:
         return "unexpected"
     if category in BIG_PURCHASE_CATEGORIES and size >= BIG_PURCHASE_THRESHOLD:
         return "unexpected"

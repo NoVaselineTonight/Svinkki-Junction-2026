@@ -40,7 +40,9 @@
     explore: ['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z', 'M21 21l-4.6-4.6'],
     settings: ['M4 6h9', 'M17 6h3', 'M4 12h3', 'M11 12h9', 'M4 18h11', 'M19 18h1', 'M15 4v4', 'M9 10v4', 'M17 16v4'],
     chev: ['M9 6l6 6-6 6'],
-    doc: ['M7 3h7l4 4v14H7z', 'M14 3v4h4', 'M9.5 12h6', 'M9.5 16h6']
+    doc: ['M7 3h7l4 4v14H7z', 'M14 3v4h4', 'M9.5 12h6', 'M9.5 16h6'],
+    help: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z', 'M9.6 9.4a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.8', 'M12 17h.01'],
+    gear: ['M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z']
   };
   function icon(name, size) {
     var s = size || 24;
@@ -178,30 +180,29 @@
 
   // ---------- app state ----------
   var me = null;
-  var currentTab = 'home';
   var token = 0;           // increments on every screen change; stale async work checks it
-  var chatCache = null;    // the chat view survives tab switches
+  var chat = null;         // the one conversation; null until the app screen is drawn
   var mode = 'boot';       // boot | login | consent | app
   var viewEl = null;
-  var pendingScroll = null; // section id to scroll to after the next screen draws
 
   function alive(t) { return t === token; }
 
-  function setChrome(showTabs, sub) {
-    document.getElementById('tabbar').hidden = !showTabs;
-    document.body.classList.toggle('no-tabs', !showTabs);
-    if (!showTabs) document.body.classList.remove('chat-screen');
-    document.getElementById('topbar-sub').textContent = sub || '';
+  // inApp: the conversation screen (top bar buttons, pinned input, no page scroll).
+  function setChrome(inApp, sub) {
+    document.getElementById('top-actions').hidden = !inApp;
+    document.body.classList.toggle('chat-screen', !!inApp);
+    document.getElementById('topbar-sub').textContent = inApp ? '' : (sub || '');
   }
 
   function clearView() {
     token++;
+    chat = null;
     viewEl.replaceChildren();
   }
 
   function onUnauthorised() {
     if (mode === 'login') return;
-    me = null; chatCache = null;
+    me = null;
     showLogin();
   }
   function onConsentRequired() {
@@ -311,7 +312,7 @@
     }
     if (d.peer_hint) {
       var b = h('button', { type: 'button', class: 'link-btn inline peer-hint' }, d.peer_hint);
-      b.addEventListener('click', function () { go('settings'); });
+      b.addEventListener('click', function () { openSettings(); });
       return h('p', { class: 'small' }, b);
     }
     return null;
@@ -323,26 +324,31 @@
     return d && d.explain ? h('p', { class: 'explain' }, ht(d.explain)) : null;
   }
 
-  // ---------- bottom sheet ----------
+  // ---------- sheets ----------
   var sheetState = null;
+  var FOCUSABLE = 'button, input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])';
 
-  function openSheet(title) {
+  // opts.full: a full-height page over the conversation instead of a bottom sheet.
+  function openSheet(title, opts) {
     closeSheet();
+    opts = opts || {};
     var previous = document.activeElement;
+    var app = document.getElementById('app');
     var body = h('div', { class: 'sheet-body' });
     var closeBtn = h('button', { type: 'button', class: 'sheet-close', 'aria-label': 'Close' }, '×');
-    var sheet = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
-      h('div', { class: 'grabber', 'aria-hidden': 'true' }),
+    var sheet = h('div', { class: 'sheet' + (opts.full ? ' full' : ''), role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+      opts.full ? null : h('div', { class: 'grabber', 'aria-hidden': 'true' }),
       h('div', { class: 'sheet-head' }, h('h2', null, title), closeBtn),
       body);
-    var overlay = h('div', { class: 'overlay' }, sheet);
+    var overlay = h('div', { class: 'overlay' + (opts.full ? ' full' : '') }, sheet);
     function onKey(e) {
-      if (e.key === 'Escape') { closeSheet(); return; }
+      if (e.key === 'Escape') { e.preventDefault(); closeSheet(); return; }
       if (e.key === 'Tab') {
-        var f = sheet.querySelectorAll('button, input, select, a[href], [tabindex]:not([tabindex="-1"])');
+        var f = Array.prototype.filter.call(sheet.querySelectorAll(FOCUSABLE), function (x) { return !x.disabled && x.offsetParent !== null; });
         if (!f.length) return;
         var first = f[0], last = f[f.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        if (!sheet.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+        else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
         else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
       }
     }
@@ -350,6 +356,7 @@
     overlay.addEventListener('click', function (e) { if (e.target === overlay) closeSheet(); });
     document.addEventListener('keydown', onKey);
     document.body.appendChild(overlay);
+    if (app) app.inert = true;     // the conversation behind the sheet cannot be reached
     sheetState = { overlay: overlay, onKey: onKey, previous: previous };
     closeBtn.focus();
     return body;
@@ -359,6 +366,8 @@
     if (!sheetState) return;
     document.removeEventListener('keydown', sheetState.onKey);
     sheetState.overlay.remove();
+    var app = document.getElementById('app');
+    if (app) app.inert = false;
     var p = sheetState.previous;
     sheetState = null;
     if (p && p.focus && document.contains(p)) p.focus();
@@ -517,13 +526,20 @@
 
   function evidenceLink(evidence, title) {
     if (!evidenceList(evidence).length) return null;
-    return h('button', { type: 'button', class: 'link-btn', onclick: function () { openEvidence(evidence, title); } }, 'See the transactions');
+    return h('button', { type: 'button', class: 'link-btn ev-link', onclick: function () { openEvidence(evidence, title); } }, 'See the transactions');
   }
 
   // ---------- login ----------
+  function brandHeader() {
+    return h('div', { class: 'brand-head' },
+      h('span', { class: 'logo large' },
+        h('img', { class: 'logo-mark', src: 'brand/s-mark.svg', alt: '', height: '44' }),
+        h('span', { class: 'logo-word', 'aria-hidden': 'true' }, 'Vinkki'),
+        h('span', { class: 'sr-only' }, 'Svinkki')));
+  }
+
   function showLogin() {
     mode = 'login';
-    currentTab = 'home';
     closeSheet();
     clearView();
     setChrome(false, '');
@@ -545,6 +561,7 @@
         status.replaceChildren(h('div', { class: 'notice err', role: 'alert' }, msg));
       });
     });
+    viewEl.appendChild(brandHeader());
     viewEl.appendChild(h('div', null,
       h('span', { class: 'demo-tag' }, 'DEMO ONLY'),
       h('h1', { class: 'section-title' }, 'Demo login'),
@@ -660,14 +677,18 @@
     setChrome(false, me && me.name ? me.name : '');
     var consent = (me && me.consent) || {};
     var settings = (me && me.settings) || {};
+    // A new customer starts with everything on and can switch parts off before starting.
+    var fresh = !consent.analysis && !consent.ai && !consent.benchmarks && !consent.suggestions;
+    if (fresh) consent = { analysis: true, ai: true, benchmarks: true, suggestions: true };
+    var first = me && me.name ? String(me.name).split(',')[0] : '';
     var status = h('div');
+    var hint = h('p', { class: 'help', id: 'consent-hint' }, 'Turn on "Analyse my transactions" to continue.');
+    var go = h('button', { type: 'button', class: 'btn block', 'aria-describedby': 'consent-hint' }, 'Start');
     var cc = consentControls(consent, function (key, st) {
       go.disabled = !st.analysis;
       hint.hidden = st.analysis;
     });
     var pc = prefControls(settings, function () {});
-    var hint = h('p', { class: 'help', id: 'consent-hint' }, 'Turn on "Analyse my transactions" to continue. The other switches are optional.');
-    var go = h('button', { type: 'button', class: 'btn block', 'aria-describedby': 'consent-hint' }, 'Save and continue');
     go.disabled = !cc.get().analysis;
     hint.hidden = cc.get().analysis;
     go.addEventListener('click', function () {
@@ -683,78 +704,36 @@
         status.replaceChildren(errorNode(e));
       });
     });
-    viewEl.appendChild(h('div', null,
-      h('h1', null, 'Your data, your choices'),
-      h('p', { class: 'muted' }, 'Svinkki helps you understand your own money. You decide what it may do, and you can change or withdraw any of this later in Settings.')));
-    viewEl.appendChild(h('section', { class: 'card' }, cc.el));
-    viewEl.appendChild(h('section', { class: 'card' },
-      h('h2', null, 'How much do you want to hear from me?'), pc.el));
-    viewEl.appendChild(status);
-    viewEl.appendChild(hint);
+    var more = h('details', { class: 'set-sec' },
+      h('summary', null, 'Choose what I may do and how often I check in'),
+      h('div', { class: 'set-body' }, cc.el, h('h2', null, 'How much do you want to hear from me?'), pc.el));
+    viewEl.appendChild(brandHeader());
+    viewEl.appendChild(h('div', { class: 'welcome' },
+      h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'),
+      h('p', null, 'I am Svinkki, your money coach. I read your own transactions to answer questions about your money. An AI model helps me word the answers; it sees results, never your name or account.'),
+      h('p', { class: 'muted' }, 'Nothing ever moves your money. You can change all of this later in Settings.')));
     viewEl.appendChild(go);
+    viewEl.appendChild(hint);
+    viewEl.appendChild(status);
+    viewEl.appendChild(more);
   }
 
   // ---------- boot ----------
-  function showTabs() {
-    mode = 'app';
-    setChrome(true, me && me.name ? me.name : '');
-  }
-
   function boot() {
     mode = 'boot';
+    closeSheet();
     clearView();
     setChrome(false, '');
     viewEl.appendChild(loadingNode('Loading...'));
     return api('/api/me').then(function (m) {
       me = m;
       if (!me.consent || !me.consent.analysis) { showConsent(); return; }
-      showTabs();
-      go('home');
+      showApp();
     }, function (e) {
       if (e.handled) return;
       clearView();
       viewEl.appendChild(errorNode(e, boot));
     });
-  }
-
-  function go(tab) {
-    if (mode !== 'app') return;
-    closeSheet();
-    currentTab = tab;
-    clearView();
-    document.body.classList.toggle('chat-screen', tab === 'chat');
-    var buttons = document.querySelectorAll('.tab');
-    for (var i = 0; i < buttons.length; i++) {
-      if (buttons[i].getAttribute('data-tab') === tab) buttons[i].setAttribute('aria-current', 'page');
-      else buttons[i].removeAttribute('aria-current');
-    }
-    var t = token;
-    var views = { home: renderHome, chat: renderChat, explore: renderExplore, settings: renderSettings };
-    (views[tab] || renderHome)(viewEl, t);
-    window.scrollTo(0, 0);
-    if (pendingScroll) {
-      var id = pendingScroll;
-      pendingScroll = null;
-      setTimeout(function () {
-        var el = document.getElementById(id);
-        if (el) el.scrollIntoView({ block: 'start' });
-      }, 0);
-    }
-  }
-
-  // ---------- HOME ----------
-  function renderHome(root, t) {
-    root.appendChild(h('h1', null, 'Hi' + (me && me.name ? ', ' + String(me.name).split(',')[0] : '')));
-    var sts = h('div'); var baskets = h('div'); var quiz = h('div'); var checkin = h('div'); var peers = h('div');
-    var alertsBox = h('div', { class: 'alerts-strip' }); var affordBox = h('div'); var chalBox = h('div');
-    var purchaseBox = h('div', { class: 'latest-strip' });
-    [sts, baskets, quiz, checkin, affordBox, alertsBox, chalBox, purchaseBox, peers].forEach(function (x) { root.appendChild(x); });
-    homeSafe(sts, t); homeAlerts(alertsBox, t); homePurchase(purchaseBox, t); homeAfford(affordBox); homeChallenge(chalBox, t);
-    homeBaskets(baskets, t); homeQuiz(quiz, t); homeCheckin(checkin, t); homePeers(peers, t);
-  }
-
-  function homeSafe(box, t) {
-    load(box, t, function () { return api('/api/safe-to-spend'); }, function (d) { box.appendChild(safeHero(d)); });
   }
 
   var STATUS_TEXT = { ok: 'On track', tight: 'Tight', over: 'Over budget' };
@@ -836,7 +815,7 @@
         b.top.slice(0, 4).forEach(function (x) { frag.appendChild(barRow(x.label || x.name || '?', num(x.total), mx, 'b-' + k)); });
       }
     });
-    if (d.rules) {
+    if (d.rules && !opts.compact) {
       var rid = 'rules-' + Math.random().toString(36).slice(2, 8);
       var rules = h('p', { class: 'explain', id: rid, hidden: true }, ht(d.rules));
       var rt = h('button', { type: 'button', class: 'link-btn', 'aria-expanded': 'false', 'aria-controls': rid }, 'How are baskets decided?');
@@ -849,37 +828,6 @@
       frag.appendChild(rules);
     }
     return frag;
-  }
-
-  function homeBaskets(box, t) {
-    load(box, t, function () { return api('/api/baskets?period=last_month'); }, function (d) {
-      var c = card('Your three baskets', d.period ? fmtRange(d.period) : 'Last month');
-      c.appendChild(h('p', { class: 'small muted' }, 'Every euro you spend lands in one of three baskets. Tap one to see what is inside.'));
-      c.appendChild(basketsBlock(d));
-      box.appendChild(c);
-    });
-  }
-
-  // Small teaser: only with benchmark consent; silent when the endpoint is missing or fails.
-  function homePeers(box, t) {
-    if (!(me && me.consent && me.consent.benchmarks)) return;
-    api('/api/averages').then(function (d) {
-      if (!alive(t) || !d || !d.headline) return;
-      var c = card('Compared with people like you');
-      c.appendChild(h('p', null, ht(d.headline)));
-      c.appendChild(h('button', { type: 'button', class: 'link-btn', onclick: function () { pendingScroll = 'typical'; go('explore'); } }, 'See more'));
-      box.appendChild(c);
-    }, function () {});
-  }
-
-  function homeQuiz(box, t) {
-    api('/api/quiz').then(function (q) {
-      if (!alive(t) || !q) return;
-      box.appendChild(quizCard(q));
-    }, function (e) {
-      if (!alive(t) || e.handled || e.status === 404) return; // quiz off: no card
-      box.appendChild(errorNode(e, function () { box.replaceChildren(); homeQuiz(box, t); }));
-    });
   }
 
   function animateNumber(el, to, ms) {
@@ -957,16 +905,6 @@
     return c;
   }
 
-  function homeCheckin(box, t) {
-    api('/api/checkin').then(function (r) {
-      if (!alive(t) || !r || !r.due || !r.checkin) return;
-      box.appendChild(checkinCard(r.checkin));
-    }, function (e) {
-      if (!alive(t) || e.handled) return;
-      box.appendChild(errorNode(e, function () { box.replaceChildren(); homeCheckin(box, t); }));
-    });
-  }
-
   function checkinCard(c) {
     var sec = card('Your check-in', fmtPeriod(c.period));
     sec.appendChild(h('p', { class: 'quiz-q' }, ht(c.headline) || 'Here is how your month went.'));
@@ -1008,27 +946,8 @@
   }
 
   // ---------- wave 2 features ----------
-  // A card whose data comes from one endpoint. 404/403 hide it; other failures show one quiet line.
-  function softSection(box, t, title, sub, path, render) {
-    var c = card(title, sub);
-    var body = h('div');
-    c.appendChild(body);
-    box.appendChild(c);
-    body.appendChild(loadingNode());
-    api(path).then(function (d) {
-      if (!alive(t)) return;
-      body.replaceChildren();
-      render(body, d, c);
-    }, function (e) {
-      if (!alive(t) || (e && e.handled)) return;
-      if (e && (e.status === 404 || e.status === 403)) { c.remove(); return; }
-      body.replaceChildren(h('p', { class: 'small muted' }, 'This is not available right now.'));
-    });
-    return c;
-  }
-
   function settingsLink(text) {
-    return h('button', { type: 'button', class: 'link-btn inline quiet-link', onclick: function () { go('settings'); } }, text);
+    return h('button', { type: 'button', class: 'link-btn inline quiet-link', onclick: function () { openSettings(); } }, text);
   }
 
   // --- Can I afford this? ---
@@ -1092,20 +1011,7 @@
       btn);
   }
 
-  function homeAfford(box) {
-    var c = card('Can I afford this?');
-    var out = h('div', { 'aria-live': 'polite' });
-    c.appendChild(h('p', { class: 'small muted' }, 'Check a purchase against what is safe to spend until payday.'));
-    c.appendChild(affordForm(out));
-    c.appendChild(out);
-    box.appendChild(c);
-  }
-
   // --- Alerts ---
-  var dismissedAlerts = {};   // in memory only: forgotten when the page reloads
-
-  function alertKey(a, i) { return String(a.id != null ? a.id : (a.kind || 'alert') + ':' + (a.title || i)); }
-
   function alertNode(a, onDismiss) {
     var sev = a.severity === 'notice' ? 'notice' : 'info';
     var box = h('div', { class: 'alert ' + sev });
@@ -1118,22 +1024,6 @@
     var ev = evidenceLink(a.evidence, a.title || 'Transactions');
     if (ev) box.appendChild(ev);
     return box;
-  }
-
-  function homeAlerts(box, t) {
-    api('/api/alerts').then(function (d) {
-      if (!alive(t)) return;
-      var list = (d && Array.isArray(d.alerts)) ? d.alerts : [];
-      function draw() {
-        box.replaceChildren();
-        var shown = list.filter(function (a, i) { return !dismissedAlerts[alertKey(a, i)]; }).slice(0, 2);
-        shown.forEach(function (a) {
-          var k = alertKey(a, list.indexOf(a));
-          box.appendChild(alertNode(a, function () { dismissedAlerts[k] = true; draw(); }));
-        });
-      }
-      draw();
-    }, function () {});
   }
 
   // --- Challenges ---
@@ -1199,15 +1089,6 @@
     return null;
   }
 
-  function homeChallenge(box, t) {
-    api('/api/challenge').then(function (d) {
-      if (!alive(t)) return;
-      box.replaceChildren();
-      var n = challengeNode(d, function () { homeChallenge(box, t); });
-      if (n) box.appendChild(n);
-    }, function () {});
-  }
-
   // --- Leak finder ---
   function colChart(items, labelOf, valueOf, titleOf, compact, summary) {
     var vals = items.map(function (it) { return Math.max(0, num(valueOf(it))); });
@@ -1271,13 +1152,6 @@
     return box;
   }
 
-  function leaksSection(box, t) {
-    softSection(box, t, 'Leak finder', 'Last 3 months', '/api/leaks', function (body, d, c) {
-      if (d && d.period) c.querySelector('.card-head .tiny').textContent = fmtPeriod(d.period);
-      body.appendChild(leaksBody(d || {}));
-    });
-  }
-
   // --- Your area ---
   function areaBody(d) {
     var box = h('div', { class: 'area' });
@@ -1295,17 +1169,6 @@
     var ex = explainNode(d);
     if (ex) box.appendChild(ex);
     return box;
-  }
-
-  function areaSection(box, t) {
-    if (!(me && me.consent && me.consent.benchmarks)) {
-      var c = card('Your area');
-      c.appendChild(h('p', { class: 'small' }, 'See local income and housing figures for your postal code from Statistics Finland. Only public area statistics are used, never other people\'s data. This needs the "Compare me with people like me" switch.'));
-      c.appendChild(h('button', { type: 'button', class: 'btn secondary', onclick: function () { go('settings'); } }, 'Open Settings'));
-      box.appendChild(c);
-      return;
-    }
-    softSection(box, t, 'Your area', '', '/api/area', function (body, d) { body.appendChild(areaBody(d || {})); });
   }
 
   // --- Quiz awareness ---
@@ -1371,16 +1234,20 @@
 
   // --- Transactions used under a chat answer ---
   function usedCount(used) {
-    return (used || []).reduce(function (s, g) { return s + ((g && Array.isArray(g.rows)) ? g.rows.length : 0); }, 0);
+    // The number of transactions used, not the number of rows on screen.
+    return (used || []).reduce(function (s, g) {
+      if (!g || typeof g !== 'object') return s;
+      return s + (g.count != null ? num(g.count) : (Array.isArray(g.rows) ? g.rows.length : 0));
+    }, 0);
   }
 
-  function usedNode(used) {
+  // The transactions behind an answer: a small button and the list it opens.
+  function usedParts(used) {
     if (!Array.isArray(used) || !used.length) return null;
     var n = usedCount(used);
     var id = 'used-' + Math.random().toString(36).slice(2, 8);
     var body = h('div', { class: 'used-body', id: id, hidden: true });
-    var btn = h('button', { type: 'button', class: 'used-btn', 'aria-expanded': 'false', 'aria-controls': id },
-      h('span', null, 'Transactions used (' + n + ')'), h('span', { class: 'used-chev', 'aria-hidden': 'true' }, icon('chev', 16)));
+    var btn = h('button', { type: 'button', class: 'act-btn', 'aria-expanded': 'false', 'aria-controls': id }, 'Transactions (' + n + ')');
     used.forEach(function (g) {
       if (!g || typeof g !== 'object') return;
       var rows = Array.isArray(g.rows) ? g.rows : [];
@@ -1390,7 +1257,7 @@
         h('span', { class: 'tiny' }, cnt + (cnt === 1 ? ' transaction' : ' transactions') + ', ' + money(Math.abs(num(g.total))))));
       if (!rows.length) grp.appendChild(h('p', { class: 'small muted' }, 'No transactions matched.'));
       else grp.appendChild(txList({ rows: rows }, { bare: true }));
-      if (g.truncated && rows.length) grp.appendChild(h('p', { class: 'tiny' }, 'Showing ' + rows.length + ' of ' + cnt + '.'));
+      if (rows.length && rows.length < cnt) grp.appendChild(h('p', { class: 'tiny' }, 'Showing ' + rows.length + ' of ' + cnt + '.'));
       body.appendChild(grp);
     });
     btn.addEventListener('click', function () {
@@ -1398,7 +1265,7 @@
       body.hidden = !open;
       btn.setAttribute('aria-expanded', String(open));
     });
-    return h('div', { class: 'used' }, btn, body);
+    return { btn: btn, body: body };
   }
 
   // --- Balance forecast ---
@@ -1608,20 +1475,6 @@
   }
 
   // --- latest purchase ---
-  var purchaseDismissed = {};   // in memory only
-
-  function homePurchase(box, t) {
-    api('/api/purchase-insight').then(function (d) {
-      if (!alive(t) || !d || !d.text) return;
-      var key = String((d.tx && d.tx.id) != null ? d.tx.id : d.text);
-      if (purchaseDismissed[key]) return;
-      var line = h('div', { class: 'latest-line' },
-        h('p', { class: 'small' }, h('b', null, 'Latest purchase. '), ht(d.text)),
-        h('button', { type: 'button', class: 'x-btn', 'aria-label': 'Dismiss the latest purchase note', onclick: function () { purchaseDismissed[key] = true; box.replaceChildren(); } }, '×'));
-      box.replaceChildren(line);
-    }, function () {});
-  }
-
   function purchaseCard(d) {
     var c = cardShell('Latest purchase', d.tx && d.tx.d ? fmtDate(d.tx.d) : '');
     var tx = d.tx || {};
@@ -1746,25 +1599,6 @@
   }
 
   // ---------- CHAT ----------
-  var DEMO_QUESTIONS = [
-    'Will I make it to payday?',
-    { explain: true, label: 'Explain a loan or fund text' },
-    'I want to go to Japan in 2027',
-    'Any spending patterns?',
-    'How much did I spend at bars last night?',
-    'Can I afford a €300 jacket?',
-    'Where is my money leaking?',
-    'How much did I spend on taxis last month?',
-    'Is my taxi spending normal?',
-    'What kind of spender am I?',
-    'What is safe for me to spend this week?',
-    'How much could I save if I reduced dining out by 20%?',
-    'What kind of mortgage can I get approved for?',
-    'How can I save more?',
-    'What should I invest in?',
-    'Where did my money go?'
-  ];
-
   // Plain text with line breaks, **bold** and simple bullet lines. Built from nodes only.
   function richText(text) {
     var box = h('div');
@@ -1790,120 +1624,6 @@
       var p = h('p'); inline(p, line); box.appendChild(p);
     });
     return box;
-  }
-
-  function renderChat(root, t) {
-    if (chatCache) {
-      root.appendChild(chatCache.el);
-      chatCache.msgs.scrollTop = chatCache.scroll || 0;
-      chatCache.input.focus({ preventScroll: true });
-      return;
-    }
-    var msgs = h('div', { class: 'msgs', role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' });
-    var input = h('textarea', { class: 'input chat-text', rows: '1', maxlength: '2000', placeholder: 'Ask about your money...', 'aria-label': 'Your question', autocomplete: 'off', enterkeyhint: 'send' });
-    var sendBtn = h('button', { type: 'submit', class: 'btn' }, 'Send');
-    var explainBtn = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Explain a text', title: 'Explain a text' }, icon('doc', 22));
-    var form = h('form', { class: 'chat-input' }, explainBtn, input, sendBtn);
-    var chips = h('div', { class: 'chips chips-row', role: 'group', 'aria-label': 'Suggested questions' });
-    var busy = false;
-
-    function bubble(who, node) {
-      var m = h('div', { class: 'msg ' + who }, h('div', { class: 'bubble' }, node));
-      msgs.appendChild(m);
-      return m;
-    }
-    function toBottom() { msgs.scrollTop = msgs.scrollHeight; }
-    // Show the START of a message, not the end of a long card.
-    function toStartOf(el) { msgs.scrollTop = Math.max(0, el.offsetTop - 8); }
-    function autosize() {
-      input.style.height = 'auto';
-      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
-    }
-
-    function send(text) {
-      text = String(text || '').trim();
-      if (!text || busy) return;
-      busy = true; sendBtn.disabled = true;
-      bubble('user', h('p', null, text));
-      input.value = '';
-      autosize();
-      input.focus({ preventScroll: true });
-      var wait = h('div', { class: 'msg bot' }, h('div', { class: 'bubble' }, h('span', { class: 'typing', role: 'status', 'aria-label': 'Svinkki is thinking' }, h('i'), h('i'), h('i'))));
-      msgs.appendChild(wait);
-      toBottom();
-      api('/api/chat', { method: 'POST', body: { message: text } }).then(function (res) {
-        wait.remove();
-        var m = botReply(res || {});
-        toStartOf(m);
-      }, function (e) {
-        wait.remove();
-        if (e.handled) return;
-        var m = h('div', { class: 'msg bot' }, h('div', { class: 'bubble' }, errorNode(e)));
-        msgs.appendChild(m);
-        toStartOf(m);
-      }).then(function () { busy = false; sendBtn.disabled = false; input.focus({ preventScroll: true }); });
-    }
-
-    function botReply(res) {
-      var inner = h('div');
-      inner.appendChild(richText(res.reply));
-      var m = bubble('bot', inner);
-      var meta = h('div', { class: 'meta' });
-      if (isAiMode(res.mode)) meta.appendChild(h('span', { class: 'badge ai' }, 'AI model'));
-      else meta.appendChild(h('span', { class: 'badge' }, 'On-device rules'));
-      var longNotice = res.notice && typeof res.notice === 'string' && res.notice.length > 40;
-      if (res.notice && !longNotice) meta.appendChild(h('span', { class: 'badge' }, String(res.notice)));
-      m.appendChild(meta);
-      var usedEl = null;
-      try { usedEl = usedNode(res.used); } catch (e) { usedEl = null; }
-      if (usedEl) m.appendChild(usedEl);
-      var cards = res.cards || [];
-      if (cards.length) {
-        var wrap = h('div', { class: 'msg-cards' });
-        cards.forEach(function (c) {
-          var node = null;
-          try { node = renderChatCard(c); } catch (e) { node = null; }
-          if (node) wrap.appendChild(node);
-        });
-        m.appendChild(wrap);
-      }
-      if (longNotice) m.appendChild(h('p', { class: 'notice' }, ht(res.notice)));
-      return m;
-    }
-
-    function openExplain() {
-      openExplainSheet(function (text, data) {
-        var shown = text.length > 200 ? text.slice(0, 200) + '...' : text;
-        bubble('user', h('p', null, 'Explain this text: ' + shown));
-        var m = bubble('bot', h('div', null, h('p', null, 'Here is that text in plain words.'),
-          h('div', { class: 'msg-cards' }, explainCard(data))));
-        toStartOf(m);
-      });
-    }
-    explainBtn.addEventListener('click', openExplain);
-    DEMO_QUESTIONS.forEach(function (q) {
-      if (q && typeof q === 'object') {
-        chips.appendChild(h('button', { type: 'button', class: 'chip', onclick: openExplain }, q.label));
-      } else {
-        chips.appendChild(h('button', { type: 'button', class: 'chip', onclick: function () { send(q); } }, q));
-      }
-    });
-    form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
-    input.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(input.value); }
-    });
-    input.addEventListener('input', autosize);
-
-    var parts = [h('h1', { class: 'sr-only' }, 'Ask Svinkki')];
-    if (me && me.ai_available === false) {
-      parts.push(h('p', { class: 'chat-hint' }, 'AI model not connected: answers come from built-in rules. Numbers are the same either way.'));
-    }
-    parts.push(msgs, chips, form);
-    var el = h('div', { class: 'chat' }, parts);
-    chatCache = { el: el, input: input, msgs: msgs, scroll: 0 };
-    msgs.addEventListener('scroll', function () { if (chatCache) chatCache.scroll = msgs.scrollTop; });
-    bubble('bot', h('p', null, 'Hi! Tap a question below or type your own. I can look at your spending, what is safe to spend, savings ideas and more. Numbers always come from your own transactions, and you can open the transactions behind every answer.'));
-    root.appendChild(el);
   }
 
   // ---------- chat card renderers (shapes: STATE.md 5.3) ----------
@@ -1932,7 +1652,152 @@
     });
   }
 
+  // ---------- receipts: what was bought, not only what was paid ----------
+  function qtyText(l) {
+    var q = num(l.qty);
+    if (l.unit === 'kg') return String(Math.round(q * 100) / 100) + ' kg';
+    return q > 1 ? q + ' x' : '';
+  }
+  function receiptLines(lines) {
+    var ul = h('ul', { class: 'rc-lines' });
+    (lines || []).slice(0, 40).forEach(function (l) {
+      var q = qtyText(l);
+      ul.appendChild(h('li', null,
+        h('span', { class: 'rc-name' }, (q ? q + ' ' : '') + (l.name || 'Item')),
+        h('span', { class: 'rc-sum' }, money(l.line_total))));
+    });
+    return ul;
+  }
+  function receiptNode(r, open) {
+    var det = h('details', { class: 'rc' });
+    if (open) det.open = true;
+    det.appendChild(h('summary', null,
+      h('span', null, h('b', null, r.store || 'Receipt'), r.d ? h('span', { class: 'tiny' }, '  ' + fmtDate(r.d)) : null),
+      h('b', null, money(r.total))));
+    det.appendChild(receiptLines(r.lines));
+    if (r.bonus && r.bonus.amount != null) {
+      det.appendChild(h('p', { class: 'tiny' }, 'Bonus ' + num(r.bonus.rate_pct) + '%: ' + money(r.bonus.amount) + ' (simulated estimate)'));
+    }
+    return det;
+  }
+  function groupBars(c, groups, limit) {
+    groups = (groups || []).filter(function (g) { return num(g.total) > 0; }).slice(0, limit || 6);
+    var mx = Math.max.apply(null, groups.map(function (g) { return num(g.total); }).concat([1]));
+    groups.forEach(function (g) {
+      c.appendChild(barRow(g.name || g.group || '?', num(g.total), mx, 'you',
+        money(g.total) + (g.share != null ? ' (' + Math.round(num(g.share) * 100) + '%)' : '')));
+    });
+  }
+  function simNote(c, d) {
+    if (d && d.note) c.appendChild(h('p', { class: 'tiny sim-note' }, d.note));
+  }
+  function openReceiptSheet() {
+    var body = openSheet('Read a receipt');
+    var ta = h('textarea', { class: 'input explain-text', id: 'rc-text', rows: '9', maxlength: '1900', placeholder: 'PRISMA\nKevytmaito 1 l   1,29\nBanaani   1,05\nYHTEENSÄ   2,34', autocomplete: 'off' });
+    var go_ = h('button', { type: 'button', class: 'btn block' }, 'Read this receipt');
+    body.appendChild(h('div', { class: 'explain-form' },
+      h('label', { for: 'rc-text', class: 'field-label' }, 'Paste the text of a receipt'), ta,
+      h('p', { class: 'tiny' }, 'For example from the receipts in S-mobiili. One product and its price per line.'), go_));
+    go_.addEventListener('click', function () {
+      var text = ta.value.trim();
+      if (text.length < 10) { ta.focus(); return; }
+      closeSheet();
+      if (chat) chat.ask('Receipt:\n' + text);
+    });
+    ta.focus();
+  }
+
   var CARDS = {
+    help: function (d) {
+      var c = cardShell('What you can ask');
+      (d.groups || []).slice(0, 10).forEach(function (g) {
+        var row = h('div', { class: 'chips' });
+        (g.items || []).slice(0, 4).forEach(function (it) {
+          var q = it && (it.question || it.q);
+          if (!q) return;
+          row.appendChild(h('button', { type: 'button', class: 'chip', onclick: function () { if (chat) chat.ask(q); } }, it.label || q));
+        });
+        if (row.childNodes.length) { c.appendChild(h('p', { class: 'eyebrow' }, g.title || '')); c.appendChild(row); }
+      });
+      c.appendChild(h('button', { type: 'button', class: 'btn secondary block', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, 'See everything'));
+      return c;
+    },
+    receipts: function (d) {
+      var c = cardShell('Your receipts', d.period ? fmtPeriod(d.period) : '');
+      var list = d.receipts || [];
+      var n = num(d.count);
+      c.appendChild(h('div', { class: 'stats' }, stat(money(d.total), 'In total'), stat(String(n), n === 1 ? 'Receipt' : 'Receipts')));
+      if (!list.length) c.appendChild(h('p', { class: 'small muted' }, 'No grocery purchases in this period.'));
+      list.forEach(function (r, i) { c.appendChild(receiptNode(r, i === 0)); });
+      if (n > list.length && list.length) c.appendChild(h('p', { class: 'tiny' }, 'Showing the latest ' + list.length + ' of ' + n + '.'));
+      simNote(c, d);
+      return finishCard(c, d, 'Transactions');
+    },
+    receipt_insights: function (d) {
+      var c = cardShell('What you buy', d.period ? fmtPeriod(d.period) : '');
+      var tr = d.treats || {};
+      c.appendChild(h('div', { class: 'stats' }, stat(money(d.total), 'Groceries'), stat(String(num(d.receipt_count)), 'Receipts'),
+        tr.monthly != null ? stat(money(tr.monthly), 'Treats a month') : null));
+      var hl = (d.highlights || []).slice(0, 4);
+      if (hl.length) {
+        var ul = h('ul', { class: 'rc-high' });
+        hl.forEach(function (t) { ul.appendChild(h('li', null, ht(t))); });
+        c.appendChild(ul);
+      }
+      if ((d.by_group || []).length) {
+        c.appendChild(h('p', { class: 'eyebrow' }, 'By product group'));
+        groupBars(c, d.by_group, 6);
+      }
+      var top = (d.top_products || []).slice(0, 5);
+      if (top.length) {
+        c.appendChild(h('p', { class: 'eyebrow' }, 'Bought most often'));
+        var tl = h('ul', { class: 'list' });
+        top.forEach(function (p) {
+          tl.appendChild(h('li', null,
+            h('div', { class: 'trait' }, h('b', null, p.name || 'Item'), h('b', null, money(p.total))),
+            h('div', { class: 'tiny' }, plural(num(p.times), 'time', 'times') + (p.yearly != null ? ', about ' + money(p.yearly) + ' a year at this pace' : ''))));
+        });
+        c.appendChild(tl);
+      }
+      if (d.bonus && d.bonus.estimated_total != null) {
+        c.appendChild(h('p', { class: 'tiny' }, 'Bonus in the period: about ' + money(d.bonus.estimated_total) + ' (simulated estimate).'));
+      }
+      simNote(c, d);
+      return finishCard(c, d, 'Transactions');
+    },
+    product_habit: function (d) {
+      var m = d.matched;
+      var name = m && m.name ? String(m.name).charAt(0).toUpperCase() + String(m.name).slice(1) : 'From your receipts';
+      var c = cardShell(name, m && d.period ? fmtPeriod(d.period) : '');
+      if (!m) {
+        c.appendChild(h('p', null, d.text || 'I could not find that on your receipts.'));
+        return c;
+      }
+      c.appendChild(h('div', { class: 'stats' }, stat(money(d.total), 'Spent'), stat(String(num(d.times)), num(d.times) === 1 ? 'Purchase' : 'Purchases'),
+        d.yearly != null ? stat(money(d.yearly), 'A year at this pace') : null));
+      if (d.text) c.appendChild(h('p', { class: 'small' }, ht(d.text)));
+      simNote(c, d);
+      return finishCard(c, d, 'Transactions');
+    },
+    receipt_parsed: function (d) {
+      var c = cardShell(d.store || 'Your receipt', d.date ? fmtDate(d.date) : '');
+      var total = d.total != null ? d.total : d.lines_total;
+      c.appendChild(h('div', { class: 'big-num' }, money(total)));
+      if (d.matches_total === false && d.lines_total != null) {
+        c.appendChild(h('div', { class: 'notice' }, 'The lines I could read add up to ' + money(d.lines_total) + ', not the total on the receipt.'));
+      }
+      c.appendChild(receiptLines(d.lines));
+      if ((d.by_group || []).length) {
+        c.appendChild(h('p', { class: 'eyebrow' }, 'By product group'));
+        groupBars(c, d.by_group, 6);
+      }
+      var tr = d.treats || {};
+      if (num(tr.total) > 0) c.appendChild(h('p', { class: 'small' }, 'Treats: ' + money(tr.total) + ' (' + Math.round(num(tr.share) * 100) + '% of this receipt).'));
+      var un = (d.unparsed || []).length;
+      if (un) c.appendChild(h('p', { class: 'tiny' }, plural(un, 'line', 'lines') + ' could not be read as a product.'));
+      simNote(c, d);
+      return c;
+    },
     spend: function (d) {
       var c = cardShell('Spending', d.period ? fmtRange(d.period) : '');
       c.appendChild(h('div', { class: 'big-num' }, money(d.total)));
@@ -2180,6 +2045,9 @@
     }
   };
 
+  var OPEN_CARDS = { help: 1, baskets: 1, forecast: 1, payday_plan: 1, receipts: 1, receipt_parsed: 1, challenge: 1,
+    goal_plan: 1, override: 1, explain: 1, transactions: 1, table: 1 };
+
   function renderChatCard(c) {
     if (!c || typeof c !== 'object') return null;
     var fn = CARDS[c.type];
@@ -2251,11 +2119,10 @@
   // Explore section with topic chips. Needs benchmark consent.
   function typicalSection(box, t) {
     var c = card('What is typical?');
-    c.id = 'typical';
     box.appendChild(c);
     if (!(me && me.consent && me.consent.benchmarks)) {
       c.appendChild(h('p', { class: 'small' }, 'See how your spending and habits compare with groups of at least 20 similar customers. Only group statistics are used, never other people\'s data. This needs the "Compare me with people like me" switch.'));
-      c.appendChild(h('button', { type: 'button', class: 'btn secondary', onclick: function () { go('settings'); } }, 'Open Settings'));
+      c.appendChild(h('button', { type: 'button', class: 'btn secondary', onclick: function () { openSettings(); } }, 'Open Settings'));
       return;
     }
     var chipsBox = h('div', { class: 'chips chips-row', role: 'group', 'aria-label': 'Topics' });
@@ -2325,110 +2192,6 @@
       list.push(yy + '-' + (mm < 10 ? '0' + mm : mm));
     }
     return list;
-  }
-
-  function renderExplore(root, t) {
-    var months = monthOptions();
-    var month = months[1];
-    root.appendChild(h('h1', null, 'Explore your money'));
-    var sel = h('select', { class: 'input', id: 'month-pick' });
-    months.forEach(function (m, i) { sel.appendChild(h('option', { value: m }, fmtMonth(m) + (i === 0 ? ' (so far)' : ''))); });
-    sel.value = month;
-    root.appendChild(h('div', { class: 'month-bar' }, h('label', { for: 'month-pick', class: 'field-label' }, 'Month'), sel));
-    var bBox = h('div'), lBox = h('div'), tBox = h('div'), wBox = h('div'), kBox = h('div');
-    var planBox = h('div'), leakBox = h('div'), areaBox = h('div');
-    root.appendChild(bBox); root.appendChild(lBox); root.appendChild(planBox); root.appendChild(tBox); root.appendChild(wBox); root.appendChild(kBox);
-    root.appendChild(leakBox); root.appendChild(areaBox);
-    softSection(planBox, t, 'Your payday plan', '', '/api/payday-plan', function (body, d, c) {
-      if (d && d.next_payday) c.querySelector('.card-head').appendChild(h('span', { class: 'tiny' }, fmtDate(d.next_payday)));
-      body.appendChild(planBody(d || {}));
-    });
-    leaksSection(leakBox, t);
-    softSection(leakBox, t, 'Patterns', '', '/api/patterns', function (body, d) { body.appendChild(patternsBody(d || {})); });
-    areaSection(areaBox, t);
-
-    function monthRange() { return { from: month + '-01', to: lastDayOfMonth(month) }; }
-
-    function drawMonth() {
-      load(bBox, t, function () { return api('/api/baskets?period=' + encodeURIComponent(month)); }, function (d) {
-        var c = card('Three baskets', fmtMonth(month));
-        c.appendChild(basketsBlock(d, { tops: true }));
-        bBox.appendChild(c);
-      });
-      load(lBox, t, function () { return api('/api/overview?month=' + encodeURIComponent(month)); }, function (d) {
-        var c = card('Where it went', fmtMonth(month));
-        c.appendChild(h('div', { class: 'stats' }, stat(money(d.income), 'Money in'), stat(money(d.spent), 'Spent'), stat(money(d.surplus), 'Left over')));
-        var labels = d.top_labels || [];
-        var mx = Math.max.apply(null, labels.map(function (x) { return num(x.total); }).concat([1]));
-        labels.forEach(function (x) {
-          var name = x.label || x.name || '?';
-          var row = h('button', { type: 'button', class: 'bar-row tap', 'aria-label': name + ', ' + money(x.total) + '. Open transactions.' },
-            h('span', null, name),
-            h('div', { class: 'bar-track', 'aria-hidden': 'true' }, (function () { var f = h('div', { class: 'bar-fill' }); f.style.width = (mx > 0 ? num(x.total) / mx * 100 : 0) + '%'; return f; })()),
-            h('span', { class: 'bar-val' }, money(x.total)));
-          row.addEventListener('click', function () {
-            var r = monthRange();
-            var f = { title: name, from: r.from, to: r.to };
-            if (x.label === 'Night out') f.context = 'night_out'; else f.label = x.label || x.name;
-            openEvidence([f], name);
-          });
-          c.appendChild(row);
-        });
-        var ev = evidenceLink(d.evidence, 'The month in transactions');
-        if (ev) c.appendChild(ev);
-        lBox.appendChild(c);
-      });
-    }
-    sel.addEventListener('change', function () { month = sel.value; drawMonth(); runSearch(); });
-
-    // transaction search
-    var q = h('input', { type: 'search', class: 'input', id: 'tx-q', placeholder: 'Merchant or word', autocomplete: 'off' });
-    var lab = h('select', { class: 'input', id: 'tx-label' }, h('option', { value: '' }, 'All types'));
-    FILTER_LABELS.forEach(function (l) { lab.appendChild(h('option', { value: l }, l)); });
-    var bas = h('select', { class: 'input', id: 'tx-basket' }, h('option', { value: '' }, 'All baskets'),
-      h('option', { value: 'regular' }, 'Regular essentials'), h('option', { value: 'unexpected' }, 'Unexpected necessities'),
-      h('option', { value: 'everyday' }, 'Everyday spending'), h('option', { value: 'savings' }, 'Savings'), h('option', { value: 'income' }, 'Income'));
-    var results = h('div', { 'aria-live': 'polite' });
-    var tcard = card('Find transactions', 'Chosen month');
-    tcard.appendChild(h('div', { class: 'form-grid' },
-      h('div', { class: 'wide' }, h('label', { for: 'tx-q' }, 'Search'), q),
-      h('div', null, h('label', { for: 'tx-label' }, 'Type'), lab),
-      h('div', null, h('label', { for: 'tx-basket' }, 'Basket'), bas)));
-    tcard.appendChild(results);
-    tBox.appendChild(tcard);
-    var searchTimer = null;
-    var pendingNote = '';
-    function runSearch() {
-      var r = monthRange();
-      var f = { from: r.from, to: r.to, q: q.value.trim(), label: lab.value, basket: bas.value };
-      load(results, t, function () { return api('/api/transactions?' + filterQuery(f, 50)); }, function (res) {
-        var n = pendingNote; pendingNote = '';
-        results.appendChild(txList(res, { note: n, reload: function (msg) { pendingNote = msg; runSearch(); } }));
-      }, 'Searching...');
-    }
-    q.addEventListener('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 350); });
-    lab.addEventListener('change', runSearch);
-    bas.addEventListener('change', runSearch);
-
-    drawMonth();
-    runSearch();
-    whatIfBlock(wBox, t);
-    var pBox = h('div');
-    root.insertBefore(pBox, kBox);
-    typicalSection(pBox, t);
-    if (me && me.consent && me.consent.benchmarks) {
-      var bc = card('You and people like you');
-      var inner = h('div');
-      bc.appendChild(inner);
-      kBox.appendChild(bc);
-      load(inner, t, function () { return api('/api/benchmarks'); }, function (d) {
-        var g = d.group || {};
-        if (g.description) inner.appendChild(h('p', { class: 'small muted' }, g.description + (g.n ? ' (' + g.n + ' people)' : '')));
-        benchRows(inner, d.rows);
-        openDataBlock(inner, d.open_data);
-        var ex = explainNode(d); if (ex) inner.appendChild(ex);
-      });
-    }
   }
 
   // What-if sliders: pct is the percentage to REDUCE the spending by (positive number).
@@ -2503,11 +2266,12 @@
   }
 
   // ---------- SETTINGS: goal and learned categories ----------
-  function goalBlock(box, t, flash) {
+  function goalBlock(box, t, flash, done) {
     api('/api/goal').then(function (res) {
       if (!alive(t)) return;
       var g = (res && res.goal) || null;
-      var c = h('section', { class: 'card' }, h('h2', null, 'Savings goal'),
+      if (!g) return;
+      var c = h('section', { class: 'card' }, h('h2', null, 'Your savings goal'),
         h('p', { class: 'small muted' }, 'Used to say what a purchase does to your goal. Nothing is moved automatically.'));
       var name = h('input', { type: 'text', class: 'input', id: 'goal-name', maxlength: '40', placeholder: 'A flat', autocomplete: 'off' });
       var target = h('input', { type: 'number', class: 'input', id: 'goal-target', min: '0', step: '100', inputmode: 'decimal' });
@@ -2515,9 +2279,9 @@
       if (g) { name.value = g.name || ''; target.value = String(num(g.target)); saved.value = String(num(g.saved)); }
       var save = h('button', { type: 'button', class: 'btn' }, 'Save');
       var clear = h('button', { type: 'button', class: 'btn secondary' }, 'Clear');
-      function done(r, text) {
+      function after(r, text) {
         var ng = (r && r.goal) || null;
-        if (!ng) { name.value = ''; target.value = ''; saved.value = ''; }
+        if (!ng) box.replaceChildren();
         flash(text);
       }
       save.addEventListener('click', function () {
@@ -2526,11 +2290,11 @@
         if (!isFinite(tg) || tg <= 0) { flash('Enter a target above zero.', true); return; }
         if (!isFinite(sv) || sv < 0) { flash('Saved so far must be zero or more.', true); return; }
         flash('Saving...');
-        api('/api/goal', { method: 'POST', body: { name: name.value.trim(), target: tg, saved: sv } }).then(function (r) { done(r, 'Saved. Your goal is updated.'); },
+        api('/api/goal', { method: 'POST', body: { name: name.value.trim(), target: tg, saved: sv } }).then(function (r) { after(r, 'Saved. Your goal is updated.'); },
           function (e) { if (!e.handled) flash(e.message, true); });
       });
       clear.addEventListener('click', function () {
-        api('/api/goal', { method: 'POST', body: { clear: true } }).then(function (r) { done(r, 'Goal cleared.'); },
+        api('/api/goal', { method: 'POST', body: { clear: true } }).then(function (r) { after(r, 'Goal cleared. Tell me in the chat when you have a new one.'); },
           function (e) { if (!e.handled) flash(e.message, true); });
       });
       c.appendChild(h('div', { class: 'form-grid' },
@@ -2539,6 +2303,7 @@
         h('div', null, h('label', { for: 'goal-saved' }, 'Saved so far (euros)'), saved)));
       c.appendChild(h('div', { class: 'btn-row' }, save, clear));
       box.appendChild(c);
+      if (done) done();
     }, function () {});
   }
 
@@ -2549,16 +2314,15 @@
     return what + ' is now ' + to + (o.created ? ' (' + fmtDate(o.created) + ')' : '') + '.';
   }
 
-  function learnedBlock(box, t) {
+  function learnedBlock(box, t, done) {
     function draw() {
       api('/api/overrides').then(function (res) {
         if (!alive(t)) return;
         var list = (res && res.overrides) || [];
         var c = h('section', { class: 'card' }, h('h2', null, 'What Svinkki has learned'));
         var msg = h('div', { 'aria-live': 'polite' });
-        if (!list.length) {
-          c.appendChild(h('p', { class: 'small muted' }, "Nothing yet. Change a transaction's category and Svinkki remembers it."));
-        } else {
+        if (!list.length) { box.replaceChildren(); if (done) done(); return; }
+        {
           var ul = h('ul', { class: 'list' });
           list.forEach(function (o) {
             var rm = h('button', { type: 'button', class: 'btn secondary small-btn', 'aria-label': 'Remove: ' + overrideText(o) }, 'Remove');
@@ -2575,6 +2339,7 @@
         }
         c.appendChild(msg);
         box.replaceChildren(c);
+        if (done) done();
       }, function () {});
     }
     draw();
@@ -2584,7 +2349,7 @@
   // ---------- AI model (demo setup) ----------
   // For the person running the demo: choose the Claude model and replace the key. The server never
   // sends the key back; it only says that one is saved and what its last four characters are.
-  function aiSetupBlock(box, t) {
+  function aiSetupBlock(box, t, done) {
     var body = h('div', { class: 'ai-setup' });
     box.appendChild(h('section', { class: 'card' }, h('h2', null, 'AI model (demo setup)'),
       h('p', { class: 'small muted' }, 'For the person running the demo. Customers never see this in a real bank app.'), body));
@@ -2634,7 +2399,7 @@
         api('/api/demo/ai', { method: 'POST', body: req }).then(function (now) {
           if (!alive(t)) return;
           if (me) me.ai_available = now.provider !== 'offline';
-          chatCache = null;   // the chat screen shows whether a model is connected
+          if (chat) chat.setAiHint();   // the conversation shows whether a model is connected
           draw(now, k ? 'Saved. Use "Test the key" to check that it works.' : 'Saved.');
         }, function (e) {
           if (!alive(t) || (e && e.handled)) return;
@@ -2662,21 +2427,517 @@
       body.appendChild(msg);
     }
 
-    load(body, t, function () { return api('/api/demo/ai'); }, function (st) { draw(st || {}); });
+    load(body, t, function () { return api('/api/demo/ai'); }, function (st) { draw(st || {}); if (done) done(); });
   }
 
-  function renderSettings(root, t) {
-    root.appendChild(h('h1', null, 'Settings and privacy'));
+  // ---------- THE CONVERSATION ----------
+  var STARTERS = [
+    { label: 'Taxis last month', q: 'How much did I spend on taxis last month?' },
+    { label: 'Can I afford a €300 jacket?', q: 'Can I afford a 300 euro jacket?' },
+    { label: 'Save for a trip to Japan', q: 'I want to go to Japan in 2027' },
+    { label: 'What do I buy most?', q: 'What do I buy most?' }
+  ];
+
+  // "What can I ask?" content. q: sent to the chat. act: something Svinkki does instead.
+  var ASK_GROUPS = [
+    { title: 'My spending', items: [
+      { q: 'How much did I spend on taxis last month?' },
+      { q: 'How much did I spend at bars last night?' },
+      { q: 'Where did my money go?' },
+      { q: 'Show my three baskets for last month' },
+      { label: 'Browse my transactions', act: 'browse' }
+    ] },
+    { title: 'Can I afford it?', items: [
+      { q: 'What is safe for me to spend this week?' },
+      { q: 'Can I afford a 300 euro jacket?' },
+      { q: 'Will I make it to payday?' },
+      { q: 'How should I split my next salary?' }
+    ] },
+    { title: 'Save and plan', items: [
+      { q: 'How can I save more?' },
+      { q: 'How much could I save if I reduced dining out by 20%?' },
+      { q: 'I want to go to Japan in 2027' },
+      { q: 'What kind of mortgage can I get approved for?' },
+      { q: 'What should I invest in?' }
+    ] },
+    { title: 'Am I normal?', items: [
+      { q: 'What kind of spender am I?' },
+      { q: 'Is my taxi spending normal?' },
+      { q: 'How do I compare with people my age?' },
+      { q: 'What is my area like?' }
+    ] },
+    { title: 'Leaks and habits', items: [
+      { q: 'Where is my money leaking?' },
+      { q: 'Anything unusual this month?' },
+      { q: 'Any spending patterns?' },
+      { q: 'Give me a challenge' }
+    ] },
+    { title: 'My receipts', items: [
+      { q: 'What do I buy most?' },
+      { q: 'How much do I spend on energy drinks?' },
+      { q: 'Show my receipts' },
+      { label: 'Read a receipt I paste', act: 'receipt' }
+    ] },
+    { title: 'More', items: [
+      { label: 'This week\'s quiz', act: 'quiz' },
+      { label: 'My check-in', act: 'checkin' },
+      { label: 'Explain a loan or fund text', act: 'explain' }
+    ] }
+  ];
+
+  var HELP_PHRASES = ['help', 'what can i ask', 'what can you do', 'apua', 'mitä voin kysyä', 'mita voin kysya'];
+  function isHelpRequest(text) {
+    var s = String(text || '').toLowerCase().replace(/[?!.\s]+$/, '').replace(/\s+/g, ' ').trim();
+    return HELP_PHRASES.indexOf(s) >= 0;
+  }
+
+  function offCard(text) {
+    var c = cardShell('Svinkki');
+    c.appendChild(h('p', null, text));
+    c.appendChild(settingsLink('Open Settings'));
+    return c;
+  }
+
+  // Fill a thread card from one endpoint. 404 means the feature is off.
+  function fillCard(holder, t, fetcher, render, loadingText, offText) {
+    holder.replaceChildren(loadingNode(loadingText));
+    fetcher().then(function (d) {
+      if (!alive(t)) return;
+      holder.replaceChildren();
+      render(d);
+    }, function (e) {
+      if (!alive(t) || (e && e.handled)) return;
+      holder.replaceChildren();
+      if (e && e.status === 404 && offText) holder.appendChild(offCard(offText));
+      else holder.appendChild(errorNode(e));
+    });
+  }
+
+  function affordCard() {
+    var c = card('Can I afford this?');
+    var out = h('div', { 'aria-live': 'polite' });
+    c.appendChild(h('p', { class: 'small muted' }, 'Check a purchase against what is safe to spend until payday.'));
+    c.appendChild(affordForm(out));
+    c.appendChild(out);
+    return c;
+  }
+
+  function showApp() {
+    mode = 'app';
+    clearView();
+    setChrome(true, '');
+    chat = buildChat();
+    viewEl.appendChild(chat.el);
+    chat.start();
+  }
+
+  function buildChat() {
+    var t = token;
+    var msgs = h('div', { class: 'msgs', role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' });
+    var input = h('textarea', { class: 'input chat-text', rows: '1', maxlength: '2000', placeholder: 'Ask Svinkki', 'aria-label': 'Your question', autocomplete: 'off', enterkeyhint: 'send' });
+    var sendBtn = h('button', { type: 'submit', class: 'btn' }, 'Send');
+    var form = h('form', { class: 'chat-input' }, input, sendBtn);
+    var hint = h('p', { class: 'chat-hint' }, 'AI model not connected: answers come from built-in rules. Numbers are the same either way.');
+    var busy = false;
+    var shown = {};    // key -> thread message already holding that card
+
+    function bubble(who, node) {
+      var m = h('div', { class: 'msg ' + who }, h('div', { class: 'bubble' }, node));
+      msgs.appendChild(m);
+      return m;
+    }
+    function toBottom() { msgs.scrollTop = msgs.scrollHeight; }
+    // Show the START of a message, not the end of a long card.
+    function toStartOf(el) { msgs.scrollTop = Math.max(0, el.offsetTop - 8); }
+    function autosize() {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      input.classList.toggle('tall', input.scrollHeight > 120);
+    }
+    function setAiHint() { hint.hidden = !(me && me.ai_available === false); }
+
+    function send(text) {
+      text = String(text || '').trim();
+      if (!text || busy) return;
+      if (isHelpRequest(text)) { input.value = ''; autosize(); openAsk(); return; }
+      busy = true; sendBtn.disabled = true;
+      bubble('user', h('p', null, text));
+      input.value = '';
+      autosize();
+      input.focus({ preventScroll: true });
+      var wait = h('div', { class: 'msg bot' }, h('div', { class: 'bubble' }, h('span', { class: 'typing', role: 'status', 'aria-label': 'Svinkki is thinking' }, h('i'), h('i'), h('i'))));
+      msgs.appendChild(wait);
+      toBottom();
+      api('/api/chat', { method: 'POST', body: { message: text } }).then(function (res) {
+        wait.remove();
+        toStartOf(botReply(res || {}));
+      }, function (e) {
+        wait.remove();
+        if (e.handled) return;
+        var m = h('div', { class: 'msg bot' }, h('div', { class: 'bubble' }, errorNode(e)));
+        msgs.appendChild(m);
+        toStartOf(m);
+      }).then(function () { busy = false; sendBtn.disabled = false; input.focus({ preventScroll: true }); });
+    }
+
+    // Entries from "What can I ask?": send now, or put the question in the box while an answer is pending.
+    function ask(q) {
+      if (busy) { input.value = q; autosize(); input.focus(); return; }
+      send(q);
+    }
+
+    // An answer is one short bubble. The card and the transactions sit behind two small buttons.
+    function botReply(res) {
+      var inner = h('div');
+      inner.appendChild(richText(res.reply));
+      var m = bubble('bot', inner);
+      var acts = h('div', { class: 'reply-acts' });
+      var nodes = [], openNow = false;
+      (res.cards || []).forEach(function (c) {
+        var node = null;
+        try { node = renderChatCard(c); } catch (e) { node = null; }
+        if (node) { nodes.push(node); if (OPEN_CARDS[c.type]) openNow = true; }
+      });
+      var used = null;
+      try { used = usedParts(res.used); } catch (e) { used = null; }
+      var wrap = null;
+      if (nodes.length) {
+        wrap = h('div', { class: 'msg-cards' + (used ? ' has-used' : ''), id: 'det-' + Math.random().toString(36).slice(2, 8) });
+        nodes.forEach(function (n) { wrap.appendChild(n); });
+        wrap.hidden = !openNow;
+        var det = h('button', { type: 'button', class: 'act-btn', 'aria-expanded': String(openNow), 'aria-controls': wrap.id }, openNow ? 'Hide details' : 'Details');
+        det.addEventListener('click', function () {
+          var open = wrap.hidden;
+          wrap.hidden = !open;
+          det.setAttribute('aria-expanded', String(open));
+          det.textContent = open ? 'Hide details' : 'Details';
+          m.classList.toggle('has-cards', open || (used && !used.body.hidden));
+        });
+        acts.appendChild(det);
+        if (openNow) m.classList.add('has-cards');
+      }
+      if (used) {
+        acts.appendChild(used.btn);
+        used.btn.addEventListener('click', function () {
+          m.classList.toggle('has-cards', !used.body.hidden || (wrap && !wrap.hidden));
+        });
+      }
+      var ai = isAiMode(res.mode);
+      acts.appendChild(h('span', { class: 'mode-tag', title: ai ? 'Worded by the AI model. The figures come from the app.' : 'Answered by built-in rules, without an AI model.' }, ai ? 'AI' : 'Rules'));
+      m.appendChild(acts);
+      if (res.notice) m.appendChild(h('p', { class: 'tiny reply-note' }, ht(String(res.notice))));
+      if (wrap) m.appendChild(wrap);
+      if (used) m.appendChild(used.body);
+      return m;
+    }
+
+    // A card the coach "sends" on request. key: one copy per card; asking again scrolls back to it.
+    function insertCard(key, build) {
+      var old = shown[key];
+      if (old && document.contains(old)) { toStartOf(old); return old; }
+      var holder = h('div', { class: 'msg-cards' });
+      var m = h('div', { class: 'msg bot has-cards' }, h('div', { class: 'attrib' }, 'Svinkki'), holder);
+      msgs.appendChild(m);
+      build(holder);
+      toStartOf(m);
+      shown[key] = m;
+      return m;
+    }
+
+    function insert(name, pre) {
+      function src(path) { return pre ? function () { return Promise.resolve(pre); } : function () { return api(path); }; }
+      if (name === 'afford') return insertCard('afford', function (hd) { hd.appendChild(affordCard()); });
+      if (name === 'whatif') return insertCard('whatif', function (hd) { whatIfBlock(hd, t); });
+      if (name === 'typical') return insertCard('typical', function (hd) { typicalSection(hd, t); });
+      if (name === 'quiz') {
+        return insertCard('quiz', function (hd) {
+          fillCard(hd, t, src('/api/quiz'), function (q) { hd.appendChild(quizCard(q)); },
+            'Finding this week\'s question...', 'The weekly quiz is switched off. You can turn it back on in Settings.');
+        });
+      }
+      if (name === 'checkin') {
+        return insertCard('checkin', function (hd) {
+          fillCard(hd, t, src('/api/checkin'), function (r) {
+            if (r && r.due && r.checkin) hd.appendChild(checkinCard(r.checkin));
+            else hd.appendChild(offCard('Check-ins are switched off. You can choose how often you want one in Settings.'));
+          }, 'Preparing your check-in...');
+        });
+      }
+      if (name === 'challenge') {
+        return insertCard('challenge', function (hd) {
+          fillCard(hd, t, src('/api/challenge'), function (d) { hd.appendChild(CARDS.challenge(d || {})); }, 'Loading...');
+        });
+      }
+      if (name === 'alerts') {
+        return insertCard('alerts', function (hd) { hd.appendChild(CARDS.alerts(pre || {})); });
+      }
+      return null;
+    }
+
+    function openExplain() {
+      openExplainSheet(function (text, data) {
+        var shownText = text.length > 200 ? text.slice(0, 200) + '...' : text;
+        bubble('user', h('p', null, 'Explain this text: ' + shownText));
+        var m = bubble('bot', h('div', null, h('p', null, 'Here is that text in plain words.'),
+          h('div', { class: 'msg-cards' }, explainCard(data))));
+        toStartOf(m);
+      });
+    }
+
+    // ---- the Today card and the quiet "ready when you are" line ----
+    function todayNode() {
+      var box = h('button', { type: 'button', class: 'today-mini', hidden: true });
+      api('/api/safe-to-spend').then(function (d) {
+        if (!alive(t) || !d) return;
+        var short = num(d.safe_total) < 0 || num(d.per_day) < 0;
+        box.appendChild(h('span', { class: 'tm-label' }, 'Safe to spend'));
+        box.appendChild(h('span', { class: 'tm-num' }, short ? '€0' : money(d.per_day, { hero: true })));
+        box.appendChild(h('span', { class: 'tm-sub' }, short ? 'You are short until payday. Tap to see why.'
+          : 'a day, ' + money(d.per_week, { hero: true }) + ' this week. Tap to see why.'));
+        box.hidden = false;
+      }, function () {});
+      box.addEventListener('click', function () { ask('What is safe for me to spend this week?'); });
+      return box;
+    }
+
+    function readyNode() {
+      var row = h('div', { class: 'ready-row', role: 'group', 'aria-label': 'Ready when you are' });
+      var slots = {};
+      function slot(key, text, onTap) {
+        var b = h('button', { type: 'button', class: 'ready-btn', hidden: true }, text);
+        b.addEventListener('click', onTap);
+        slots[key] = b;
+        row.appendChild(b);
+      }
+      var data = {};
+      slot('checkin', 'Your check-in is ready', function () { insert('checkin', data.checkin); });
+      slot('quiz', 'This week\'s quiz', function () { insert('quiz', data.quiz); });
+      slot('challenge', 'Your challenge', function () { insert('challenge', data.challenge); });
+      var alertsBtn = h('button', { type: 'button', class: 'ready-btn alerts-line', hidden: true }, '');
+      var wrap = h('div', { class: 'ready' }, row, alertsBtn);
+
+      api('/api/checkin').then(function (r) {
+        if (!alive(t) || !r || !r.due || !r.checkin) return;
+        data.checkin = r; slots.checkin.hidden = false;
+      }, function () {});
+      api('/api/quiz').then(function (q) {
+        if (!alive(t) || !q || !q.quiz_id) return;
+        data.quiz = q; slots.quiz.hidden = false;
+      }, function () {});
+      api('/api/challenge').then(function (d) {
+        if (!alive(t) || !d || !d.active) return;
+        data.challenge = d; slots.challenge.hidden = false;
+      }, function () {});
+      api('/api/alerts').then(function (d) {
+        var list = (d && Array.isArray(d.alerts)) ? d.alerts : [];
+        if (!alive(t) || !list.length) return;
+        alertsBtn.textContent = list.length === 1 ? '1 thing worth a look' : list.length + ' things worth a look';
+        alertsBtn.hidden = false;
+        alertsBtn.addEventListener('click', function () { insert('alerts', { alerts: list, explain: d.explain }); });
+      }, function () {});
+      return wrap;
+    }
+
+    function start() {
+      var first = me && me.name ? String(me.name).split(',')[0] : '';
+      bubble('bot', h('div', null,
+        h('p', null, 'Hi' + (first ? ' ' + first : '') + '! I am Svinkki, your money coach. Ask me anything about your money.'),
+        h('p', null, 'You can also tell me things and I will remember them: a savings goal ("I am saving for Japan in 2027") or a correction ("that kebab was lunch"). What you set up can be changed later behind the gear.')));
+      var starters = h('div', { class: 'chips starters', role: 'group', 'aria-label': 'Things to try' });
+      STARTERS.forEach(function (st) {
+        starters.appendChild(h('button', { type: 'button', class: 'chip', onclick: function () { ask(st.q); } }, st.label));
+      });
+      starters.appendChild(h('button', { type: 'button', class: 'chip more', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, 'More ideas'));
+      msgs.appendChild(h('div', { class: 'msg bot wide' }, todayNode(), starters, readyNode()));
+      msgs.scrollTop = 0;
+    }
+
+    form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(input.value); }
+    });
+    input.addEventListener('input', autosize);
+    setAiHint();
+
+    var el = h('div', { class: 'chat' }, h('h1', { class: 'sr-only' }, 'Svinkki conversation'), hint, msgs, h('div', { class: 'chat-foot' }, form));
+    return { el: el, start: start, send: send, ask: ask, insert: insert, openExplain: openExplain, setAiHint: setAiHint };
+  }
+
+  // ---------- "What can I ask?" ----------
+  function runAsk(entry) {
+    if (!chat) return;
+    if (entry.q) { chat.ask(entry.q); return; }
+    var a = entry.act;
+    if (a === 'browse') openBrowse();
+    else if (a === 'explain') chat.openExplain();
+    else if (a === 'receipt') openReceiptSheet();
+    else if (a.indexOf('set:') === 0) openSettings(a.slice(4));
+    else chat.insert(a);
+  }
+
+  function openAsk() {
+    var body = openSheet('What can I ask?', { full: true });
+    body.appendChild(h('p', { class: 'muted' }, 'Pick a topic and tap a question. Or just type your own.'));
+    var all = [];
+    ASK_GROUPS.forEach(function (g, gi) {
+      var det = h('details', { class: 'ask-topic' });
+      if (gi === 0) det.open = true;
+      det.appendChild(h('summary', null, g.title));
+      var list = h('div', { class: 'ask-list' });
+      g.items.forEach(function (it) {
+        var b = h('button', { type: 'button', class: 'ask-entry' }, it.label || it.q);
+        b.addEventListener('click', function () { closeSheet(); runAsk(it); });
+        list.appendChild(b);
+      });
+      det.appendChild(list);
+      det.addEventListener('toggle', function () {
+        if (!det.open) return;
+        all.forEach(function (o) { if (o !== det) o.open = false; });
+      });
+      all.push(det);
+      body.appendChild(det);
+    });
+  }
+
+  // ---------- transactions browser ----------
+  var BROWSE_BASKETS = [
+    { value: '', label: 'All' },
+    { value: 'regular', label: 'Regular essentials' },
+    { value: 'unexpected', label: 'Unexpected necessities' },
+    { value: 'everyday', label: 'Everyday spending' }
+  ];
+
+  function chipRow(label, options, value, onPick) {
+    var row = h('div', { class: 'chips', role: 'group', 'aria-label': label });
+    var btns = options.map(function (o) {
+      var b = h('button', { type: 'button', class: 'chip', 'aria-pressed': String(o.value === value) }, o.label);
+      if (o.aria) b.setAttribute('aria-label', o.aria);
+      b.addEventListener('click', function () {
+        btns.forEach(function (x, i) { x.setAttribute('aria-pressed', String(options[i].value === o.value)); });
+        onPick(o.value);
+      });
+      row.appendChild(b);
+      return b;
+    });
+    return row;
+  }
+
+  function openBrowse() {
+    var body = openSheet('Browse my transactions', { full: true });
+    var t = token;
+    var months = monthOptions().slice(0, 6);
+    var f = { month: months[1] || months[0], basket: '', label: '', night: false, q: '' };
+    var monthOpts = months.map(function (m, i) {
+      var parts = m.split('-');
+      return { value: m, label: MON[Number(parts[1]) - 1] + ' ' + parts[0], aria: fmtMonth(m) + (i === 0 ? ', so far' : '') };
+    });
+    monthOpts.push({ value: '', label: 'All' });
+
+    var results = h('div', { 'aria-live': 'polite' });
+    var seq = 0, note = '', timer = null;
+
+    function run() {
+      var my = ++seq;
+      var flt = {};
+      if (f.month) { flt.from = f.month + '-01'; flt.to = lastDayOfMonth(f.month); }
+      if (f.basket) flt.basket = f.basket;
+      if (f.label) flt.label = f.label;
+      if (f.night) flt.context = 'night_out';
+      if (f.q) flt.q = f.q;
+      results.replaceChildren(loadingNode('Searching...'));
+      api('/api/transactions?' + filterQuery(flt, 100)).then(function (res) {
+        if (!alive(t) || my !== seq) return;
+        var n = note; note = '';
+        results.replaceChildren(txList(res, { note: n, reload: function (msg) { note = msg; run(); } }));
+      }, function (e) {
+        if (!alive(t) || my !== seq || e.handled) return;
+        results.replaceChildren(errorNode(e, run));
+      });
+    }
+
+    var q = h('input', { type: 'search', class: 'input', id: 'br-q', placeholder: 'Merchant or word', autocomplete: 'off' });
+    q.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { f.q = q.value.trim(); run(); }, 350); });
+    var sel = h('select', { class: 'input', id: 'br-label' }, h('option', { value: '' }, 'All categories'));
+    function fillLabels(list) {
+      list.forEach(function (l) { sel.appendChild(h('option', { value: l }, l)); });
+      sel.value = f.label;
+    }
+    loadLabels().then(fillLabels, function () { fillLabels(FILTER_LABELS); });
+    sel.addEventListener('change', function () { f.label = sel.value; run(); });
+    var night = switchRow('br-night', 'Nights out only', 'Only purchases that were part of a night out.', false, function (v) { f.night = v; run(); });
+
+    body.appendChild(h('div', { class: 'browse-filters' },
+      h('div', null, h('span', { class: 'field-label' }, 'Month'), chipRow('Month', monthOpts, f.month, function (v) { f.month = v; run(); })),
+      h('div', null, h('span', { class: 'field-label' }, 'Basket'), chipRow('Basket', BROWSE_BASKETS, '', function (v) { f.basket = v; run(); })),
+      h('div', null, h('label', { for: 'br-label', class: 'field-label' }, 'Category'), sel),
+      night.el,
+      h('div', null, h('label', { for: 'br-q', class: 'field-label' }, 'Search'), q)));
+    body.appendChild(results);
+    run();
+  }
+
+  // ---------- SETTINGS (a full-height sheet) ----------
+  function openSettings(anchor) {
+    var root = openSheet('Settings', { full: true });
+    var t = token;
+    var settleUntil = Date.now() + 2500;
+    function toAnchor() {
+      if (!anchor || Date.now() > settleUntil) return;
+      var el = document.getElementById(anchor);
+      if (el) el.scrollIntoView({ block: 'start' });
+    }
     var saved = h('p', { class: 'saved', role: 'status', 'aria-live': 'polite' });
     root.appendChild(saved);
     var consent = (me && me.consent) || {};
     var settings = (me && me.settings) || {};
     var timer = null;
     function flash(text, isErr) {
-      saved.textContent = text;
+      saved.textContent = text || '';
       saved.className = 'saved' + (isErr ? ' notice err' : '');
       clearTimeout(timer);
       if (!isErr) timer = setTimeout(function () { saved.textContent = ''; }, 3500);
+    }
+    function sec(id, title, open) {
+      var d = h('details', { class: 'set-sec anchor', id: id });
+      if (open || anchor === id) d.open = true;
+      var b = h('div', { class: 'set-body' });
+      d.appendChild(h('summary', null, title));
+      d.appendChild(b);
+      root.appendChild(d);
+      return b;
+    }
+
+    // What the customer has set up in the conversation comes first, and only when it exists.
+    var goalBox = h('div', { class: 'anchor', id: 'set-goal' });
+    var learnBox = h('div', { class: 'anchor', id: 'set-learned' });
+    root.appendChild(goalBox); root.appendChild(learnBox);
+    goalBlock(goalBox, t, flash, toAnchor);
+    learnedBlock(learnBox, t, toAnchor);
+
+    var pc = prefControls(settings, function (s) { saveSettings(s); });
+    function saveSettings(s) {
+      flash('Saving...');
+      api('/api/settings', { method: 'POST', body: s }).then(function (r) {
+        me.settings = (r && r.settings) || s;
+        flash('Saved.');
+      }, function (e) { if (!e.handled) flash(e.message, true); });
+    }
+    sec('set-checkin', 'How often I check in', !anchor).appendChild(pc.el);
+
+    if (num(settings.monthly_saving_target) > 0) {
+      var target = h('input', { type: 'number', class: 'input', id: 'save-target', min: '0', step: '10', inputmode: 'decimal' });
+      target.value = String(num(settings.monthly_saving_target));
+      var tBtn = h('button', { type: 'button', class: 'btn' }, 'Save');
+      tBtn.addEventListener('click', function () {
+        var v = Number(target.value);
+        if (!isFinite(v) || v < 0) { flash('Enter a savings target of zero or more.', true); return; }
+        pc.setTarget(v);
+        saveSettings(pc.get());
+      });
+      var tb = sec('set-target', 'Monthly saving target');
+      tb.appendChild(h('p', { class: 'small muted' }, 'Set aside first when I work out what is safe to spend. Nothing is moved automatically.'));
+      tb.appendChild(h('label', { for: 'save-target', class: 'field-label' }, 'Euros per month'));
+      tb.appendChild(h('div', { class: 'btn-row' }, target, tBtn));
     }
 
     var cc = consentControls(consent, function (key, st) {
@@ -2684,44 +2945,12 @@
       api('/api/consent', { method: 'POST', body: st }).then(function (r) {
         me.consent = (r && r.consent) || st;
         if (!me.consent.analysis) { showConsent(); return; }
-        flash('Saved. Your choices are updated.');
+        flash('Saved.');
       }, function (e) { if (!e.handled) flash(e.message, true); });
     });
-    root.appendChild(h('section', { class: 'card' }, h('h2', null, 'What Svinkki may do'), cc.el));
+    sec('set-consent', 'What Svinkki may do').appendChild(cc.el);
 
-    var pc = prefControls(settings, function (s) { saveSettings(s); });
-    function saveSettings(s) {
-      flash('Saving...');
-      api('/api/settings', { method: 'POST', body: s }).then(function (r) {
-        me.settings = (r && r.settings) || s;
-        flash('Saved. Your check-in settings are updated.');
-      }, function (e) { if (!e.handled) flash(e.message, true); });
-    }
-    root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Check-ins and suggestions'), pc.el));
-
-    var target = h('input', { type: 'number', class: 'input', id: 'save-target', min: '0', step: '10', inputmode: 'decimal' });
-    target.value = String(num(settings.monthly_saving_target));
-    var tBtn = h('button', { type: 'button', class: 'btn' }, 'Save target');
-    tBtn.addEventListener('click', function () {
-      var v = Number(target.value);
-      if (!isFinite(v) || v < 0) { flash('Enter a savings target of zero or more.', true); return; }
-      pc.setTarget(v);
-      saveSettings(pc.get());
-    });
-    root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Monthly saving target'),
-      h('p', { class: 'small muted' }, 'Used in "safe to spend" so planned savings are set aside first. Nothing is moved automatically.'),
-      h('label', { for: 'save-target', class: 'field-label' }, 'Euros per month'),
-      h('div', { class: 'btn-row' }, target, tBtn)));
-
-    var goalBox = h('div'); var learnBox = h('div');
-    root.appendChild(goalBox); root.appendChild(learnBox);
-    goalBlock(goalBox, t, flash);
-    learnedBlock(learnBox, t);
-
-    // What the AI saw
     var payloadBox = h('div');
-    var aiCard = h('section', { class: 'card' }, h('h2', null, 'What the AI saw'),
-      h('p', { class: 'small muted' }, 'This is exactly what was last sent to the AI model, with no names or account details.'));
     var showBtn = h('button', { type: 'button', class: 'btn secondary' }, 'Show what the AI saw');
     showBtn.addEventListener('click', function () {
       load(payloadBox, t, function () { return api('/api/privacy/ai-payload'); }, function (p) {
@@ -2732,21 +2961,13 @@
         }
       });
     });
-    aiCard.appendChild(showBtn); aiCard.appendChild(payloadBox);
-    root.appendChild(aiCard);
+    var aiSaw = sec('set-ai-saw', 'What the AI saw');
+    aiSaw.appendChild(h('p', { class: 'small muted' }, 'Exactly what was last sent to the AI model, with no names or account details.'));
+    aiSaw.appendChild(showBtn);
+    aiSaw.appendChild(payloadBox);
 
-    var aiSetupBox = h('div');
-    root.appendChild(aiSetupBox);
-    aiSetupBlock(aiSetupBox, t);
+    aiSetupBlock(sec('set-ai-setup', 'AI model (demo setup)'), t, toAnchor);
 
-    root.appendChild(h('section', { class: 'card' }, h('h2', null, 'What is stored'),
-      h('ul', { class: 'store-list' },
-        h('li', null, 'Your transactions stay in the bank data. Svinkki only reads your own rows.'),
-        h('li', null, 'Your consent choices and check-in settings are saved so the app can obey them.'),
-        h('li', null, 'Answers to the quiz and the suggestions you accept or skip are saved, as intentions only.'),
-        h('li', null, 'Chat messages are not stored. Nothing is ever sent to an AI model without your consent.'))));
-
-    // Erase
     var eraseBox = h('div');
     var eraseBtn = h('button', { type: 'button', class: 'btn danger block' }, 'Erase my data');
     eraseBtn.addEventListener('click', function () {
@@ -2754,43 +2975,61 @@
       var yes = h('button', { type: 'button', class: 'btn danger solid' }, 'Yes, erase everything');
       var no = h('button', { type: 'button', class: 'btn secondary' }, 'Cancel');
       var msg = h('div');
-      eraseBox.replaceChildren(h('p', { class: 'notice' }, 'This deletes your consent, settings, quiz answers and suggestion choices stored by Svinkki. It cannot be undone. Your bank transactions are not touched.'),
+      eraseBox.replaceChildren(h('p', { class: 'notice' }, 'This deletes your choices, goal, quiz answers and everything else Svinkki has stored about you. It cannot be undone. Your bank transactions are not touched.'),
         h('div', { class: 'btn-row' }, yes, no), msg);
       no.addEventListener('click', function () { eraseBox.replaceChildren(); eraseBtn.hidden = false; eraseBtn.focus(); });
       yes.addEventListener('click', function () {
         yes.disabled = true;
         api('/api/privacy/erase', { method: 'POST', body: {} }).then(function () {
-          chatCache = null;
           boot();
+        }, function (e) { yes.disabled = false; if (!e.handled) msg.replaceChildren(errorNode(e)); });
+      });
+    });
+    var dataBox = sec('set-data', 'Your data');
+    dataBox.appendChild(h('ul', { class: 'store-list' },
+      h('li', null, 'Your transactions stay in the bank data. Svinkki only reads your own rows.'),
+      h('li', null, 'Your choices, goal and quiz answers are saved so the app can use them.'),
+      h('li', null, 'Chat messages are not stored.')));
+    dataBox.appendChild(eraseBtn);
+    dataBox.appendChild(eraseBox);
+
+    // Demo: back to the very beginning
+    var resetBox = h('div');
+    var resetBtn = h('button', { type: 'button', class: 'btn secondary block' }, 'Reset demo');
+    resetBtn.addEventListener('click', function () {
+      resetBtn.hidden = true;
+      var yes = h('button', { type: 'button', class: 'btn danger solid' }, 'Yes, start over');
+      var no = h('button', { type: 'button', class: 'btn secondary' }, 'Cancel');
+      var msg = h('div');
+      resetBox.replaceChildren(h('p', { class: 'notice' }, 'This takes the demo back to the very beginning. Every demo customer\'s choices, goals, learned categories, quiz answers and challenges are forgotten, and you are logged out. The AI key and model are kept.'),
+        h('div', { class: 'btn-row' }, yes, no), msg);
+      no.addEventListener('click', function () { resetBox.replaceChildren(); resetBtn.hidden = false; resetBtn.focus(); });
+      yes.addEventListener('click', function () {
+        yes.disabled = true;
+        api('/api/demo/reset', { method: 'POST', body: {} }).then(function () {
+          me = null; closeSheet(); showLogin();
         }, function (e) { yes.disabled = false; if (!e.handled) msg.replaceChildren(errorNode(e)); });
       });
     });
     var logout = h('button', { type: 'button', class: 'btn secondary block' }, 'Log out');
     logout.addEventListener('click', function () {
       logout.disabled = true;
-      api('/api/logout', { method: 'POST', body: {} }).then(function () { me = null; chatCache = null; showLogin(); },
+      api('/api/logout', { method: 'POST', body: {} }).then(function () { me = null; showLogin(); },
         function (e) { logout.disabled = false; if (!e.handled) flash(e.message, true); });
     });
-    root.appendChild(h('section', { class: 'card' }, h('h2', null, 'Your data'), eraseBtn, eraseBox));
-    var switchBtn = h('button', { type: 'button', class: 'btn secondary' }, 'Switch customer');
-    switchBtn.addEventListener('click', function () {
-      switchBtn.disabled = true;
-      api('/api/logout', { method: 'POST', body: {} }).then(function () { me = null; chatCache = null; showLogin(); },
-        function (e) { switchBtn.disabled = false; if (!e.handled) flash(e.message, true); });
-    });
-    logout.classList.remove('block');
-    root.appendChild(h('div', { class: 'btn-row' }, logout, switchBtn));
+    root.appendChild(h('div', { class: 'set-end' }, logout, resetBtn, resetBox));
+    root.appendChild(h('p', { class: 'tiny center' }, 'Hackathon prototype for the S-Pankki challenge. Synthetic data.'));
+    toAnchor();
   }
 
   // ---------- start ----------
   function init() {
     viewEl = document.getElementById('view');
-    document.querySelectorAll('.tab-icon').forEach(function (el) {
-      el.appendChild(icon(el.getAttribute('data-icon')));
+    document.querySelectorAll('[data-icon]').forEach(function (el) {
+      el.appendChild(icon(el.getAttribute('data-icon'), 20));
     });
-    document.querySelectorAll('.tab').forEach(function (b) {
-      b.addEventListener('click', function () { go(b.getAttribute('data-tab')); });
-    });
+    document.getElementById('ask-btn').addEventListener('click', function () { openAsk(); });
+    document.getElementById('gear-btn').addEventListener('click', function () { openSettings(); });
     boot();
   }
 

@@ -140,12 +140,15 @@ meta(key TEXT PRIMARY KEY, value TEXT)
   (MCC 5813): any `Restaurant`, `Fast food`, `Taxi` or `Bar` purchase by the same customer between
   18:00 on that day and 06:00 the next morning, when at least one `Bar` purchase is in that
   window. `label` keeps the merchant type; the UI and tools report these under "Night out".
-- `basket`: `regular` (Housing, Utilities, Groceries, Public transport, Fuel, Pharmacy under the
-  unexpected threshold), `unexpected` (Doctor, Dentist, Other health, Home improvement,
-  Electronics, Furniture when the single purchase is at least 150 EUR, and any other purchase
-  of at least 500 EUR in Health or Home & Tech), `everyday` (all other purchases),
+- `basket`: `regular` (Housing, Utilities, Groceries, Public transport, Fuel, Pharmacy),
+  `unexpected` (Doctor, Dentist, Other health and Home improvement at ANY amount; Electronics and
+  Furniture when the single purchase is at least 150 EUR; any other purchase of at least 500 EUR
+  in Health or Home & Tech), `everyday` (all other purchases, including Electronics and
+  Furniture under 150 EUR),
   `savings` (investment deposits), `income` (inflows), `transfer` (salary sweep). classify.py is
   the single source of truth and exposes `BASKET_RULES_TEXT` (plain-language explanation).
+  Changed 13 Nov after the independent evaluation, see docs/EVALUATION.md D3 (health and repairs
+  are unexpected necessities at any amount).
 - `age_band`: `18-24`, `25-34`, `35-44`, `45-54`, `55-64`, `65+`. `area`: first two postal digits.
 - `bench.group_key`: `all`, `age:<band>`, `age:<band>|area:<area>`. `metric`: monthly averages per
   customer: `income`, `regular`, `unexpected`, `everyday`, `savings`, `savings_rate`,

@@ -3,6 +3,8 @@ category overrides ("what Svinkki has learned"), the active challenge and quiz r
 import json
 import math
 import os
+import re
+import secrets
 import sqlite3
 import threading
 import time
@@ -27,6 +29,15 @@ INTENT_ACTIONS = ("accept", "dismiss", "snooze")
 MAX_OVERRIDES = 200
 MAX_QUIZ_RESULTS = 500
 OVERRIDE_SCOPES = ("tx", "merchant")
+MAX_CONVERSATIONS = 30
+MAX_TURNS = 80
+MAX_TURN_BYTES = 300_000
+MAX_PINS = 20
+MAX_PIN_BYTES = 200_000
+TITLE_CHARS = 60
+_PIN_TYPE_RE = re.compile(r"^[A-Za-z0-9_]{1,40}$")
+_PIN_ID_RE = re.compile(r"^pin:([0-9]{1,18})$")
+_last_ts = [0.0]
 
 _lock = threading.Lock()
 _ready = set()
@@ -46,6 +57,14 @@ CREATE INDEX IF NOT EXISTS overrides_cid ON overrides(cid);
 CREATE TABLE IF NOT EXISTS quiz_results(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL,
                                         data TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS quiz_results_cid ON quiz_results(cid);
+CREATE TABLE IF NOT EXISTS conversations(id TEXT PRIMARY KEY, cid TEXT NOT NULL, title TEXT NOT NULL,
+                                         created REAL, updated REAL);
+CREATE INDEX IF NOT EXISTS conversations_cid ON conversations(cid);
+CREATE TABLE IF NOT EXISTS turns(conv_id TEXT NOT NULL, n INTEGER NOT NULL, data TEXT NOT NULL, ts REAL,
+                                 PRIMARY KEY(conv_id, n));
+CREATE TABLE IF NOT EXISTS pins(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL, title TEXT NOT NULL,
+                                card TEXT NOT NULL, created REAL);
+CREATE INDEX IF NOT EXISTS pins_cid ON pins(cid);
 """
 
 
@@ -157,8 +176,22 @@ def get_intents(cid) -> dict:
 def erase(cid) -> None:
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results"):
+                  "quiz_results", "pins"):
             conn.execute(f"DELETE FROM {t} WHERE cid=?", (cid,))
+        conn.execute("DELETE FROM turns WHERE conv_id IN (SELECT id FROM conversations WHERE cid=?)",
+                     (cid,))
+        conn.execute("DELETE FROM conversations WHERE cid=?", (cid,))
+    _run(go)
+
+
+def reset_all() -> None:
+    """Demo reset: forget every customer's choices, goals, learned categories, quizzes and challenges.
+
+    The AI key and the chosen model are not app state and are kept."""
+    def go(conn):
+        for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
+                  "quiz_results", "conversations", "turns", "pins"):
+            conn.execute(f"DELETE FROM {t}")
     _run(go)
 
 

@@ -186,13 +186,16 @@ class ClientTests(unittest.TestCase):
         self.assertNotIn("invalid x-api-key", str(out))
         self.assertEqual(fake.calls, 1, "a wrong key is not retried")
 
-    def test_busy_service_is_retried_once(self):
+    def test_busy_service_is_retried_up_to_twice(self):
         out, fake = self.create([fc.http_error(529, "overloaded_error"), fc.cl_text("Hello")])
         self.assertEqual(self.lc.text_of(out), "Hello")
         self.assertEqual(fake.calls, 2)
+        out, fake = self.create([fc.http_error(529, "overloaded_error"), fc.http_error(503), fc.cl_text("Hello")])
+        self.assertEqual(self.lc.text_of(out), "Hello")
+        self.assertEqual(fake.calls, 3)
         out, fake = self.create([fc.http_error(529, "overloaded_error")])
         self.assertIsInstance(out, self.lc.ClaudeError)
-        self.assertEqual(fake.calls, 2)
+        self.assertEqual(fake.calls, 3)
 
     def test_timeout_and_network_failure_are_claude_errors(self):
         for exc in (socket.timeout("slow"), OSError("down"), ValueError("odd")):

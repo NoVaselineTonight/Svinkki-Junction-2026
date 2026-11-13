@@ -15,12 +15,30 @@ MAX_TOKENS = 16000
 EFFORT = "low"
 TIMEOUT = 45
 # Statuses worth one more try: the service was busy, not the request wrong.
-_RETRY_STATUS = (500, 502, 503, 529)
+_RETRY_STATUS = (429, 500, 502, 503, 529)
+MAX_RETRIES = 2
+MAX_RETRY_AFTER = 5.0
 RETRY_PAUSE = 0.6
 
 
 class ClaudeError(Exception):
     """Any failure talking to Claude: HTTP error, timeout, refusal, cut-off or empty reply."""
+
+
+_LAST_RETRY_AFTER = [None]   # the retry-after header of the last HTTP error (default transport only)
+
+
+def _retry_pause(headers):
+    """Seconds to wait before a retry: the retry-after header up to MAX_RETRY_AFTER, else RETRY_PAUSE."""
+    v = None
+    if isinstance(headers, dict):
+        for k, x in headers.items():
+            if str(k).lower() == "retry-after":
+                v = x
+    try:
+        return max(0.0, min(float(v), MAX_RETRY_AFTER))
+    except (TypeError, ValueError):
+        return RETRY_PAUSE
 
 
 def _default_post(url, headers, body, timeout):
@@ -29,6 +47,7 @@ def _default_post(url, headers, body, timeout):
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             return resp.status, resp.read()
     except urllib.error.HTTPError as e:
+        _LAST_RETRY_AFTER[0] = (e.headers.get("retry-after") if getattr(e, "headers", None) else None)
         try:
             return e.code, e.read()
         except Exception:
@@ -90,16 +109,20 @@ def create(system, messages, tools, api_key, model, http_post=None, timeout=TIME
     post = http_post or _default_post
     payload = json.dumps(body).encode("utf-8")
     status, raw = 0, b""
-    for attempt in (0, 1):
+    for attempt in range(MAX_RETRIES + 1):
+        _LAST_RETRY_AFTER[0] = None
         try:
-            status, raw = post(API_URL, headers, payload, timeout)
+            res = post(API_URL, headers, payload, timeout)
+            status, raw = res[0], res[1]
+            if len(res) > 2 and isinstance(res[2], dict):      # a transport may also hand back the headers
+                _LAST_RETRY_AFTER[0] = {str(k).lower(): v for k, v in res[2].items()}.get("retry-after")
         except ClaudeError:
             raise
         except Exception:
             raise ClaudeError("Claude request failed")
-        if status not in _RETRY_STATUS or attempt:
+        if status not in _RETRY_STATUS or attempt >= MAX_RETRIES:
             break
-        time.sleep(RETRY_PAUSE)
+        time.sleep(_retry_pause({"retry-after": _LAST_RETRY_AFTER[0]}))
     if status != 200:
         kind = _error_type(raw)
         raise ClaudeError("Claude returned HTTP %s%s" % (status, (" (%s)" % kind) if kind else ""))

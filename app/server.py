@@ -70,7 +70,7 @@ NO_MONEY_MESSAGES = {
 # Endpoints that work without analysis consent (everything else is a data endpoint).
 NO_CONSENT_PATHS = {
     "/api/demo/personas", "/api/demo/login", "/api/demo/random", "/api/logout", "/api/me",
-    "/api/consent", "/api/settings", "/api/privacy/erase",
+    "/api/consent", "/api/settings", "/api/privacy/erase", "/api/demo/reset",
     "/api/explain",   # explaining a pasted text looks at no transactions, so it needs a session only
     "/api/demo/ai", "/api/demo/ai/test",   # demo setup of the AI model: reads no customer data
 }
@@ -124,6 +124,11 @@ class Sessions:
     def delete(self, sid):
         with self._lock:
             self._s.pop(sid, None)
+
+    def clear(self):
+        """Drop every session (the demo reset)."""
+        with self._lock:
+            self._s.clear()
 
     def _purge(self, now):
         for k in [k for k, v in self._s.items() if now - v["last"] > SESSION_IDLE_SECONDS]:
@@ -525,6 +530,14 @@ def ep_logout(req):
     return {"ok": True}
 
 
+def ep_demo_reset(req):
+    """Demo reset: every customer's choices are forgotten and every session ends. The AI key stays."""
+    state.reset_all()
+    req.srv.sessions.clear()
+    req.handler.clear_cookie()
+    return {"ok": True}
+
+
 def ep_me(req):
     cid = req.session["cid"]
     try:
@@ -631,12 +644,18 @@ def ep_settings(req):
 
 def ep_overview(req):
     month = _short_str(req.query.get("month"), "month", 20)
-    return _insights().overview(req.conn, req.today, month=month)
+    try:
+        return _insights().overview(req.conn, req.today, month=month)
+    except ValueError:
+        raise ApiError(400, "invalid_month")
 
 
 def ep_baskets(req):
     period = _short_str(req.query.get("period"), "period", 20) or "last_month"
-    return _insights().baskets(req.conn, req.today, period=period)
+    try:
+        return _insights().baskets(req.conn, req.today, period=period)
+    except ValueError:
+        raise ApiError(400, "invalid_period")
 
 
 def ep_safe(req):
@@ -657,10 +676,13 @@ def ep_what_if(req):
         known = {l.lower() for l in classify.ALL_LABELS}
         if kind == "labels" and not all(str(v).lower() in known for v in val):
             raise ApiError(400, "invalid_target")
-        clean.append({"target": target, "pct": _num(c.get("pct"), "pct", -100, 100)})
+        clean.append({"target": target, "pct": _num(c.get("pct"), "pct", 0, 100)})
     months = req.body.get("months", 12)
     months = int(_num(months, "months", 1, 120))
-    return _insights().what_if(req.conn, req.today, clean, months=months)
+    try:
+        return _insights().what_if(req.conn, req.today, clean, months=months)
+    except ValueError:
+        raise ApiError(400, "invalid_changes")
 
 
 def ep_spender(req):
@@ -712,11 +734,14 @@ def ep_quiz_answer(req):
     guess = _num(req.body.get("guess"), "guess", 0, 1e9)
     if state.load_quiz(req.cid, quiz_id) is None:
         raise ApiError(404, "unknown_quiz")
-    if req.consent.get("benchmarks"):
-        res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess,
-                                      profile=db.profile(req.cid), bench_lookup=db.bench)
-    else:
-        res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess)
+    try:
+        if req.consent.get("benchmarks"):
+            res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess,
+                                          profile=db.profile(req.cid), bench_lookup=db.bench)
+        else:
+            res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess)
+    except ValueError:
+        raise ApiError(400, "invalid_quiz_id")
     try:
         state.add_quiz_result(req.cid, {
             "at": datetime.datetime.now().replace(microsecond=0).isoformat(),
@@ -893,7 +918,8 @@ def ep_chat(req):
     def explain(text):
         return _run_explain(text, req.consent)
 
-    ctx = SimpleNamespace(conn=req.conn, today=req.today, profile=db.profile(req.cid),
+    ctx = SimpleNamespace(cid=req.cid,   # only the seed of the simulated receipts; no tool returns it
+                          conn=req.conn, today=req.today, profile=db.profile(req.cid),
                           consent=dict(req.consent), settings=dict(req.settings),
                           bench_lookup=db.bench, goal=state.get_goal(req.cid),
                           quiz_history=state.quiz_history(req.cid),
@@ -985,7 +1011,10 @@ def ep_goal(req):
     d = {k: req.body.get(k) for k in ("name", "target", "saved")}
     if d["saved"] is None:
         d["saved"] = 0
-    return {"goal": state.set_goal(req.cid, d)}
+    try:
+        return {"goal": state.set_goal(req.cid, d)}
+    except ValueError:
+        raise ApiError(400, "invalid_goal")
 
 
 def ep_purchase_insight(req):
@@ -1154,6 +1183,7 @@ ROUTES = {
     "/api/demo/login": ("POST", ep_login),
     "/api/demo/random": ("POST", ep_random),
     "/api/logout": ("POST", ep_logout),
+    "/api/demo/reset": ("POST", ep_demo_reset),
     "/api/me": ("GET", ep_me),
     "/api/demo/ai": ("GET|POST", ep_ai_setup),
     "/api/demo/ai/test": ("POST", ep_ai_test),

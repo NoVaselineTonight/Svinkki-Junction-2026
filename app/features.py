@@ -180,6 +180,16 @@ def afford(conn, today, item, price, goal=None, monthly_saving_target=0.0):
     elif verdict == "tight":
         text = "It is possible but tight: after %s you would have only about %s a day %s." % (
             _eur(price), _eur0(max(0.0, per_day_after)), until)
+    elif safe_total <= 0:
+        # already short: say so once, and do not call the existing gap the price (D9)
+        if safe_total < 0 and price > 0:
+            text = "You are already about %s short %s, so this %s purchase would add to that." % (
+                _eur0(-safe_total), until, _eur(price))
+        elif safe_total < 0:
+            text = "You are already about %s short %s." % (_eur0(-safe_total), until)
+        else:
+            text = "You have nothing safe left to spend %s, so this %s purchase would put you short." % (
+                until, _eur(price))
     else:
         text = "Not comfortably: %s is %s more than the %s you can safely spend %s." % (
             item, _eur0(-after), _eur0(max(0.0, safe_total)), until)
@@ -584,6 +594,9 @@ def challenge_options(conn, today):
     empty = lambda why: {"options": [], "explain": why}
     if not _has_data(conn):
         return empty("There is not enough history yet to suggest a challenge.")
+    # D13: with fewer than 3 days of the week left, offer next week's challenge instead
+    next_week = (sun - t).days + 1 < 3
+    p_mon, p_sun = (mon + timedelta(days=7), sun + timedelta(days=7)) if next_week else (mon, sun)
     first = _d(ins._scalar(conn, "SELECT MIN(d) FROM tx", default=today))
     weeks = [mon - timedelta(days=7 * i) for i in range(8, 0, -1)]
     weeks = [w for w in weeks if w >= first]
@@ -607,10 +620,14 @@ def challenge_options(conn, today):
         days_with.add(dd)
     ev_from, ev_to = w0.isoformat(), wend.isoformat()
     cands = []   # (met, kind_rank, option)
-    mk_period = {"from": mon.isoformat(), "to": sun.isoformat()}
+    mk_period = {"from": p_mon.isoformat(), "to": p_sun.isoformat()}
 
     def make(kind, label, title, why, target, unit, baseline, met, evidence, context=""):
-        wid = "%s-%s-%s" % (kind, _slug(label), mon.isoformat())
+        wid = "%s-%s-%s" % (kind, _slug(label), p_mon.isoformat())
+        if next_week:
+            title = title.replace("this week", "next week")
+            if "next week" not in title:
+                title += " (next week)"
         return {"id": wid, "kind": kind, "title": title, "why": why, "target": target, "unit": unit,
                 "baseline": baseline, "difficulty": "easy" if met >= 5 else "medium", "label": label,
                 "context": context, "period": dict(mk_period), "evidence": evidence}, met
@@ -680,7 +697,7 @@ def challenge_options(conn, today):
         fd[i] = sum(1 for k in range(7) if (w + timedelta(days=k)) not in days_with)
     have = sum(1 for x in fd if x >= 1)
     # a day-count target is only fair with most of the week still ahead, so it is offered early in the week only
-    if have >= 5 and _mean(fd) >= 1.0 and (sun - t).days >= 4:
+    if have >= 5 and _mean(fd) >= 1.0 and ((sun - t).days >= 4 or next_week):
         for N in range(sorted(fd, reverse=True)[2], 0, -1):
             met = sum(1 for x in fd if x >= N)
             opt, _m = make("free_days", "Everyday spending",
@@ -756,6 +773,10 @@ def challenge_progress(conn, today, challenge):
                 "current": _r(current) if kind == "under_amount" else current,
                 "remaining": _r(remaining) if kind == "under_amount" else remaining,
                 "days_left": days_left, "status": status, "text": text, "evidence": ev}
+
+    if t < frm_d:       # a challenge for next week: nothing counts yet
+        return out(0, ch.get("target") or 0, "on_track",
+                   "This challenge starts on Monday %s. Nothing counts until then." % ins.human_range(frm_d.isoformat()))
 
     if kind == "free_days":
         last_done = to_d if ended else t - timedelta(days=1)
@@ -914,7 +935,18 @@ def forecast(conn, today, monthly_saving_target=0.0, days=None):
     neg = [p for p in points if p["balance"] < 0]
     first_neg = neg[0]["d"] if neg else None
     until = "payday on %s" % ins.human_range(nxt) if to_payday and nxt else "the next %d days" % nd
-    if neg:
+    if start < 0:
+        # the balance is already negative: it does not "dip", it stays below (D10)
+        rec = next((p for p in points if p["balance"] >= 0), None)
+        head = "Your balance is already below zero (−%s) and at your usual pace stays below until " % _eur0(-start)
+        if rec:
+            text = head + "%s." % ins.human_range(rec["d"])
+        elif to_payday and nxt:
+            text = head + "payday on %s." % ins.human_range(nxt)
+        else:
+            text = ("Your balance is already below zero (−%s) and at your usual pace stays below zero for "
+                    "the next %d days." % (_eur0(-start), nd))
+    elif neg:
         text = "At your usual pace you would dip below zero around %s, about %s short." % (
             ins.human_range(first_neg), _eur0(-low["balance"]))
     else:
@@ -964,8 +996,16 @@ def payday_plan(conn, today, goal=None, monthly_saving_target=0.0):
     if m6:
         dep = (ins._scalar(conn, "SELECT -SUM(amount) FROM tx WHERE type='investment_deposit' AND d>=? AND d<=?",
                            (m6[0][0], m6[-1][1])) or 0.0) / len(m6)
-    left = salary - reg - unexp
-    if target > 0:
+    # D20: when the balance is forecast to be below zero on payday, the plan first covers that gap
+    shortfall = 0.0
+    if nxt is not None:
+        fc = forecast(conn, today, monthly_saving_target)
+        if fc.get("to") == nxt.isoformat() and float(fc.get("end_balance") or 0.0) < 0:
+            shortfall = -float(fc["end_balance"])
+    left = salary - reg - unexp - shortfall
+    if shortfall > 0:
+        sav, why_s = 0.0, "Nothing is set aside while your balance is forecast to be below zero on payday."
+    elif target > 0:
         sav, why_s = target, "Your saving target."
     elif dep > 0:
         sav, why_s = dep, "What you usually put into investments each month."
@@ -977,13 +1017,19 @@ def payday_plan(conn, today, goal=None, monthly_saving_target=0.0):
             sav, why_s = 0.0, "Not enough left over for a regular saving yet."
     if left - sav < 0:
         sav, why_s = 0.0, "Set to zero because the month does not cover the basics."
-    reg_r, unexp_r, sav_r = _r(reg), _r(unexp), _r(sav)
-    ev_r = _r(salary - reg_r - unexp_r - sav_r)
+    reg_r, unexp_r, sav_r, sf_r = _r(reg), _r(unexp), _r(sav), _r(shortfall)
+    ev_r = _r(salary - sf_r - reg_r - unexp_r - sav_r)
+    # when the basics alone are more than the salary, everyday goes negative; the gap is also reported
+    gap_r = _r(-ev_r) if ev_r < 0 else 0.0
 
     def share(x):
         return round(x / salary, 3) if salary > 0 else None
 
-    lines = [
+    lines = []
+    if sf_r > 0:
+        lines.append({"key": "shortfall", "name": "Cover the shortfall", "amount": sf_r, "share": share(sf_r),
+                      "why": "Your balance is forecast to be %s below zero on payday, so this goes first." % _eur0(sf_r)})
+    lines += [
         {"key": "regular", "name": "Regular essentials", "amount": reg_r, "share": share(reg_r),
          "why": "Housing, utilities, groceries and other basics, using the median of your last 3 full months."},
         {"key": "unexpected", "name": "Unexpected necessities", "amount": unexp_r, "share": share(unexp_r),
@@ -1002,12 +1048,14 @@ def payday_plan(conn, today, goal=None, monthly_saving_target=0.0):
         gl = {"name": str(goal["name"]), "amount": sav_r,
               "months_to_goal": round(remaining / sav_r, 1) if sav_r > 0 else None}
     when = " on %s" % ins.human_range(nxt) if nxt else ""
-    if ev_r < 0:
-        text = ("Your expected salary of %s%s does not cover the basics: regular bills (%s) and the unexpected buffer (%s) "
-                "come to %s more than that. This is a plan, not a transfer." % (
-                    _eur0(salary), when, _eur0(reg_r), _eur0(unexp_r), _eur0(-ev_r)))
+    sf_text = ("First %s covers the gap your balance is forecast to have on payday. " % _eur0(sf_r)) if sf_r > 0 else ""
+    if gap_r > 0:
+        items = "%sregular bills (%s) and the unexpected buffer (%s)" % (
+            ("the shortfall (%s), " % _eur0(sf_r)) if sf_r > 0 else "", _eur0(reg_r), _eur0(unexp_r))
+        text = ("Your expected salary of %s%s does not cover the basics: %s come to %s more than that. "
+                "This is a plan, not a transfer." % (_eur0(salary), when, items, _eur0(gap_r)))
     else:
-        text = ("Of your expected %s salary%s: %s regular essentials, %s for unexpected costs, %s savings and %s "
+        text = sf_text + ("Of your expected %s salary%s: %s regular essentials, %s for unexpected costs, %s savings and %s "
                 "everyday (about %s a day). This is a plan, not a transfer." % (
                     _eur0(salary), when, _eur0(reg_r), _eur0(unexp_r), _eur0(sav_r), _eur0(ev_r), _eur0(per_day)))
     ev = []
@@ -1016,6 +1064,7 @@ def payday_plan(conn, today, goal=None, monthly_saving_target=0.0):
     ev.append(_ev("Salary payments", m6[0][0], m6[-1][1], type="salary") if m6 else _ev("Salary payments", type="salary"))
     return {"next_payday": nxt.isoformat() if nxt else None, "expected_salary": salary, "lines": lines,
             "everyday_per_week": _r(per_day * 7), "everyday_per_day": _r(per_day), "goal_line": gl,
+            "shortfall": _r(sf_r + gap_r), "not_covered": gap_r,
             "text": text,
             "explain": "Your usual salary is split into regular essentials (median of 3 months), the unexpected "
                        "buffer (12-month average), savings and what remains for everyday spending.",

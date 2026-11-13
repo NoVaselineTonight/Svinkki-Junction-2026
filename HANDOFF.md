@@ -6,22 +6,35 @@ the dataset, the built database, and the API key.
 
 ## Where things stand
 
-Updated 13 Nov 2026, about 23:00, by agent-b (a teammate's session that picked this up).
+Updated 14 Nov 2026, early morning, by agent-a.
 
 - `main` holds the whole prototype.
-- The app runs and is tested: `python -m unittest discover -s tests` printed
-  `Ran 419 tests ... OK` at the last run (Python 3.12 on Linux and 3.13 on Windows both work).
-- **Claude is now the AI model** (step 1 below is done in code): `app/llm_claude.py`, a Claude turn
-  in `app/coach.py`, the text explainer, and a block "AI model (demo setup)" in Settings where the
-  key is saved and the model chosen. It is tested against a fake HTTP layer only.
-  **No real Claude answer has been seen yet**, because the machine it was written on had no key.
-  The one thing checked live: a made-up key gets `HTTP 401 (authentication_error)` from the real
-  service, so the address and headers are right.
-- Without a key the chat answers with built-in rules ("offline" mode), as before.
-- The independent evaluation was re-run: `.devloop/eval-1.md`. Verdict: no blocker, 10 major and
-  22 minor defects. The numbers are right; the weak spots are safe-to-spend around rent day and
-  payday, the built-in chat outside its English example phrasings, and "can I afford" saying yes
-  to investments and loans.
+- **The app now works like an AI assistant app.** Login, a one-button welcome, then a front page:
+  "New conversation", earlier conversations, and "Your things" (savings goal, challenge, kept
+  answers), which appear once created in a conversation. Answers are one short bubble; the card
+  and the transactions used sit behind "Details" and "Transactions". "What can I ask?" lists
+  everything the coach can do. Settings has "Reset demo", which takes everything back to the start.
+- **Claude answers live.** Checked on 13 Nov with Claude Haiku 5.5 on about ten questions as the
+  persona Veeti; the figures matched the built-in rules. The model chosen in Settings is remembered
+  in `data/ai_settings.json`.
+- **Receipts.** `app/receipts.py` turns every grocery payment (Prisma, S-market, Alepa, Sale) and
+  fuel payment (ABC) into a simulated receipt whose lines add up to the payment to the cent. The
+  coach can use them: what do I buy most, how much do I spend on a product, show my receipts,
+  read a pasted receipt. The answers say the lines are simulated. The receipts of the six demo
+  customers are also written to `data/receipts/` (one JSON, one CSV per customer; git-ignored,
+  rebuilt by `python -m app.ingest` or `python -m app.receipts`).
+- **The owner's steer (13 Nov):** privacy and security are a plus in the judging, not a
+  requirement, so they must not block a usable function. The number check is therefore lenient by
+  default (it removes a sentence with a euro amount the code did not produce;
+  `SVINKKI_STRICT_NUMBERS=1` brings the strict check back).
+- **Branding.** S-Pankki gave permission to use their name and logo in the demo and the pitch deck.
+  The logo is the S mark followed by the word "Vinkki" (`web/brand/`).
+- Tests: `python -m unittest discover -s tests` printed `TESTS_LINE` at the last run.
+- Evaluation: `docs/EVALUATION.md` (verdict: iterate). Its five major findings (number check,
+  quiz labels, baskets under 150 euros, area data reaching the model, Finnish questions) are fixed
+  on `main`; some minor ones are open.
+- Pitch deck: https://claude.ai/artifact/SyUgwmLNJXvXCqqHrvUMmq (private to the owner; share it
+  from its Share menu). Four slides: basics, advanced functions, example chats, technology.
 
 ## Get it running on a new machine
 
@@ -58,9 +71,9 @@ More detail: `README.md`. Demo script: `DEMO.md`.
   `<agent-name>/<task>`, never pushes to `main`, and merges through a pull request.
   First command in a new clone: `python .agents/agentchat.py status`. If it says no agent name is
   set, pick one (`agent-b`, for example) with `python .agents/agentchat.py setup --name agent-b`.
-- `agent-a` (this session) holds claims on `app/ web/ tests/ scripts/ docs/ .devloop/` and the
-  top-level documents. If agent-a has been silent for 30 minutes, the protocol lets you take the
-  claims over: `python .agents/agentchat.py release --all --owner agent-a --reason "session ended"`.
+- Check `python .agents/agentchat.py claims` before you start. If an agent holding claims has been
+  silent for 30 minutes, the protocol lets you take them over:
+  `python .agents/agentchat.py release --all --owner <agent> --reason "session ended"`.
 - The contract for the code is in three files: `.devloop/STATE.md` (first build),
   `.devloop/WAVE2.md` and `.devloop/WAVE3.md` (added features). `docs/SECURITY_PLAN.md` is binding
   for anything touching data or the AI model.
@@ -70,57 +83,28 @@ More detail: `README.md`. Demo script: `DEMO.md`.
 
 ## Next steps, in order
 
-0. **Do this first: one live Claude call.** Create `claude_api_key.txt` (or paste the key in
-   Settings, "AI model (demo setup)", on http://localhost:8000), press "Test the key", then ask the
-   chat three questions with AI consent on and read the answers. If the request is rejected, the
-   reply says which HTTP status and error type came back; the request is built in
-   `app/llm_claude.py` (`create`).
-1. **Claude as the AI model.** DONE in code by agent-b, as specified below, with these choices:
-   a refusal, a cut-off reply, any HTTP error or a turn longer than 100 seconds falls back to the
-   built-in rules (no server-side model fallback is used); the tools and the rules prompt are
-   marked cacheable; the model choice is remembered in `data/ai_settings.json`; the setup endpoints
-   are `GET|POST /api/demo/ai` and `POST /api/demo/ai/test`, refused unless the browser is on the
-   same computer and no proxy or tunnel is in between. The original specification:
-   - New `app/llm_claude.py`: Messages API over `urllib` (the project has no dependencies by
-     design). `POST https://api.anthropic.com/v1/messages`, headers `x-api-key`,
-     `anthropic-version: 2026-10-21`, `content-type: application/json`. Body: `model`,
-     `max_tokens` (16000), `system`, `messages`, `tools` (`name`, `description`, `input_schema`),
-     `output_config: {"effort": "low"}`. Do not send `temperature`. Tool loop: append the
-     assistant's whole `content` list unchanged (it can include thinking blocks), then a user
-     message with `tool_result` blocks (`tool_use_id`, `content`). Check `stop_reason`
-     (`tool_use`, `end_turn`, `refusal`, `max_tokens`) before reading content.
-   - Default model `claude-opus-5-5`; let the demo Settings choose `claude-sonnet-5-5` or
-     `claude-haiku-5-5` (the cheap option) and remember the choice.
-   - `app/config.py`: read the key from env `ANTHROPIC_API_KEY`, else from the file named by
-     `SVINKKI_AI_KEY_FILE` (default `claude_api_key.txt`). Provider is Claude when a Claude key
-     exists, else Gemini when a Gemini key exists, else the built-in rules.
-   - **Before any code reads the key file, make the tests safe**: `tests/fixture.py` must set
-     `SVINKKI_AI_KEY_FILE` to a path that does not exist and `ANTHROPIC_API_KEY` to empty, or the
-     test suite will call the real API with the real key. Check this first.
-   - `app/coach.py`: a Claude turn next to the Gemini turn, same anonymising, same rule that every
-     figure in a reply must come from a tool result, same fallback to built-in rules on any error.
-     `app/explain.py`: use Claude for the text explainer too.
-   - Demo Settings: a block "AI model (demo setup)" where the key can be replaced and the model
-     chosen. The server writes the key to the git-ignored file, never returns it (show only that
-     one is set and its last four characters), accepts the request only from localhost, and never
-     logs it.
-   - Tests with a fake HTTP layer; then one live call to confirm the key works.
-2. Read the evaluation report and fix its blockers and majors, then re-run the tests.
-3. Pitch deck: https://claude.ai/artifact/SyUgwmLNJXvXCqqHrvUMmq (private to the owner; share it
-   from its Share menu). 15 slides planned, 14 written. Missing: the "status" slide (what works
-   today: test count, evaluation verdict, what is not verified). The production slide's cost
-   figures are for Gemini and should be redone for Claude (list prices per million tokens on
-   3 Nov 2026: Haiku 5.5 $0.10 in / $0.50 out, Sonnet 5.5 $2 / $10, Opus 5.5 $4 / $20; a chat turn
-   is about 10,000 input tokens across two calls).
-4. Junction deadlines: draft submission on the Junction Platform by Friday 23:59, final by Sunday
-   10:00 with a public video of at most two minutes, live peer review Sunday 10:30 to 14:00.
+1. Rehearse `DEMO.md` once from a clean start (`python -m app.server`, log in as Veeti).
+2. Record the two-minute video for the final submission (script: `submission/VIDEO_SCRIPT.md`,
+   which predates the one-conversation screen and needs the same update as `DEMO.md`).
+3. Fill in the team name and members on the first slide of the deck.
+4. Open minor findings in `docs/EVALUATION.md`, if time allows.
+5. Junction deadlines: final submission by Sunday 10:00 with a public video of at most two
+   minutes, live peer review Sunday 10:30 to 14:00.
+
+**A warning about tests and the key.** An empty `ANTHROPIC_API_KEY` does not switch Claude off:
+the app then reads `claude_api_key.txt`. The test fixture points the key file at a path that does
+not exist, so the suite is safe. Any other script you run against the app will make real, paid
+calls unless you do the same: `SVINKKI_AI_KEY_FILE=/nonexistent python your_script.py`.
 
 ## Known gaps, stated plainly
 
-- No AI model has answered a real question yet. Everything shown so far is the built-in rules.
-- The user interface was checked by eye on Home, Chat, Settings and the consent screen at phone
-  width. The screens added last (text explainer sheet, goal card, patterns card, leak finder,
-  payday plan, area) were not looked at in a browser.
+- Receipt lines are simulated. Nothing in the dataset says what was in a basket.
+- With Claude the wording of a reply varies; the figures come from the app. In the default lenient
+  mode a percentage or a plain number the model invents is not caught, only euro amounts are.
+- Gemini support is still in the code but has never been tried live.
+- Finnish works for the common questions (a phrase table feeds the English router). Unusual
+  Finnish phrasing gets the Finnish help reply when no AI model is connected.
 - Repeating charges and investment withdrawals are rare in the synthetic data, so "forgotten
   subscriptions" and "savings leakage" usually have nothing to show.
-- The legal mapping in the security plan has not been reviewed by anyone with legal training.
+- Login is a demo picker. The legal mapping in the security plan has not been reviewed by anyone
+  with legal training.

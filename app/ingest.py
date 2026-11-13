@@ -321,7 +321,7 @@ _FIXED = {
     "regular": ("Regular essentials per month", "eur_per_month",
                 "Average monthly spending in the regular basket: housing, utilities, groceries, public transport, fuel and pharmacy."),
     "unexpected": ("Unexpected necessities per month", "eur_per_month",
-                   "Average monthly spending in the unexpected basket: large health, home and tech purchases."),
+                   "Average monthly spending in the unexpected basket: doctor, dentist, other health and home repairs, and larger electronics, furniture and health or home and tech purchases."),
     "everyday": ("Everyday spending per month", "eur_per_month",
                  "Average monthly spending in the everyday basket: everything that is neither regular nor unexpected."),
     "savings": ("Investment deposits per month", "eur_per_month",
@@ -757,6 +757,11 @@ def _build(data_dir, out_path, limit_customers, t0, grouped):
     print(f"[ingest] done: {len(cstats):,} customers, {total_rows:,} rows, "
           f"{len(bench_rows):,} bench rows, {len(personas)} personas, {seconds}s -> {out_path}",
           flush=True)
+    try:    # fictional receipt dataset for the demo customers; never fails the ingest
+        from app import receipts as _receipts
+        _receipts.build_dataset(db_path=out_path, today=today)
+    except Exception as exc:
+        print(f"[ingest] warning: receipt dataset not written: {exc}", flush=True)
     return {"customers": len(cstats), "rows": total_rows, "seconds": seconds}
 
 
