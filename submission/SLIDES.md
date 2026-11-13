@@ -1,27 +1,32 @@
-# Pitch deck: missing and outdated slides
+# Pitch deck: status and cost slides
 
-The deck itself is a claude.ai artifact owned by the team lead. These are the texts to paste in.
+The deck is a claude.ai artifact owned by the team lead; it has all 15 slides. These are the
+current texts for the two slides that change as the build moves. Re-check the bracketed facts
+just before the pitch and do not round them up.
 
 ## Slide: Status (what works today)
 
-Fill in the bracketed facts just before the pitch; do not round them up.
-
 **Works today**
-- Runs on the full synthetic dataset: chat, three baskets, safe to spend, what-if, benchmarks,
-  quiz, check-in, consent, "What the AI saw".
-- [N] automated tests pass (372 on 13 Nov; [N] with the Claude integration).
-- Every number traceable to its transactions; other customers' data unreachable (tested).
+- One conversation for everything, with a "What can I ask?" page. [Confirm the chat-first build
+  is merged.]
+- Chat with your own money, three baskets, safe to spend, what-if, payday forecast, goals,
+  benchmarks, quiz, check-in, consent, "What the AI saw".
+- Receipt-level questions ("How much do I spend on beer?") on simulated receipt lines.
+- Answers in Finnish as well as English.
 
 **Verified**
-- [Claude live: "answered real questions on [date]" / "tested against a fake HTTP layer only"]
-- [Independent evaluation: verdict and open defects, from `.devloop/eval-1.md`]
+- Live with Claude: on 13 Nov 2026, Claude Haiku 5.5 answered "How much did I spend on taxis last
+  month?" through the app's own tool: €92.85, two transactions shown, on the merged code.
+- [N] automated tests pass (419 on `main` on 13 Nov; 600 on the chat-first branch while in
+  progress). Tests never see a real key.
+- Two independent evaluations; [N of 15] major findings fixed. [List any that remain open.]
 
 **Not yet**
 - Bank login (demo picker today).
+- Real S Group receipt data (simulated lines today).
 - Legal review of the privacy plan.
-- Subscription and savings-leak detection rarely trigger on synthetic data.
 
-## Slide: Production cost (Claude), replaces the Gemini figures
+## Slide: Production cost (Claude)
 
 List prices per million tokens, 3 Nov 2026 (USD):
 
@@ -31,9 +36,8 @@ List prices per million tokens, 3 Nov 2026 (USD):
 | Claude Sonnet 5.5 | $2 | $10 | $0.10 |
 | Claude Opus 5.5 | $4 | $20 | $0.20 |
 
-One chat turn is about 10,000 input tokens across two calls (from the handoff notes). Output
-is assumed at about 1,000 tokens including the model's thinking; measure it from the API's
-`usage` field once the integration runs.
+One chat turn is about 10,000 input tokens across two calls. Output is assumed at about 1,000
+tokens including the model's thinking.
 
 | Model | Per chat turn | 1 million turns |
 |---|---|---|
@@ -44,8 +48,9 @@ is assumed at about 1,000 tokens including the model's thinking; measure it from
 Scale example: if 10% of S-Bank's 3.5 million customers each ask 10 questions a month, that is
 3.5 million turns a month: about $5,000 on Haiku, $105,000 on Sonnet, $210,000 on Opus.
 
-Suggested line for the slide: "Haiku for everyday questions, about 0.15 cents a turn. The fixed
-instructions and tool list are the same in every call, so prompt caching cuts the input cost
-further. Numbers are computed by code, so a cheaper model does not mean less accurate figures."
+Suggested line: "Haiku for everyday questions, about 0.15 cents a turn; the live demo runs on it.
+The fixed instructions and tool list repeat in every call, so prompt caching cuts the input cost
+further. Code computes every number, so a cheaper model does not mean less accurate figures."
 
-Before the pitch: replace the per-turn assumption with a measured turn from the live integration.
+[Before the pitch: replace the 1,000-token output assumption with the usage of a measured live
+turn, if one is logged.]

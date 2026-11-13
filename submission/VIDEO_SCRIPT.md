@@ -1,24 +1,31 @@
 # Demo video script (at most 2:00)
 
-Public video, required for the final submission on Sunday 10:00. Record the app at phone width.
-Narration is about 270 words, which fits two minutes at a calm pace. Amounts come from the demo
-persona Veeti on the demo date (see `DEMO.md`); re-check them on the recording machine.
+Public video, required for the final submission on Sunday 10:00. Record the chat-first build
+(branch `agent-a/chat-first` once merged) at phone width, as Veeti, on the demo date
+(26 Sep 2026), with the Claude key saved. This follows the two-minute cut in `DEMO.md`
+(steps 1, 3, 4, 5, 6, 9, 12). Narration is about 270 words.
+
+With Claude the wording varies a little between runs; the figures do not, because code
+computes them. Check every amount below on the recording machine before recording.
 
 | Time | On screen | Narration |
 |---|---|---|
-| 0:00-0:12 | Title card, then a bank statement list | "Banking apps show you a list of transactions. They don't tell you where your money goes, what's safe to spend, or what a change would do. Svinkki does." |
-| 0:12-0:25 | Persona login, consent screen with four switches, frequency choice | "Before anything is analysed, you choose: analyse my data, use an AI model, compare me with others, give me suggestions. And you choose how often Svinkki speaks." |
-| 0:25-0:42 | Home: safe to spend, three baskets, quiz card. Answer the quiz | "Home shows what's safe to spend until payday, with the working. Every purchase sits in one of three baskets: regular essentials, unexpected necessities, everyday spending. And a weekly quiz: guess what you spent, then see the real number." |
-| 0:42-1:05 | Chat: "How much did I spend on taxis last month?" Open "Transactions used" | "Ask in your own words. €92.85 on taxis, across two rides, and here are the two rides. The AI never does the maths. Code calculates, the AI explains, and every number shows its source." |
-| 1:05-1:22 | Chat: "How much could I save if I reduced dining out by 20%?" then "What kind of spender am I?" | "What-if questions run on your own numbers: about €135 a year. And it tells you honestly what kind of spender you are, and why." |
-| 1:22-1:35 | Monthly check-in, accept "set it aside" | "Once a month, a check-in: €307 left over. Set it aside? Accepting records your intent. No money moves." |
-| 1:35-1:50 | Settings: "What the AI saw" payload | "The AI model only sees anonymised summaries: no name, no id, no postal code. You can read exactly what it saw. Switch it off, and built-in rules still answer." |
-| 1:50-2:00 | Logo and one line | "Svinkki. Talk with your own money, inside S-mobiili." |
+| 0:00-0:10 | Title card, then a plain transaction list | "Banking apps show you a list. They don't tell you where your money goes, what's safe to spend, or what a change would do." |
+| 0:10-0:22 | Log in as Veeti; "Your data, your choices"; "How much do you want to hear from me?" | "Svinkki is a coach, not a nag. I choose what it may use, whether an AI model is involved, and how often it speaks." |
+| 0:22-0:35 | The one conversation screen: today's card with safe to spend and the three baskets | "Everything lives in one conversation. On top: what's safe to spend today and this week, and my spending in three baskets: regular essentials, unexpected necessities, everyday spending." |
+| 0:35-0:45 | Tap "What can I ask?", scroll once, tap a question | "No menus to learn. Everything it can do is listed here; tap one and it's asked for you." |
+| 0:45-1:05 | Ask "How much did I spend on taxis last month?"; open "Transactions used (2)" | "€92.85 on taxis, across two rides, and here are the two rides. Claude chooses the tool and explains; code does the maths. Every number shows where it came from." |
+| 1:05-1:20 | Ask "Can I afford a 300 euro jacket?" | "Yes, and about €35 a day is still left until payday. It checks against what's safe to spend, and against my savings goal." |
+| 1:20-1:40 | Ask "What do I buy most?", then "How much do I spend on beer?" | "S Group knows what was in the basket, not only what was paid. Here it answers from receipt lines. In this demo they're simulated; with real S Group purchase data it's the same code." |
+| 1:40-1:52 | Settings (gear): lower the check-in rhythm; open "What the AI saw" | "I control the rhythm, and I can read exactly what the model was given: results, never my name, account or address." |
+| 1:52-2:00 | Logo and one line | "Svinkki. Talk with your own money, inside S-mobiili." |
 
 ## Recording notes
 
-- Close other tabs; use a phone-width browser window (about 390 px wide).
-- Record the chat with the AI model on if the Claude integration is merged and working, otherwise
-  with built-in rules; the narration fits both.
-- Upload as public (YouTube unlisted is not public; check the Junction rules) and paste the link
-  into `SUBMISSION.md`.
+- Before recording, press "Test the key" in Settings: the replies should show the AI model badge,
+  not "On-device rules". If Claude is down, the app answers from its rules and says so; the
+  narration still fits, but re-record when Claude is back if time allows.
+- Say "simulated" for the receipt lines every time; the dataset has amounts, not basket contents.
+- Phone-width window (about 390 px), other tabs closed, notifications off.
+- Upload so that anyone with the link can watch without signing in (check the Junction rules on
+  what counts as public) and paste the link into `SUBMISSION.md`.
