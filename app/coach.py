@@ -2614,7 +2614,7 @@ def _render2(tool, res, args, hints):
             price = _eur_x(res.get("price")) if _has_cents(float(res.get("price"))) else _eur(res.get("price"))
         except (TypeError, ValueError):
             price = _eur(res.get("price"))
-        thing =("the %s %s" % (price, item)) if item and item != "this purchase" else "the %s" % price
+        thing = ("the %s %s" % (price, item)) if item and item != "this purchase" else "a %s purchase" % price
         pay = _day(res.get("next_payday")) if res.get("next_payday") else "payday"
         after = res.get("after")
         ge = _g(res, "goal_effect")
@@ -2836,9 +2836,9 @@ def _render3(tool, res, args, hints):
         needs = res.get("needs") or []
         name = res.get("name") or args.get("name") or "your goal"
         if "target" in needs and "deadline" in needs:
-            return "Sounds good. Roughly how much will %s cost, and by when? I won't guess a price." % name
+            return "Roughly how much will %s cost, and by when? I won't guess a price." % name
         if "target" in needs:
-            return "Sounds good. Roughly how much will %s cost? I won't guess a price." % name
+            return "Roughly how much will %s cost? I won't guess a price." % name
         if "deadline" in needs:
             return "By when would you like to reach %s?" % name
         ml = res.get("months_left")
