@@ -288,7 +288,8 @@ TOOLS = [
                        "with the lines on each one. Use it for 'show my last Prisma receipt', 'what did I buy at the "
                        "shop', 'my grocery receipts for last month'. The lines are SIMULATED for the demo (the data has "
                        "payment amounts only) and add up to each payment to the cent; say so once when you use this. "
-                       "Returns a count, a total and up to `limit` receipts, newest first.",
+                       "Returns a count, a total and up to `limit` receipts, newest first. For 'my last receipt' or "
+                       "'my latest receipt' use period last_3_months with limit 1. Receipts include ABC fuel receipts.",
         "parameters": {"type": "object", "properties": {
             "period": {"type": "string", "description": _PERIOD_DESC + " Default last_month."},
             "limit": {"type": "integer", "description": "Receipts to return, 1 to 20. Default 5."},

@@ -14,9 +14,13 @@ Updated 14 Nov 2026, early morning, by agent-a.
   answers), which appear once created in a conversation. Answers are one short bubble; the card
   and the transactions used sit behind "Details" and "Transactions". "What can I ask?" lists
   everything the coach can do. Settings has "Reset demo", which takes everything back to the start.
-- **Claude answers live.** Checked on 13 Nov with Claude Haiku 5.5 on about ten questions as the
-  persona Veeti; the figures matched the built-in rules. The model chosen in Settings is remembered
-  in `data/ai_settings.json`.
+- **Claude answers live.** Checked on 14 Nov with Claude Haiku 5.5 through the HTTP API as the
+  persona Veeti: 21 questions including follow-ups ("and the month before?", "why?"), a goal
+  saved by saying "ok set it", receipts, Finnish, mortgage and small talk. The model chosen in
+  Settings is remembered in `data/ai_settings.json`.
+- **Answers are short.** An independent review (152 turns) scored brevity 4 of 10; after the
+  rewrite the built-in replies have a median of 17 words and none is over 45. Looked-up amounts
+  keep their cents (EUR 92.85); estimates and comparisons are whole euros.
 - **Receipts.** `app/receipts.py` turns every grocery payment (Prisma, S-market, Alepa, Sale) and
   fuel payment (ABC) into a simulated receipt whose lines add up to the payment to the cent. The
   coach can use them: what do I buy most, how much do I spend on a product, show my receipts,
@@ -29,7 +33,7 @@ Updated 14 Nov 2026, early morning, by agent-a.
   `SVINKKI_STRICT_NUMBERS=1` brings the strict check back).
 - **Branding.** S-Pankki gave permission to use their name and logo in the demo and the pitch deck.
   The logo is the S mark followed by the word "Vinkki" (`web/brand/`).
-- Tests: `python -m unittest discover -s tests` printed `TESTS_LINE` at the last run.
+- Tests: `python -m unittest discover -s tests` printed `Ran 638 tests ... OK` at the last run (14 Nov, about 00:30).
 - Evaluation: `docs/EVALUATION.md` (verdict: iterate). Its five major findings (number check,
   quiz labels, baskets under 150 euros, area data reaching the model, Finnish questions) are fixed
   on `main`; some minor ones are open.
@@ -99,11 +103,19 @@ calls unless you do the same: `SVINKKI_AI_KEY_FILE=/nonexistent python your_scri
 ## Known gaps, stated plainly
 
 - Receipt lines are simulated. Nothing in the dataset says what was in a basket.
-- With Claude the wording of a reply varies; the figures come from the app. In the default lenient
-  mode a percentage or a plain number the model invents is not caught, only euro amounts are.
+- With Claude the wording of a reply varies and sometimes runs to three sentences (mortgage); the
+  figures come from the app. In the default lenient mode a percentage or a plain number the model
+  invents is not caught, only euro amounts are.
+- Looked at in a browser at phone width: login, welcome, front page, an answer with its card,
+  "What can I ask?", Settings, saving a goal and seeing it under "Your things". Not clicked
+  through in a browser after the last wording changes: the receipt cards, "Reset demo" (its
+  endpoint is covered by tests), the what-if sliders, the text explainer, erase.
+- Finnish: common questions get a Finnish-only answer; alerts, challenge, area, comparisons,
+  patterns and the quiz still answer in English with a short Finnish note when no AI model is
+  connected. With Claude connected the model answers in Finnish.
+- Conversations that contain only tool cards (quiz, check-in, the afford form) are not stored,
+  so they do not appear on the front page.
 - Gemini support is still in the code but has never been tried live.
-- Finnish works for the common questions (a phrase table feeds the English router). Unusual
-  Finnish phrasing gets the Finnish help reply when no AI model is connected.
 - Repeating charges and investment withdrawals are rare in the synthetic data, so "forgotten
   subscriptions" and "savings leakage" usually have nothing to show.
 - Login is a demo picker. The legal mapping in the security plan has not been reviewed by anyone
