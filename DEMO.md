@@ -25,7 +25,10 @@ Set up: server running on the demo date (26 Sep 2026), browser at phone width, C
 11. **Settings (the gear).** Lower "How often I check in". Open "What the AI saw". Say: "I control the rhythm, and I can read exactly what the model was given: results, never my name or account."
 12. **Random customer.** Log out and tap "Try as a random customer". Ask one question. Say: "Same app, a customer nobody picked."
 
-For a two-minute slot do steps 1, 3, 4, 5, 8 and 9.
+13. **Save it, with permission.** Back on the front page, the check-in card says what was left over and offers "Move €307 to savings" (the amount never exceeds what is safe before payday). Tap it: an approval card shows €307, from the current account to the S-Bank savings account, and the balance after. Tap "Approve and move". Say: "It can move money, but only inside S-mobiili and only after I approve the exact move." The savings account now shows under "Your things". Or ask: "Invest 50 euros in the index fund"; the card adds a plain risk note.
+14. **Think twice.** Ask "Can I afford a 300 euro payday loan?" Reply: it is borrowing, not a purchase, and Svinkki would not take it.
+
+For a two-minute slot do steps 1, 3, 4, 5, 8, 9 and 13.
 
 Other questions that work well: "Will I make it to payday?", "What if I stopped taking taxis?" (about €39 a month), "What kind of spender am I?", "Where is my money leaking?", "What kind of mortgage can I get approved for?", "what's my balance", "that kebab was lunch".
 

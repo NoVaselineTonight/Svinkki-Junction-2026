@@ -66,6 +66,13 @@ CREATE TABLE IF NOT EXISTS turns(conv_id TEXT NOT NULL, n INTEGER NOT NULL, data
 CREATE TABLE IF NOT EXISTS pins(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL, title TEXT NOT NULL,
                                 card TEXT NOT NULL, created REAL);
 CREATE INDEX IF NOT EXISTS pins_cid ON pins(cid);
+CREATE TABLE IF NOT EXISTS money_proposals(id TEXT PRIMARY KEY, cid TEXT NOT NULL, data TEXT NOT NULL,
+                                           status TEXT NOT NULL, created REAL NOT NULL);
+CREATE INDEX IF NOT EXISTS money_proposals_cid ON money_proposals(cid);
+CREATE TABLE IF NOT EXISTS money_moves(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL,
+                                       d TEXT NOT NULL, ts TEXT NOT NULL, amount REAL NOT NULL,
+                                       dest TEXT NOT NULL, proposal_id TEXT NOT NULL UNIQUE, created REAL);
+CREATE INDEX IF NOT EXISTS money_moves_cid ON money_moves(cid);
 """
 
 
@@ -177,7 +184,7 @@ def get_intents(cid) -> dict:
 def erase(cid) -> None:
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results", "pins"):
+                  "quiz_results", "pins", "money_proposals", "money_moves"):
             conn.execute(f"DELETE FROM {t} WHERE cid=?", (cid,))
         conn.execute("DELETE FROM turns WHERE conv_id IN (SELECT id FROM conversations WHERE cid=?)",
                      (cid,))
@@ -186,12 +193,13 @@ def erase(cid) -> None:
 
 
 def reset_all() -> None:
-    """Demo reset: forget every customer's choices, goals, learned categories, quizzes and challenges.
+    """Demo reset: forget every customer's choices, goals, learned categories, quizzes, challenges and
+    in-app money moves (the demo balance goes back to what the dataset says).
 
     The AI key and the chosen model are not app state and are kept."""
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results", "conversations", "turns", "pins"):
+                  "quiz_results", "conversations", "turns", "pins", "money_proposals", "money_moves"):
             conn.execute(f"DELETE FROM {t}")
     _run(go)
 
@@ -598,3 +606,51 @@ def remove_pin(cid, pin_id) -> bool:
     if rid is None:
         return False
     return bool(_run(lambda c: c.execute("DELETE FROM pins WHERE id=? AND cid=?", (rid, cid)).rowcount))
+
+
+# --------------------------------------------------------------------------- in-app money moves
+# A proposal is created when the coach (or a check-in suggestion) offers to move money. Nothing moves
+# until the customer approves that exact proposal: take_proposal() flips it from "pending" exactly once.
+
+PROPOSAL_TTL_S = 15 * 60
+
+
+def save_proposal(cid, pid, data) -> None:
+    _run(lambda c: c.execute("INSERT INTO money_proposals VALUES(?,?,?,?,?)",
+                             (pid, cid, json.dumps(data), "pending", time.time())))
+
+
+def get_proposal(cid, pid):
+    row = _run(lambda c: c.execute("SELECT data, status, created FROM money_proposals WHERE id=? AND cid=?",
+                                   (pid, cid)).fetchone())
+    if not row:
+        return None
+    data = json.loads(row[0])
+    status = row[1]
+    if status == "pending" and time.time() - row[2] > PROPOSAL_TTL_S:
+        status = "expired"
+    return {"data": data, "status": status, "created": row[2]}
+
+
+def take_proposal(cid, pid, new_status) -> bool:
+    """Atomically move a fresh pending proposal to `new_status`. False if it was not pending or expired."""
+    cutoff = time.time() - PROPOSAL_TTL_S
+    def go(conn):
+        cur = conn.execute("UPDATE money_proposals SET status=? WHERE id=? AND cid=? AND status='pending' "
+                           "AND created>=?", (new_status, pid, cid, cutoff))
+        return cur.rowcount == 1
+    return _run(go)
+
+
+def add_move(cid, d, ts, amount, dest, proposal_id) -> int:
+    def go(conn):
+        cur = conn.execute("INSERT INTO money_moves(cid, d, ts, amount, dest, proposal_id, created) "
+                           "VALUES(?,?,?,?,?,?,?)", (cid, d, ts, float(amount), dest, proposal_id, time.time()))
+        return cur.lastrowid
+    return _run(go)
+
+
+def list_moves(cid) -> list:
+    rows = _run(lambda c: c.execute("SELECT id, d, ts, amount, dest FROM money_moves WHERE cid=? ORDER BY ts, id",
+                                    (cid,)).fetchall())
+    return [{"id": r[0], "d": r[1], "ts": r[2], "amount": r[3], "dest": r[4]} for r in rows]

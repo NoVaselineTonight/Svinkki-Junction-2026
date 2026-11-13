@@ -792,7 +792,7 @@ def _usual_payday(conn, t):
         return None
     ds = [_d(r[0]) for r in rows]
     eom = sum(1 for x in ds if x.day >= _last_day(x.year, x.month) - 3)
-    if eom * 2 > len(ds):
+    if eom * 2 > len(ds) or (eom * 3 >= len(ds) and (len(ds) - eom) * 3 >= len(ds)):
         return "eom"
     cnt = Counter(x.day for x in ds if x.day < _last_day(x.year, x.month) - 3)
     return sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
@@ -803,9 +803,12 @@ def _payday_on(y, m, pay):
     return date(y, m, last if pay == "eom" else min(pay, last))
 
 
-def _next_payday(t, pay):
+def _next_payday(t, pay, conn=None):
+    """Next payday after t. With `conn`, a salary already received this month moves it to next month."""
     cand = _payday_on(t.year, t.month, pay)
-    if cand <= t:
+    paid = conn is not None and _scalar(conn, "SELECT COUNT(*) FROM tx WHERE type='salary' AND d>=? AND d<=?",
+                                        (_month_start(t).isoformat(), t.isoformat()), default=0) > 0
+    if cand <= t or paid:
         nm = _add_months(_month_start(t), 1)
         cand = _payday_on(nm.year, nm.month, pay)
     return cand
@@ -839,7 +842,11 @@ def _expected_events(conn, t, where, months, win_end):
             due = date(cur.year, cur.month, min(day, _last_day(cur.year, cur.month)))
             if cur == _month_start(t) and k < paid_now:
                 continue
-            if due < t or due >= win_end:
+            if due < t:
+                if cur != _month_start(t):
+                    continue
+                due = t          # late this month and not paid yet: still expected (MAJ-1)
+            if due >= win_end:
                 continue
             events.append({"expected": _r(amt), "due": due.isoformat()})
         cur = _add_months(cur, 1)
@@ -856,7 +863,7 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
         win_end = t + timedelta(days=30)
         days_left = 30
     else:
-        nxt = _next_payday(t, pay)
+        nxt = _next_payday(t, pay, conn)
         win_end = nxt
         days_left = max(1, (nxt - t).days)
     m3 = _month_list(conn, t, 3)
@@ -929,13 +936,14 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
 # --------------------------------------------------------------------------- what if
 
 def _norm_pct(p):
-    """A percentage is a percentage: 0.5 means half a percent. Outside 0..100 is an error."""
+    """A percentage is a percentage: 0.5 means half a percent. A cut is 0..100; an increase is negative
+    (-20 = spend 20% more, -100 = double), down to -1000. Anything else is an error."""
     try:
         p = float(p)
     except (TypeError, ValueError):
         return 0.0
-    if p != p or p < 0 or p > 100:
-        raise ValueError("pct must be between 0 and 100")
+    if p != p or p < -1000 or p > 100:
+        raise ValueError("pct must be between -1000 and 100")
     return p
 
 
@@ -995,12 +1003,18 @@ def what_if(conn, today, changes, months=12):
                 groups[-1][1].append(target_words(l["target"]))
             else:
                 groups.append((l["pct"], [target_words(l["target"])]))
-        desc = ", ".join("%s by %s%%" % (" and ".join(names), "%g" % pct) for pct, names in groups)
+        desc = ", ".join("%s by %s%%" % (" and ".join(names), "%g" % abs(pct)) for pct, names in groups)
         over = "a year" if months == 12 else "over %d months" % months
-        explain = ("Based on your last %d full months (%s), cutting %s would save about %s a month, %s %s." % (
-            n, months_span(frm, to, today), desc, _eur0(saved_monthly), _eur0(us * months), over))
+        if us < 0:
+            explain = ("Based on your last %d full months (%s), spending more on %s would cost about %s more a "
+                       "month, %s %s." % (n, months_span(frm, to, today), desc, _eur0(-saved_monthly),
+                                          _eur0(-us * months), over))
+        else:
+            explain = ("Based on your last %d full months (%s), cutting %s would save about %s a month, %s %s." % (
+                n, months_span(frm, to, today), desc, _eur0(saved_monthly), _eur0(us * months), over))
     return {"baseline_monthly": _r(ub), "new_monthly": _r(ub - us), "saved_monthly": saved_monthly,
             "saved_total": _r(us * months), "months": months, "lines": lines,
+            "direction": "increase" if us < 0 else "cut",
             "evidence": evidence, "explain": explain}
 
 

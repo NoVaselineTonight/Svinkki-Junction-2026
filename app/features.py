@@ -151,6 +151,29 @@ def _the_item(item, price):
     return "the %s %s" % (_eur0(price), name) if price > 0 else "the %s" % name
 
 
+# MAJ-5: some "purchases" are not purchases. Borrowing, crypto and gambling get a plain warning instead of
+# "it fits"; investing is pointed at the in-app S-Bank funds (moved only after the customer approves).
+_RISK_KINDS = (
+    ("loan", re.compile(r"\b(payday|quick|instant|short[- ]term|sms|fast)\s*loans?\b|\bpikavip\w*|\bvip(p)?i\w*|"
+                        r"\bpikalain\w*|\bloan\b|\blaina\w*|\bcredit\b|\bluotto\w*|\bbnpl\b|buy now,? pay later", re.I)),
+    ("crypto", re.compile(r"\bbitcoins?\b|\bbtc\b|\bcrypto\w*|\bkrypto\w*|\bethereum\b|\beth\b|\bdogecoin\b|"
+                          r"\bsolana\b|\bnfts?\b|\bmeme ?coins?\b|\btokens?\b", re.I)),
+    ("gambling", re.compile(r"\bcasino\w*|\bkasino\w*|\bgambl\w*|\bbet(s|ting)?\b|\bpoker\b|\blotter(y|ies)\b|"
+                            r"\blotto\b|\bslots?\b|\bveikkaus\w*|\brahapel\w*|\bvedonly\w*", re.I)),
+    ("invest", re.compile(r"\bfunds?\b|\brahasto\w*|\bshares?\b|\bstocks?\b|\bosake\w*|\betfs?\b|"
+                          r"\bindex\b|\bbonds?\b|\binvest\w*|\bsijoitu\w*", re.I)),
+)
+
+
+def risk_kind(item):
+    """'loan', 'crypto', 'gambling', 'invest' or None for an ordinary purchase."""
+    text = str(item or "")
+    for kind, rx in _RISK_KINDS:
+        if rx.search(text):
+            return kind
+    return None
+
+
 def afford(conn, today, item, price, goal=None, monthly_saving_target=0.0):
     t = _d(today)
     try:
@@ -204,6 +227,27 @@ def afford(conn, today, item, price, goal=None, monthly_saving_target=0.0):
         text = "Not comfortably: %s is %s more than the %s you can safely spend %s." % (
             thing, _eur0(-after), _eur0(max(0.0, safe_total)), until)
 
+    risk = risk_kind(item)
+    if risk:
+        verdict = "caution"
+        room = ("about %s a day would be left %s" % (_eur0(max(0.0, per_day_after)), until)) if after >= 0 else \
+            ("that is %s more than the %s you can safely spend %s" % (_eur0(-after), _eur0(max(0.0, safe_total)), until))
+        if risk == "loan":
+            text = ("A %s is borrowing, not a purchase: you pay it back with interest and fees, often much more than "
+                    "you borrowed. I would not take it. If money is short before payday, let's look at what is "
+                    "safe to spend instead." % item)
+        elif risk == "crypto":
+            text = ("You could pay %s (%s), but %s can lose much of its value in days. Only put in money you could "
+                    "lose completely. For investing, an S-Bank fund in S-mobiili spreads the risk; I can set one up "
+                    "for you to approve." % (_eur(price), room, item))
+        elif risk == "gambling":
+            text = ("I would not plan money for %s: on average you get back less than you put in. %s is money you "
+                    "could keep instead." % (item, _eur(price)))
+        else:
+            text = ("Investing is not spending, so the question is whether you can leave the money alone: %s. "
+                    "Inside S-mobiili you can put money into an S-Bank fund; I will show you the move and ask you "
+                    "to approve it first." % room)
+
     goal_effect = None
     if isinstance(goal, dict) and goal.get("name"):
         gname = re.sub(r"^(my|your)\s+", "", str(goal["name"]).strip(), flags=re.I)
@@ -230,7 +274,7 @@ def afford(conn, today, item, price, goal=None, monthly_saving_target=0.0):
         "next_payday": nxt, "after": _r(after), "per_day_after": _r(per_day_after), "verdict": verdict,
         "verdict_text": text, "share_of_safe": None if share is None else round(share, 3),
         "typical_month_share": None if typical is None else round(typical, 3),
-        "goal_effect": goal_effect, "alternatives": alternatives,
+        "goal_effect": goal_effect, "alternatives": alternatives if not risk else [], "risk": risk,
         "explain": "Safe-to-spend is your balance minus bills before payday, a buffer for unexpected costs and "
                    "planned savings (%s); the price is taken off it." % _eur0(safe_total),
         "evidence": ev,
@@ -891,10 +935,10 @@ def _payday_window(conn, t, days):
             n = max(1, min(45, int(days)))
         except (TypeError, ValueError):
             n = 14
-        return (ins._next_payday(t, pay) if pay is not None else None), t + timedelta(days=n), False
+        return (ins._next_payday(t, pay, conn) if pay is not None else None), t + timedelta(days=n), False
     if pay is None:
         return None, t + timedelta(days=30), False
-    nxt = ins._next_payday(t, pay)
+    nxt = ins._next_payday(t, pay, conn)
     return nxt, min(nxt, t + timedelta(days=45)), True
 
 
@@ -986,7 +1030,7 @@ def payday_plan(conn, today, goal=None, monthly_saving_target=0.0):
     if not _has_data(conn):
         return empty
     pay = ins._usual_payday(conn, t)
-    nxt = ins._next_payday(t, pay) if pay is not None else None
+    nxt = ins._next_payday(t, pay, conn) if pay is not None else None
     m6 = ins._month_list(conn, t, 6)
     sal = []
     for a, b in m6:

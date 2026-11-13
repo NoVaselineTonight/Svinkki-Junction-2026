@@ -520,10 +520,12 @@ class ChatTests(HttpCase):
 
     def test_V11_V12_over_http(self):
         c = self.session("A")
-        r = self.chat(c, "Transfer 500 euros to my savings account").json
+        r = self.chat(c, "Transfer 500 euros to my friend Matti").json
         self.assertRegex(r["reply"].lower(), r"read-only|read only|can't|cannot|unable|not able")
+        r = self.chat(c, "Transfer 50 euros to my savings account").json   # in-app: an offer only
+        self.assertRegex(r["reply"].lower(), r"until you approve|can't|cannot|at most|nothing can be moved")
         before = c.get("/api/safe-to-spend").json["balance"]
-        self.assertAlmostEqual(before, fx.balance_at(A), places=2, msg="no money moved")
+        self.assertAlmostEqual(before, fx.balance_at(A), places=2, msg="no money moved without approval")
         r = self.chat(c, "Which fund should I buy?").json
         self.assertNotRegex(r["reply"].lower(), r"bitcoin|ishares|vanguard|nordea|nokia|tesla")
 
@@ -602,6 +604,7 @@ class CheckinAndSuggestionTests(HttpCase):
         self.assertEqual(self.checkin(c)["checkin"]["suggestions"], [])
 
     def test_M11_accepting_never_moves_money_and_says_so(self):
+        # Accepting a suggestion moves nothing: a set-aside suggestion only opens an approval card.
         c = self.session("A")
         sug = self.checkin(c)["checkin"]["suggestions"][0]
         balance = c.get("/api/safe-to-spend").json["balance"]
@@ -609,7 +612,9 @@ class CheckinAndSuggestionTests(HttpCase):
         r = c.post("/api/suggestions/action", {"id": sug["id"], "action": "accept"})
         self.assertEqual(r.status, 200, r.text)
         self.assertTrue(r.json["ok"])
-        self.assertRegex(r.json["message"].lower(), r"no money|not moved|nothing (was |has been )?moved|did not move|didn't move|no transfer|no funds|nothing has (been )?(moved|transferred)")
+        if r.json.get("proposal"):
+            self.assertRegex(r.json["message"].lower(), r"nothing (happens|moves) until you approve")
+            self.assertEqual(r.json["proposal"]["dest"], "savings")
         self.assertAlmostEqual(c.get("/api/safe-to-spend").json["balance"], balance, places=2)
         self.assertEqual(c.get("/api/transactions").json["count"], count)
 

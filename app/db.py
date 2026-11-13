@@ -98,12 +98,30 @@ def _apply_overrides(mem, overrides) -> None:
                         (label, basket, context, rid))
 
 
-def sandbox(cid, today: str, overrides=None) -> sqlite3.Connection:
+def _apply_moves(mem, moves, today) -> None:
+    """Approved in-app moves: money leaves the current account into the customer's own S-Bank savings
+    account or an S-Bank fund. Recorded like the dataset's own investment deposits so every figure
+    (balance, safe to spend, check-in surplus, savings) already counts them."""
+    for m in sorted(moves, key=lambda x: (str(x.get("ts")), x.get("id", 0))):
+        d, ts, amt = str(m["d"]), str(m["ts"]), float(m["amount"])
+        if d > today or amt <= 0:
+            continue
+        row = mem.execute("SELECT balance FROM tx WHERE ts <= ? ORDER BY ts DESC, rowid DESC LIMIT 1",
+                          (ts,)).fetchone()
+        before = float(row[0]) if row and row[0] is not None else 0.0
+        mem.execute("UPDATE tx SET balance = balance - ? WHERE ts > ?", (amt, ts))
+        mem.execute("INSERT INTO tx VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (d, ts, -amt, round(before - amt, 2), "investment_deposit", "Invest Deposit", None, None,
+                     "Savings & investments", "savings", None, -int(m.get("id") or 0)))
+
+
+def sandbox(cid, today: str, overrides=None, moves=None) -> sqlite3.Connection:
     """In-memory database with table `tx` holding only this customer's rows with d <= today.
 
     The extra integer column `id` (last) is the row's rowid in the main table. `overrides` (the
     customer's remembered categories, from app.state.list_overrides) are applied before the
-    connection becomes read-only."""
+    connection becomes read-only. `moves` (approved in-app transfers, from app.state.list_moves)
+    become investment-deposit rows with a negative id, and every later balance is lowered to match."""
     cols = ", ".join(SANDBOX_COLUMNS)
     src = _ro()
     try:
@@ -122,6 +140,8 @@ def sandbox(cid, today: str, overrides=None) -> sqlite3.Connection:
     mem.execute("CREATE INDEX tx_id ON tx(id)")
     if overrides:
         _apply_overrides(mem, overrides)
+    if moves:
+        _apply_moves(mem, moves, str(today))
     mem.commit()
     mem.execute("PRAGMA query_only = ON")   # the sandbox is read-only from here on
     mem.row_factory = sqlite3.Row

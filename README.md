@@ -2,7 +2,7 @@
 
 Svinkki is a prototype for the S-Pankki challenge at Junction 2026. It lets a bank customer talk with their own money: ask "How much did I spend on taxis last month?" or "What kind of spender am I?" and get a number worked out from their own transactions, with the transactions shown under the answer. It sorts spending into the brief's three baskets (regular essentials, unexpected necessities, everyday spending), shows what is safe to spend until payday, simulates what-if changes and compares the customer with people of the same age using group statistics and Statistics Finland open data. It works like an AI assistant app: a front page with a "New conversation" button, the customer's earlier conversations, and "Your things" (a savings goal, a challenge, answers the customer chose to keep), which appear once they have been created in a conversation. A "What can I ask?" button lists everything the coach can do. It is a web app with a phone-width layout and no build step, so it can be embedded in a mobile app such as S-mobiili.
 
-Python 3.13, standard library only. Nothing is installed. Nothing moves money.
+Python 3.13, standard library only. Nothing is installed. Money moves only inside S-mobiili (your own savings account or an S-Bank fund) and only after you approve that exact move.
 
 ## Run it
 
@@ -60,7 +60,8 @@ Added by the team:
 
 - Consent switches (analyse, AI model, comparison, suggestions) and the customer's own choice of how often check-ins, suggestions, the quiz and challenges arrive.
 - Weekly quiz ("Guess how much you spent on X this week") with an awareness score over time.
-- Monthly check-in with opt-in suggestions. Accepting one records the intent and never moves money.
+- Monthly check-in, this week's quiz and "Worth a look" right on the start page.
+- Save and invest inside S-mobiili: the coach or a check-in suggestion offers a move to your own S-Bank savings account or an S-Bank fund; an approval card shows the amount, from, to and the balance after, and nothing moves until you tap "Approve". A move never takes money needed for bills before payday, and nothing can go outside S-mobiili (`app/money.py`).
 - "Can I afford this?" with the effect on a savings goal; goals by date in chat ("I want to go to Japan in 2027").
 - Learning: recategorise a transaction and Svinkki remembers it, for one purchase or every purchase from that merchant.
 - Leak finder (small purchases, weekday and hour patterns, payday week, repeating charges), quiet alerts, spending patterns and a light note on the latest purchase.
@@ -96,6 +97,12 @@ Added by the team:
 
 ## Privacy and security
 
+- Moving money (owner decision, 14 Nov 2026, for the demo): the AI model and the built-in rules can only
+  *propose* a move. Money moves only when the customer approves that one proposal in the app, naming its
+  amount and destination, within 15 minutes, once. Destinations are a fixed list inside S-mobiili; payments,
+  rent, IBANs and transfers to other people or banks are refused. Moves are recorded in the demo state, not at
+  a bank, and "Reset demo" undoes them.
+
 - The customer id lives only in the server-side session. An id in a request is ignored.
 - Each request works on an in-memory copy holding only that customer's rows, so other customers' data is not reachable.
 - Every number is computed by code and carries the transactions it came from. The model explains; it does not calculate. A reply with a euro amount the code did not produce loses that sentence, or is replaced by the built-in answer (`SVINKKI_STRICT_NUMBERS=1` also checks percentages and plain numbers).
@@ -110,7 +117,7 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 638 tests in 40.9s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
+The last run printed `Ran 650 tests in 42.6s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 

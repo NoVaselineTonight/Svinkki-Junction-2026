@@ -575,3 +575,11 @@ pre.payload { background: var(--bg); border: 1px solid var(--border); border-rad
   .form-grid { grid-template-columns: minmax(0, 1fr); }
   .new-btn { padding: 0 14px 0 10px; }
 }
+
+/* Approving an in-app money move; "Think twice" for loans, crypto, gambling and investing */
+.verdict.v-caution { color: var(--warning); background: var(--warning-bg); }
+.money-card { border: 2px solid var(--green-medium); }
+.money-card .btn-row { margin-top: 12px; }
+.for-you-cards { display: grid; gap: 12px; margin-top: 20px; }
+.for-you-cards:empty { display: none; }
+.for-you-cards > div:empty { display: none; }
