@@ -1,14 +1,15 @@
 # Pitch deck: status and cost slides
 
-The deck is a claude.ai artifact owned by the team lead; it has all 15 slides. These are the
+The deck is a claude.ai artifact owned by the team lead; it has 4 slides. These are the
 current texts for the two slides that change as the build moves. Re-check the bracketed facts
 just before the pitch and do not round them up.
 
 ## Slide: Status (what works today)
 
 **Works today**
-- One conversation for everything, with a "What can I ask?" page. [Confirm the chat-first build
-  is merged.]
+- A front page with "+ New", previous conversations and "Your things" (savings goal, challenge,
+  kept answers); everything else is asked in a conversation, with a "What can I ask?" page.
+  [Confirm the chat-first build is merged.]
 - Chat with your own money, three baskets, safe to spend, what-if, payday forecast, goals,
   benchmarks, quiz, check-in, consent, "What the AI saw".
 - Receipt-level questions ("How much do I spend on beer?") on simulated receipt lines.
