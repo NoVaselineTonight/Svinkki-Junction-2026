@@ -1,0 +1,27 @@
+# Secrets (SR-25)
+.env
+.env.*
+!.env.example
+
+# Dataset and anything built from it (SR-26)
+data/
+*.csv
+*.db
+*.sqlite
+*.sqlite3
+*.parquet
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Devloop raw test output
+.devloop/test-run-*.txt
+
+# Local files
+*.png
+!web/**/*.png
+.DS_Store
+Thumbs.db

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#004628">
+  <title>Svinkki - your money coach</title>
+  <link rel="icon" type="image/svg+xml" href="mark.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <img class="brand-mark" src="mark.svg" alt="" width="32" height="32">
+      <span class="brand-word">Svinkki</span>
+      <span class="topbar-sub" id="topbar-sub"></span>
+    </header>
+
+    <main id="view" class="view" tabindex="-1" aria-live="polite">
+      <p class="muted pad">Loading...</p>
+      <noscript><p class="pad">Svinkki needs JavaScript to run.</p></noscript>
+    </main>
+
+    <footer class="footer">Hackathon prototype for the S-Pankki challenge. Synthetic data.</footer>
+
+    <nav class="tabbar" id="tabbar" aria-label="Main" hidden>
+      <button type="button" class="tab" data-tab="home"><span class="tab-icon" data-icon="home"></span><span>Home</span></button>
+      <button type="button" class="tab" data-tab="chat"><span class="tab-icon" data-icon="chat"></span><span>Chat</span></button>
+      <button type="button" class="tab" data-tab="explore"><span class="tab-icon" data-icon="explore"></span><span>Explore</span></button>
+      <button type="button" class="tab" data-tab="settings"><span class="tab-icon" data-icon="settings"></span><span>Settings</span></button>
+    </nav>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

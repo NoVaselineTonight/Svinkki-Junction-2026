@@ -112,6 +112,27 @@ These are hard requirements. Each has an ID so code, tests and reviews can refer
 - **SR-15. Benchmarks return statistics only**: median, average, percentile. Never rows, never
   another customer's ID.
 
+#### How the averages are built
+
+- The averages are computed once, in a batch job that reads all customers when the database is built.
+  They are not computed while a customer uses the app.
+- Only statistics leave that job: the number of customers, the quartiles (25th percentile, median, 75th
+  percentile) and the mean for each group and measure. No customer rows and no customer IDs are stored
+  with them.
+- No group below 20 customers is stored. Where a group would be smaller, the statistics for the wider group
+  (age band instead of age band plus area, then everyone) are used instead.
+- The coach and the AI model only ever see those statistics, as one sentence and a few figures. The
+  area is masked in what the model sees, and the comparison is scaled to the length of the period asked
+  about. The model is told not to invent comparisons.
+- A customer only sees comparisons after turning them on in the consent settings. With the switch off,
+  no comparison is attached to any answer and the app only offers a link to Settings.
+- The national figures from Statistics Finland (Household Budget Survey 2022) are public aggregates per
+  consumption unit. They are a rough yardstick, not bank-account data, and the app says so.
+- For production two additions are recommended. First, include a customer in the averages only if they have
+  not opted out of being counted. Second, round the published averages, or add a small amount of random
+  noise to them, for small groups, so that a change in one customer's data cannot be read from a change in
+  the published figure.
+
 ### 4.5 Web application basics
 
 - **SR-16. Validate input.** Limit chat message length (2,000 characters) and reject anything that
