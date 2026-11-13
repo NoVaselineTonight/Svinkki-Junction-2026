@@ -265,6 +265,10 @@ h3 { font-size: 17px; }
 }
 .seg-btn[aria-pressed="true"] { background: var(--green-strongest); color: #fff; }
 .help { font-size: 13.5px; color: var(--text-secondary); margin-top: 6px; }
+.help.err-text { color: var(--error); font-weight: 600; }
+.ai-setup { display: grid; gap: 14px; margin-top: 12px; }
+.ai-setup .help:empty { display: none; }
+.ai-setup > p { margin: 0; }
 .pref-summary { font-weight: 700; color: var(--green-strongest); background: var(--mint-soft); border-radius: var(--radius); padding: 10px 12px; font-size: 15px; }
 
 /* Forms */

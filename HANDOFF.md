@@ -6,17 +6,22 @@ the dataset, the built database, and the API key.
 
 ## Where things stand
 
-- Branch `agent-a/v1-coach` holds the whole prototype. It is pushed. If its pull request is merged,
-  `main` has the same content.
+Updated 13 Nov 2026, about 23:00, by agent-b (a teammate's session that picked this up).
+
+- `main` holds the whole prototype.
 - The app runs and is tested: `python -m unittest discover -s tests` printed
-  `Ran 372 tests ... OK` at the last run.
-- The chat currently answers with built-in rules ("offline" mode). The Google Gemini path exists
-  in code but was never run against the real service.
-- **In progress when this was written: switching the AI model to Claude** (see "Next steps").
-- An independent evaluation of the build was running. If `.devloop/eval-1.md` exists, read it:
-  it lists defects ranked by severity. If it does not exist, the evaluation was lost and should be
-  run again (the brief for it is short: act as a sceptical judge, drive the app over HTTP, recompute
-  numbers independently, check the acceptance criteria in `.devloop/STATE.md`, `WAVE2.md`, `WAVE3.md`).
+  `Ran 419 tests ... OK` at the last run (Python 3.12 on Linux and 3.13 on Windows both work).
+- **Claude is now the AI model** (step 1 below is done in code): `app/llm_claude.py`, a Claude turn
+  in `app/coach.py`, the text explainer, and a block "AI model (demo setup)" in Settings where the
+  key is saved and the model chosen. It is tested against a fake HTTP layer only.
+  **No real Claude answer has been seen yet**, because the machine it was written on had no key.
+  The one thing checked live: a made-up key gets `HTTP 401 (authentication_error)` from the real
+  service, so the address and headers are right.
+- Without a key the chat answers with built-in rules ("offline" mode), as before.
+- The independent evaluation was re-run: `.devloop/eval-1.md`. Verdict: no blocker, 10 major and
+  22 minor defects. The numbers are right; the weak spots are safe-to-spend around rent day and
+  payday, the built-in chat outside its English example phrasings, and "can I afford" saying yes
+  to investments and loans.
 
 ## Get it running on a new machine
 
@@ -65,7 +70,17 @@ More detail: `README.md`. Demo script: `DEMO.md`.
 
 ## Next steps, in order
 
-1. **Claude as the AI model.** Requested by the team; not started in code when this was written.
+0. **Do this first: one live Claude call.** Create `claude_api_key.txt` (or paste the key in
+   Settings, "AI model (demo setup)", on http://localhost:8000), press "Test the key", then ask the
+   chat three questions with AI consent on and read the answers. If the request is rejected, the
+   reply says which HTTP status and error type came back; the request is built in
+   `app/llm_claude.py` (`create`).
+1. **Claude as the AI model.** DONE in code by agent-b, as specified below, with these choices:
+   a refusal, a cut-off reply, any HTTP error or a turn longer than 100 seconds falls back to the
+   built-in rules (no server-side model fallback is used); the tools and the rules prompt are
+   marked cacheable; the model choice is remembered in `data/ai_settings.json`; the setup endpoints
+   are `GET|POST /api/demo/ai` and `POST /api/demo/ai/test`, refused unless the browser is on the
+   same computer and no proxy or tunnel is in between. The original specification:
    - New `app/llm_claude.py`: Messages API over `urllib` (the project has no dependencies by
      design). `POST https://api.anthropic.com/v1/messages`, headers `x-api-key`,
      `anthropic-version: 2026-10-21`, `content-type: application/json`. Body: `model`,
