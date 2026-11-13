@@ -72,6 +72,7 @@ NO_CONSENT_PATHS = {
     "/api/demo/personas", "/api/demo/login", "/api/demo/random", "/api/logout", "/api/me",
     "/api/consent", "/api/settings", "/api/privacy/erase",
     "/api/explain",   # explaining a pasted text looks at no transactions, so it needs a session only
+    "/api/demo/ai", "/api/demo/ai/test",   # demo setup of the AI model: reads no customer data
 }
 
 
@@ -394,7 +395,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # rate limit (per session; per client address for anonymous calls)
         hits = session["hits"] if session else srv.limiter.anon_hits(self.client_address[0])
-        bucket = "chat" if path in ("/api/chat", "/api/explain") else "other"
+        bucket = "chat" if path in ("/api/chat", "/api/explain", "/api/demo/ai/test") else "other"
         if not srv.limiter.allow(hits, bucket):
             self._drain_body()   # so the client sees our reply instead of a reset connection
             raise ApiError(429, "rate_limited")
@@ -533,7 +534,83 @@ def ep_me(req):
     return {"name": req.session["name"], "age_band": age_band, "today": config.today(),
             "is_random": str(req.session["name"]).startswith("Customer "),
             "consent": state.get_consent(cid), "settings": state.get_settings(cid),
-            "ai_available": bool(config.gemini_api_key())}
+            "ai_available": bool(config.ai_provider())}
+
+
+# -- demo setup of the AI model -------------------------------------------------------------
+# The key is written to a git-ignored file and never returned or logged (SR-25). Changing the
+# setup is only possible from the computer the server runs on.
+_LOCAL_ADDRS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+_LOCAL_NAMES = ("localhost", "127.0.0.1", "::1")
+_PROXY_HEADERS = ("X-Forwarded-For", "X-Forwarded-Host", "X-Real-IP", "Forwarded", "Via")
+
+
+def _is_local(handler):
+    """True only for a browser on this computer talking to the server directly (no proxy or tunnel)."""
+    if handler.client_address[0] not in _LOCAL_ADDRS:
+        return False
+    hdrs = handler.headers
+    if any(hdrs.get(h) for h in _PROXY_HEADERS):
+        return False
+    try:
+        if (urllib.parse.urlsplit("//" + (hdrs.get("Host") or "")).hostname or "") not in _LOCAL_NAMES:
+            return False
+        origin = hdrs.get("Origin")
+        if origin and (urllib.parse.urlsplit(origin).hostname or "") not in _LOCAL_NAMES:
+            return False
+    except ValueError:
+        return False
+    return True
+
+
+def _ai_status(req):
+    local = _is_local(req.handler)
+    key = config.claude_api_key()
+    return {"provider": config.ai_provider() or "offline",
+            "key_set": bool(key),
+            "key_last4": key[-4:] if (key and local) else "",
+            "key_source": ("environment" if config.claude_key_from_env() else "file") if key else "",
+            "model": config.claude_model(),
+            "models": [{"id": m, "label": label} for m, label in config.CLAUDE_MODELS],
+            "editable": local}
+
+
+def ep_ai_setup(req):
+    if req.handler.command != "POST":
+        return _ai_status(req)
+    if not _is_local(req.handler):
+        raise ApiError(403, "local_only")
+    model, key = req.body.get("model"), req.body.get("key")
+    if model is None and key is None:
+        raise ApiError(400, "invalid_request")
+    if model is not None and model not in [m for m, _ in config.CLAUDE_MODELS]:
+        raise ApiError(400, "invalid_model")
+    if key is not None:
+        key = key.strip() if isinstance(key, str) else ""
+        if not config.valid_claude_key(key):
+            raise ApiError(400, "invalid_key")
+    try:
+        if key is not None:
+            config.set_claude_api_key(key)
+        if model is not None:
+            config.set_claude_model(model)
+    except OSError:
+        raise ApiError(500, "could_not_save")
+    return _ai_status(req)
+
+
+def ep_ai_test(req):
+    """One tiny request to Claude with the saved key and model. Sends no customer data."""
+    if not _is_local(req.handler):
+        raise ApiError(403, "local_only")
+    from . import llm_claude
+    key = config.claude_api_key()
+    if not key:
+        return {"ok": False, "error": "No Claude key is saved."}
+    try:
+        return {"ok": True, "model": llm_claude.ping(key, config.claude_model())}
+    except llm_claude.ClaudeError as e:
+        return {"ok": False, "error": str(e)}
 
 
 def ep_consent(req):
@@ -845,10 +922,13 @@ def ep_chat(req):
 def _run_explain(text, consent):
     """explain_text with the AI model only when AI consent is on and a key is configured (SR-4)."""
     from . import explain
-    key = config.gemini_api_key()
+    provider = config.ai_provider()
+    claude = provider == "claude"
+    key = config.claude_api_key() if claude else config.gemini_api_key()
     allow = bool((consent or {}).get("ai")) and bool(key)
-    return explain.explain_text(text, api_key=key if allow else None,
-                                model=config.gemini_model() if allow else None, allow_ai=allow)
+    model = (config.claude_model() if claude else config.gemini_model()) if allow else None
+    return explain.explain_text(text, api_key=key if allow else None, model=model, allow_ai=allow,
+                                provider=provider or "gemini")
 
 
 def ep_explain(req):
@@ -1075,6 +1155,8 @@ ROUTES = {
     "/api/demo/random": ("POST", ep_random),
     "/api/logout": ("POST", ep_logout),
     "/api/me": ("GET", ep_me),
+    "/api/demo/ai": ("GET|POST", ep_ai_setup),
+    "/api/demo/ai/test": ("POST", ep_ai_test),
     "/api/consent": ("POST", ep_consent),
     "/api/settings": ("POST", ep_settings),
     "/api/overview": ("GET", ep_overview),
@@ -1126,7 +1208,9 @@ def main(argv=None):
     args = ap.parse_args(argv)
     port = args.port if args.port is not None else config.port()
     srv = make_server(args.host, port)
-    mode = "Gemini available" if config.gemini_api_key() else "offline coach (no API key)"
+    provider = config.ai_provider()
+    mode = {"claude": "Claude available (%s)" % config.claude_model(),
+            "gemini": "Gemini available"}.get(provider, "offline coach (no API key)")
     print("Svinkki on http://%s:%d  [%s]" % (args.host, srv.server_address[1], mode))
     try:
         srv.serve_forever()

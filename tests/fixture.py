@@ -7,8 +7,9 @@ The module builds, once per test process:
   * CSV files in the exact input format of STATE.md section 5.7 (UTF-8 with BOM, timestamps such
     as 03OCT24:09:04:04) in a temp folder,
   * a database through app.ingest.build,
-  * the environment variables SVINKKI_DB, SVINKKI_STATE_DB, SVINKKI_TODAY, SVINKKI_DATA_DIR and an
-    empty GEMINI_API_KEY.
+  * the environment variables SVINKKI_DB, SVINKKI_STATE_DB, SVINKKI_TODAY, SVINKKI_DATA_DIR, empty
+    GEMINI_API_KEY and ANTHROPIC_API_KEY, and SVINKKI_ENV_FILE / SVINKKI_AI_KEY_FILE pointing at
+    files that do not exist, so no real key can reach the tests.
 
 It also gives the tests an independent "oracle": the generator knows, for every row it writes, the
 label, basket and context the row should end up with, so expected numbers are computed here and
@@ -430,6 +431,13 @@ def _build():
     os.environ["SVINKKI_STATE_DB"] = str(state_path)
     os.environ["SVINKKI_TODAY"] = TODAY
     os.environ["GEMINI_API_KEY"] = ""
+    # The suite must never reach a real AI service with a real key: no .env, no key file, no key
+    # in the environment. Tests that exercise a model set a fake key and a fake HTTP layer.
+    os.environ["SVINKKI_ENV_FILE"] = str(tmp / "no.env")
+    os.environ["ANTHROPIC_API_KEY"] = ""
+    os.environ["CLAUDE_MODEL"] = ""
+    os.environ["SVINKKI_AI_KEY_FILE"] = str(tmp / "no_such_key.txt")
+    os.environ["SVINKKI_AI_SETTINGS_FILE"] = str(tmp / "ai_settings.json")
     import app.ingest as ingest
     result = ingest.build(str(csv_dir), str(db_path))
     con = sqlite3.connect(str(db_path))

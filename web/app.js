@@ -1510,8 +1510,10 @@
   // ---------- wave 3: explain a text, latest purchase, patterns, goal plan ----------
   var EXPLAIN_MIN = 40, EXPLAIN_MAX = 6000;
 
+  function isAiMode(mode) { return mode === 'claude' || mode === 'gemini'; }
+
   function modeBadge(mode) {
-    return h('span', { class: 'badge' + (mode === 'gemini' ? ' ai' : '') }, mode === 'gemini' ? 'AI model' : 'On-device rules');
+    return h('span', { class: 'badge' + (isAiMode(mode) ? ' ai' : '') }, isAiMode(mode) ? 'AI model' : 'On-device rules');
   }
 
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
@@ -1847,7 +1849,7 @@
       inner.appendChild(richText(res.reply));
       var m = bubble('bot', inner);
       var meta = h('div', { class: 'meta' });
-      if (res.mode === 'gemini') meta.appendChild(h('span', { class: 'badge ai' }, 'AI model'));
+      if (isAiMode(res.mode)) meta.appendChild(h('span', { class: 'badge ai' }, 'AI model'));
       else meta.appendChild(h('span', { class: 'badge' }, 'On-device rules'));
       var longNotice = res.notice && typeof res.notice === 'string' && res.notice.length > 40;
       if (res.notice && !longNotice) meta.appendChild(h('span', { class: 'badge' }, String(res.notice)));
@@ -2579,6 +2581,90 @@
   }
 
   // ---------- SETTINGS ----------
+  // ---------- AI model (demo setup) ----------
+  // For the person running the demo: choose the Claude model and replace the key. The server never
+  // sends the key back; it only says that one is saved and what its last four characters are.
+  function aiSetupBlock(box, t) {
+    var body = h('div', { class: 'ai-setup' });
+    box.appendChild(h('section', { class: 'card' }, h('h2', null, 'AI model (demo setup)'),
+      h('p', { class: 'small muted' }, 'For the person running the demo. Customers never see this in a real bank app.'), body));
+
+    function setupError(e) {
+      if (e && e.code === 'invalid_key') return 'That does not look like a Claude API key. It starts with "sk-ant-".';
+      if (e && e.code === 'local_only') return 'The AI setup can only be changed on the computer that runs Svinkki.';
+      return (e && e.message) || 'Something went wrong. Please try again.';
+    }
+
+    function draw(st, note) {
+      body.replaceChildren();
+      var connected = st.provider === 'claude';
+      body.appendChild(h('p', { class: 'notice' + (connected ? ' ok' : '') },
+        connected ? 'Claude is set up to answer the chat.'
+          : st.provider === 'gemini' ? 'A Gemini key is in use. Save a Claude key to switch to Claude.'
+            : 'No AI model is connected. Answers come from the built-in rules.'));
+      var keyLine = st.key_set
+        ? 'A Claude key is saved' + (st.key_last4 ? ' (ends in ' + st.key_last4 + ').' : '.')
+        : 'No Claude key is saved.';
+      if (st.key_source === 'environment') keyLine += ' It comes from the environment, so a key saved here is not used until that one is removed.';
+      body.appendChild(h('p', { class: 'small' }, keyLine));
+      if (!st.editable) {
+        body.appendChild(h('p', { class: 'help' }, 'Open Svinkki at http://localhost on the computer that runs it to change the key or the model.'));
+        return;
+      }
+
+      var sel = h('select', { class: 'input', id: 'ai-model' });
+      (st.models || []).forEach(function (m) {
+        var o = h('option', { value: m.id }, m.label);
+        if (m.id === st.model) o.selected = true;
+        sel.appendChild(o);
+      });
+      var key = h('input', { type: 'password', class: 'input', id: 'ai-key', autocomplete: 'off', spellcheck: 'false',
+        placeholder: st.key_set ? 'Leave empty to keep the saved key' : 'sk-ant-...' });
+      var msg = h('p', { class: 'help', role: 'status', 'aria-live': 'polite' }, note || '');
+      var save = h('button', { type: 'button', class: 'btn' }, 'Save');
+      var test = h('button', { type: 'button', class: 'btn secondary' }, 'Test the key');
+      test.disabled = !st.key_set;
+
+      function busy(on) { save.disabled = on; test.disabled = on || !st.key_set; }
+      save.addEventListener('click', function () {
+        var req = { model: sel.value };
+        var k = key.value.trim();
+        if (k) req.key = k;
+        busy(true); msg.className = 'help'; msg.textContent = 'Saving...';
+        api('/api/demo/ai', { method: 'POST', body: req }).then(function (now) {
+          if (!alive(t)) return;
+          if (me) me.ai_available = now.provider !== 'offline';
+          chatCache = null;   // the chat screen shows whether a model is connected
+          draw(now, k ? 'Saved. Use "Test the key" to check that it works.' : 'Saved.');
+        }, function (e) {
+          if (!alive(t) || (e && e.handled)) return;
+          busy(false); msg.className = 'help err-text'; msg.textContent = setupError(e);
+        });
+      });
+      test.addEventListener('click', function () {
+        busy(true); msg.className = 'help'; msg.textContent = 'Asking Claude...';
+        api('/api/demo/ai/test', { method: 'POST', body: {} }).then(function (r) {
+          if (!alive(t)) return;
+          busy(false);
+          msg.className = 'help' + (r && r.ok ? '' : ' err-text');
+          msg.textContent = r && r.ok ? 'Claude answered. The key works.' : 'Claude did not answer: ' + ((r && r.error) || 'unknown error') + '.';
+        }, function (e) {
+          if (!alive(t) || (e && e.handled)) return;
+          busy(false); msg.className = 'help err-text'; msg.textContent = setupError(e);
+        });
+      });
+
+      body.appendChild(h('div', null, h('label', { for: 'ai-model', class: 'field-label' }, 'Model'), sel,
+        h('p', { class: 'help' }, 'Opus gives the best answers. Haiku is the cheapest and the fastest.')));
+      body.appendChild(h('div', null, h('label', { for: 'ai-key', class: 'field-label' }, st.key_set ? 'Replace the key' : 'Claude API key'), key,
+        h('p', { class: 'help' }, 'Saved in a file on this computer that is not shared. It is never shown again and never sent to the browser.')));
+      body.appendChild(h('div', { class: 'btn-row' }, save, test));
+      body.appendChild(msg);
+    }
+
+    load(body, t, function () { return api('/api/demo/ai'); }, function (st) { draw(st || {}); });
+  }
+
   function renderSettings(root, t) {
     root.appendChild(h('h1', null, 'Settings and privacy'));
     var saved = h('p', { class: 'saved', role: 'status', 'aria-live': 'polite' });
@@ -2648,6 +2734,10 @@
     });
     aiCard.appendChild(showBtn); aiCard.appendChild(payloadBox);
     root.appendChild(aiCard);
+
+    var aiSetupBox = h('div');
+    root.appendChild(aiSetupBox);
+    aiSetupBlock(aiSetupBox, t);
 
     root.appendChild(h('section', { class: 'card' }, h('h2', null, 'What is stored'),
       h('ul', { class: 'store-list' },

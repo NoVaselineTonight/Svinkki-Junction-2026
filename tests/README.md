@@ -3,7 +3,8 @@
 Standard library only (`unittest`). No network, no real dataset: every test builds an invented population
 (52 customers, 2024-10 to 2026-09, deterministic) in a temp folder, runs `app.ingest.build` on it and points
 the app at it through `SVINKKI_DB`, `SVINKKI_STATE_DB`, `SVINKKI_TODAY` (2026-09-24, a Thursday),
-`SVINKKI_DATA_DIR` and an empty `GEMINI_API_KEY` (SR-31).
+`SVINKKI_DATA_DIR`, empty `GEMINI_API_KEY` and `ANTHROPIC_API_KEY`, and `SVINKKI_ENV_FILE` /
+`SVINKKI_AI_KEY_FILE` pointing at files that do not exist, so no real key can reach a test (SR-31).
 
 ## Run
 
@@ -26,6 +27,8 @@ only its own test classes, not collection of the others.
 | `test_data.py` | Ingest, classification, sandbox, `safe_select`, `bench`, repository hygiene. |
 | `test_insights.py` | Every calculation in `app/insights.py` against hand-checkable numbers. |
 | `test_coach.py` | Tool registry, offline coach, refusals, Gemini mode through a fake HTTP layer. |
+| `fixture_claude.py` | `FakeClaude` (Messages API replies, with thinking blocks), `patched_claude`, a fake key. |
+| `test_claude.py` | Claude: the client's request and error handling, the coach's tool loop, the explainer, the demo setup endpoints (local only, key never returned or logged), and that the suite cannot see a real key. |
 | `test_http.py` | Sessions, consent, settings, isolation, chat flow, validation, errors, logs, rate limit, headers, static files. |
 
 ### Customer A (CUST00001) is known to the cent
@@ -91,6 +94,8 @@ fields. V16 is only the hygiene miniature; run a real secret scan before the dem
 
 ## Known limits of the tests
 
+* The Claude path is exercised through a fake `urllib.request.urlopen` returning Messages-API-shaped JSON.
+  The fake accepts any request, so a field the real service would reject is only caught by a live call.
 * The Gemini path is exercised through a fake `urllib.request.urlopen` returning `generateContent`-shaped
   JSON; it is not verified live. An implementation that bypasses `urllib.request.urlopen` would not be
   intercepted and those tests would fail.

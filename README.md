@@ -26,12 +26,22 @@ Settings come from the environment or a git-ignored `.env` in the repository roo
 | `SVINKKI_STATE_DB` | `data/state.db` | Consent, settings and other app state |
 | `SVINKKI_TODAY` | `2026-09-26` | The demo's "today". Rows after it are invisible |
 | `SVINKKI_PORT` | `8000` | Server port |
-| `GEMINI_API_KEY` | empty | Turns on the AI model |
-| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Model name |
+| `ANTHROPIC_API_KEY` | empty | Claude key. Turns on the AI model |
+| `SVINKKI_AI_KEY_FILE` | `claude_api_key.txt` | Git-ignored one-line file with the Claude key, read when `ANTHROPIC_API_KEY` is empty |
+| `CLAUDE_MODEL` | `claude-opus-5-5` | Claude model, until one is chosen in Settings |
+| `SVINKKI_AI_SETTINGS_FILE` | `data/ai_settings.json` | Where the model chosen in Settings is remembered |
+| `GEMINI_API_KEY` | empty | Gemini key. Used only when there is no Claude key |
+| `GEMINI_MODEL` | `gemini-3.5-flash-lite` | Gemini model name |
 
 ## Optional: the AI model
 
-Copy `.env.example` to `.env`, set `GEMINI_API_KEY` and restart the server. Never commit `.env`; it is git-ignored. With a key, chat uses Google Gemini, which calls the app's tools to get every number. Without a key, or when the customer switches AI off in Settings, built-in rules answer the same questions, and the reply is labelled "On-device rules". The model only receives anonymised summaries, and only with the customer's consent. Note that `.env.example` shows other example values for `SVINKKI_TODAY` and `GEMINI_MODEL` than the code defaults above; set what you want.
+The AI model is Claude. There are three ways to give the app the key; none of them needs a restart, because the key is read on every request:
+
+1. In the app: open http://localhost:8000 on the computer that runs the server, go to Settings, and use the block "AI model (demo setup)". Paste the key, choose the model (Opus 5.5, Sonnet 5.5 or Haiku 5.5) and press "Test the key". The server writes the key to `claude_api_key.txt`, never sends it back (it only shows the last four characters) and refuses the change from any other computer or through a proxy or tunnel.
+2. Put the key on one line in `claude_api_key.txt` in the repository root.
+3. Set `ANTHROPIC_API_KEY` in the environment or in `.env` (copy `.env.example`). This wins over the file.
+
+Never commit a key: `claude_api_key.txt` and `.env` are git-ignored. With a key, chat and the text explainer use Claude, which calls the app's tools to get every number. Without a key, or when the customer switches AI off in Settings, built-in rules answer the same questions, and the reply is labelled "On-device rules". If Claude fails, declines or is slow, the built-in rules answer and the reply says so. The model only receives anonymised summaries, and only with the customer's consent. Google Gemini (`GEMINI_API_KEY`) is still supported and is used only when no Claude key exists. Note that `.env.example` shows other example values for `SVINKKI_TODAY` and `GEMINI_MODEL` than the code defaults above; set what you want.
 
 ## What is in it
 
@@ -72,7 +82,8 @@ Added by the team:
 | `app/area.py`, `app/paavo.json` | Public postal-code-area context |
 | `app/open_data.json` | Statistics Finland household spending by age group |
 | `app/tools.py` | The read-only tools the coach can call |
-| `app/coach.py` | Chat orchestration, guardrails, built-in rule router, Gemini tool loop |
+| `app/coach.py` | Chat orchestration, guardrails, built-in rule router, Claude and Gemini tool loops |
+| `app/llm_claude.py` | Minimal Claude Messages API client (urllib) |
 | `app/llm_gemini.py` | Minimal Gemini REST client (urllib) |
 | `app/explain.py` | Finance-text explainer and redaction of personal details |
 | `app/state.py` | Writable state: consent, settings, goal, learned categories, quiz results |
@@ -95,7 +106,7 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 372 tests in 26.946s` and `OK`. The tests use an invented population, need no network and no real dataset, and do not read `.env` keys (they set `GEMINI_API_KEY` empty). More in `tests/README.md`.
+The last run printed `Ran 419 tests in 21.7s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 
