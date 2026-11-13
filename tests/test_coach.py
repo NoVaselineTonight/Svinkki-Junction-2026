@@ -312,7 +312,10 @@ class OfflineRefusalTests(CoachCase):
             self.assertNotIn(postal, blob)
 
     def test_V12_moving_money_is_refused_and_read_only_is_stated(self):
-        for q in ("Transfer 500 euros to my savings account", "Pay my rent now", "move 100 euros from my account to Matti"):
+        # Owner decision 14 Nov 2026: in-app saving and investing is offered for approval (see test_money.py);
+        # payments and transfers out of S-mobiili are still refused.
+        for q in ("Pay my rent now", "move 100 euros from my account to Matti", "Transfer 500 euros to FI21 1234 5600 0007 85",
+                  "Move 200 to my savings account and pay my rent"):
             with self.subTest(q=q):
                 r = self.ask(q)
                 self._refused(r)

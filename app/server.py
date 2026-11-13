@@ -19,7 +19,7 @@ import urllib.parse
 from collections import deque
 from types import SimpleNamespace
 
-from . import classify, config, db, state
+from . import classify, config, db, money, state
 
 COOKIE = "svinkki_sid"
 MAX_BODY = 16 * 1024
@@ -62,8 +62,7 @@ CONTENT_TYPES = {
 }
 
 NO_MONEY_MESSAGES = {
-    "accept": "Noted. I saved your intention. No money was moved: Svinkki cannot move money, "
-              "so you decide when and how to set it aside.",
+    "accept": "Noted. I saved your choice.",
     "dismiss": "Okay, I will not suggest this again. No money was moved.",
     "snooze": "Okay, I will remind you later. No money was moved.",
 }
@@ -424,8 +423,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     raise ApiError(403, "consent_required")
                 req.settings = state.get_settings(req.cid)
                 req.today = config.today()
-                req.conn = db.sandbox(req.cid, req.today,
-                                      state.list_overrides(req.cid))  # SR-2
+                req.conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid),
+                                      state.list_moves(req.cid))  # SR-2
             elif session is not None:
                 req.cid = session["cid"]
             result = fn(req)
@@ -767,8 +766,36 @@ def ep_checkin(req):
         done = state.get_intents(req.cid)
         suggestions = [s for s in suggestions
                        if done.get(s.get("id")) not in ("accept", "dismiss")][:limit]
-    checkin["suggestions"] = suggestions
+    checkin["suggestions"] = _money_suggestions(req, suggestions)
     return {"due": True, "checkin": checkin}
+
+
+_MONEY_KINDS = ("save_surplus", "build_buffer")
+
+
+def _money_suggestions(req, suggestions):
+    """MAJ-6: a set-aside suggestion never offers more than is safe to move before payday, and says how the
+    move works. Below 20 euros it is dropped."""
+    out = []
+    cap = None
+    for s in suggestions:
+        if s.get("kind") in _MONEY_KINDS:
+            if cap is None:
+                cap = money.available(req.conn, req.today)[0]
+            amt = float(int(min(float(s.get("amount") or 0), cap)))
+            if amt < 20:
+                continue
+            s = dict(s)
+            word = "buffer" if s["kind"] == "build_buffer" else "savings"
+            first = str(s.get("detail") or "").split(". You could")[0].split(". Would you")[0].rstrip(".")
+            s.update({"amount": amt, "dest": "savings",
+                      "title": "Move %s to your S-Bank savings account?" % _money_text(amt),
+                      "detail": ("%s. You can move up to %s now without touching money needed for bills before "
+                                 "payday. I will show you the move and ask you to approve it first; the money "
+                                 "stays in S-mobiili." % (first, _money_text(int(cap)))),
+                      "action_label": "Move %s to %s" % (_money_text(amt), word)})
+        out.append(s)
+    return out
 
 
 def ep_suggestion_action(req):
@@ -780,8 +807,65 @@ def ep_suggestion_action(req):
         raise ApiError(400, "invalid_action")
     if not req.consent.get("suggestions"):
         raise ApiError(403, "consent_required")
+    if action == "accept" and sid.split(":", 1)[0] in _MONEY_KINDS:
+        # Accepting a set-aside suggestion does not move money: it opens an approval for that exact move.
+        current = ep_checkin(req).get("checkin") or {}
+        sug = next((x for x in (current.get("suggestions") or []) if x.get("id") == sid), None)
+        if sug is None:
+            return {"ok": False, "message": "This suggestion is no longer available."}
+        try:
+            prop = money.propose(req.conn, req.today, req.cid, "savings", sug["amount"],
+                                 sug.get("title", ""), "checkin:" + sid)
+        except money.MoneyError as e:
+            return {"ok": False, "message": str(e)}
+        return {"ok": True, "proposal": prop,
+                "message": "Here is the move. Nothing happens until you approve it."}
     state.record_intent(req.cid, sid, action)
     return {"ok": True, "message": NO_MONEY_MESSAGES[action]}
+
+
+# ---------------------------------------------------------------------------
+# In-app money moves: propose (anyone in the app, including the coach), confirm (only the customer)
+# ---------------------------------------------------------------------------
+
+def ep_money(req):
+    cap, s = money.available(req.conn, req.today)
+    return {"holdings": money.holdings(req.cid), "destinations": money.destinations(),
+            "available": round(cap, 2), "balance": s.get("balance"), "next_payday": s.get("next_payday")}
+
+
+def ep_money_propose(req):
+    b = req.body
+    dest = b.get("dest")
+    if not isinstance(dest, str) or dest not in money.DEST_IDS:
+        raise ApiError(400, "invalid_destination")   # no free-form destination exists
+    amount = b.get("amount")
+    if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+        raise ApiError(400, "invalid_amount")
+    reason = b.get("reason")
+    reason = reason[:200] if isinstance(reason, str) else ""
+    try:
+        prop = money.propose(req.conn, req.today, req.cid, dest, amount, reason, "app")
+    except money.MoneyError as e:
+        return {"ok": False, "message": str(e)}
+    return {"ok": True, "proposal": prop}
+
+
+def ep_money_confirm(req):
+    """The only way money moves: the customer approves one proposal, naming its amount and destination."""
+    b = req.body
+    pid, approve = b.get("proposal_id"), b.get("approve")
+    if not isinstance(pid, str) or not isinstance(approve, bool):
+        raise ApiError(400, "invalid_request")
+    got = state.get_proposal(req.cid, pid) if 0 < len(pid) <= 64 else None
+    try:
+        res = money.confirm(req.conn, req.today, req.cid, pid, approve, b.get("amount"), b.get("dest"))
+    except money.MoneyError as e:
+        return {"ok": False, "moved": False, "message": str(e)}
+    src = str(((got or {}).get("data") or {}).get("source") or "")
+    if res.get("moved") and src.startswith("checkin:"):
+        state.record_intent(req.cid, src[len("checkin:"):], "accept")
+    return res
 
 
 def ep_transactions(req):
@@ -945,6 +1029,10 @@ def ep_chat(req):
     def explain(text):
         return _run_explain(text, req.consent)
 
+    def propose_money(dest, amount, reason=""):
+        """The coach can only create a proposal; the customer approves it in the app (POST /api/money/confirm)."""
+        return money.propose(req.conn, req.today, req.cid, dest, amount, reason, "chat")
+
     def save_goal(name, target, deadline=None, monthly_needed=None):
         """'Yes, save it' after a goal plan in the chat: the same validation as POST /api/goal."""
         return state.set_goal(req.cid, {"name": name, "target": target, "saved": 0})
@@ -956,12 +1044,13 @@ def ep_chat(req):
                           quiz_history=state.quiz_history(req.cid),
                           challenge=state.get_challenge(req.cid),
                           area_lookup=area_lookup, remember=remember,
-                          explain=explain, save_goal=save_goal, memory=memory)
+                          explain=explain, save_goal=save_goal, memory=memory,
+                          propose_money=propose_money, holdings=money.holdings(req.cid))
     result = coach.chat(msg, history, ctx)
     session["ai_payload"] = result.pop("ai_payload", None)
     conn = req.conn
     if changed["v"]:   # a remembered category changes what the answer's rows look like
-        conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid))
+        conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid), state.list_moves(req.cid))
     try:
         result["used"] = _used_groups(conn, req.today, result.get("evidence"))
     finally:
@@ -1009,6 +1098,10 @@ def ep_home(req):
         things.append({"id": "quiz", "kind": "quiz", "title": "Quiz score",
                        "summary": "%d of %d guess%s %s close" % (
                            close, len(pts), "" if len(pts) == 1 else "es", "was" if len(pts) == 1 else "were")})
+    for hd in money.holdings(cid):
+        things.append({"id": "money:" + hd["id"], "kind": "money", "title": hd["name"],
+                       "summary": "%s %s in S-mobiili" % (_money_text(hd["amount"]),
+                                                          "saved" if hd["kind"] == "savings" else "invested")})
     for p in state.list_pins(cid):
         things.append({"id": p["id"], "kind": "pin", "title": p["title"],
                        "summary": "Kept " + state.human_date(p["created_ts"]),
@@ -1229,7 +1322,7 @@ def ep_overrides(req):
     b = req.body   # any merchant or customer id sent by the client is ignored
     ov, affected = _apply_override(req, req.conn, b.get("tx_id"), b.get("label"), b.get("context"),
                                    b.get("apply_to_merchant") is True)
-    conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid))
+    conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid), state.list_moves(req.cid))
     try:
         return {"override": _override_public(conn, ov), "affected": affected}
     finally:
@@ -1323,6 +1416,9 @@ ROUTES = {
     "/api/transactions": ("GET", ep_transactions),
     "/api/chat": ("POST", ep_chat),
     "/api/home": ("GET", ep_home),
+    "/api/money": ("GET", ep_money),
+    "/api/money/propose": ("POST", ep_money_propose),
+    "/api/money/confirm": ("POST", ep_money_confirm),
     "/api/conversation": ("GET", ep_conversation),
     "/api/conversation/delete": ("POST", ep_conversation_delete),
     "/api/pins": ("POST", ep_pins),

@@ -6,6 +6,19 @@ the dataset, the built database, and the API key.
 
 ## Where things stand
 
+Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
+
+- **Money can move in the demo, with permission.** The coach or a check-in suggestion offers a move to the
+  customer's own S-Bank savings account or an S-Bank fund; an approval card must be tapped before anything
+  moves (`app/money.py`, `/api/money/*`, `tests/test_money.py`). Payments and transfers out are still refused.
+- **Start page:** the check-in, the weekly quiz and "Worth a look" are cards on the front page.
+- **Evaluation fixes (agent-b's `.devloop/eval-1.md`):** MAJ-1 (late unpaid bills dropped from safe to spend),
+  MAJ-2 (payday guessed too early), MAJ-3 (unclear period or category answered silently), MAJ-4 (spending more
+  reported as saving), MAJ-5 ("yes, it fits" for payday loans, crypto, gambling), MAJ-6 (check-in suggesting
+  more than is safe), MAJ-8 (income questions) are fixed. MAJ-7 and MAJ-9 were fixed earlier (D5, D4).
+  MAJ-10 (safe to spend vs. forecast) now shares the payday rule with the forecast; not re-evaluated.
+- Tests: 650 pass.
+
 Updated 14 Nov 2026, early morning, by agent-a.
 
 - `main` holds the whole prototype.
@@ -33,7 +46,7 @@ Updated 14 Nov 2026, early morning, by agent-a.
   `SVINKKI_STRICT_NUMBERS=1` brings the strict check back).
 - **Branding.** S-Pankki gave permission to use their name and logo in the demo and the pitch deck.
   The logo is the S mark followed by the word "Vinkki" (`web/brand/`).
-- Tests: `python -m unittest discover -s tests` printed `Ran 638 tests ... OK` at the last run (14 Nov, about 00:30).
+- Tests: `python -m unittest discover -s tests` printed `Ran 650 tests ... OK` at the last run (14 Nov, about 01:00).
 - Evaluation: `docs/EVALUATION.md` (verdict: iterate). Its five major findings (number check,
   quiz labels, baskets under 150 euros, area data reaching the model, Finnish questions) are fixed
   on `main`; some minor ones are open.
