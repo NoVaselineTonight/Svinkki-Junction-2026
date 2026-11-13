@@ -247,8 +247,11 @@ class DataEndpointTests(Http3Case):
 
 # ---------------------------------------------------------------------------------------------
 class ChatWave3Tests(Http3Case):
-    def chat(self, c, msg):
-        r = c.post("/api/chat", {"message": msg})
+    def chat(self, c, msg, conversation_id=None):
+        body = {"message": msg}
+        if conversation_id:     # a follow-up belongs to the conversation the first answer started
+            body["conversation_id"] = conversation_id
+        r = c.post("/api/chat", body)
         self.assertEqual(r.status, 200, r.text)
         return r.json
 
@@ -270,7 +273,7 @@ class ChatWave3Tests(Http3Case):
         card1 = self.goal_card(r1)
         if card1 is not None:
             self.assertIsNone(card1["monthly_needed"])
-        r2 = self.chat(c, second)
+        r2 = self.chat(c, second, r1.get("conversation_id"))
         data = self.goal_card(r2)
         self.assertIsNotNone(data, [x["type"] for x in r2["cards"]])
         want = self.oracle(3000.0, "2027")

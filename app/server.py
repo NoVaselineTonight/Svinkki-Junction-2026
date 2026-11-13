@@ -24,6 +24,7 @@ from . import classify, config, db, state
 COOKIE = "svinkki_sid"
 MAX_BODY = 16 * 1024
 MAX_BODY_EXPLAIN = 24 * 1024   # /api/explain only: a pasted document
+MAX_BODY_PINS = 256 * 1024     # /api/pins only: a kept card (the card itself is capped at 200 kB)
 EXPLAIN_MIN, EXPLAIN_MAX = 40, 6000
 MAX_MESSAGE = 2000
 SESSION_IDLE_SECONDS = 2 * 60 * 60
@@ -405,8 +406,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._drain_body()   # so the client sees our reply instead of a reset connection
             raise ApiError(429, "rate_limited")
 
-        body = (self._read_json(MAX_BODY_EXPLAIN if path == "/api/explain" else MAX_BODY)
-                if method == "POST" else {})
+        limit = (MAX_BODY_EXPLAIN if path == "/api/explain"
+                 else MAX_BODY_PINS if path == "/api/pins" else MAX_BODY)
+        body = self._read_json(limit) if method == "POST" else {}
         query_d = {k: v[-1] for k, v in urllib.parse.parse_qs(query, keep_blank_values=False).items()}
 
         req = SimpleNamespace(handler=self, srv=srv, session=session, sid=sid,
@@ -903,6 +905,13 @@ def ep_chat(req):
         raise ApiError(400, "invalid_message")
     session = req.session
     changed = {"v": False}
+    # the conversation lives in the state store: an unknown or foreign id starts a new one
+    conv_id = req.body.get("conversation_id")
+    history = state.conversation_history(req.cid, conv_id) if isinstance(conv_id, str) else None
+    if history is None:
+        conv_id, history = None, []
+    mems = session.setdefault("conv_memory", {})
+    memory = mems.setdefault(conv_id, {}) if conv_id else {}
 
     def remember(tx_id, label, context=None, apply_to_merchant=False):
         ov, affected = _apply_override(req, req.conn, tx_id, label, context, bool(apply_to_merchant))
@@ -925,8 +934,7 @@ def ep_chat(req):
                           quiz_history=state.quiz_history(req.cid),
                           challenge=state.get_challenge(req.cid),
                           area_lookup=area_lookup, remember=remember,
-                          explain=explain, memory=session.setdefault("memory", {}))
-    history = list(session["history"])
+                          explain=explain, memory=memory)
     result = coach.chat(msg, history, ctx)
     session["ai_payload"] = result.pop("ai_payload", None)
     conn = req.conn
@@ -939,10 +947,98 @@ def ep_chat(req):
             conn.close()
     # a pasted document never goes into the history that is sent to the AI model on later turns
     shown = result.pop("history_user", None) or msg
-    history.append({"role": "user", "content": shown})
-    history.append({"role": "assistant", "content": str(result.get("reply", ""))})
-    session["history"] = history[-2 * HISTORY_TURNS:]
+    turn = {"user": msg, "reply": str(result.get("reply", "")), "cards": result.get("cards") or [],
+            "used": result.get("used") or [], "mode": result.get("mode"), "notice": result.get("notice"),
+            "h": shown}
+    new_id = state.add_turn(req.cid, conv_id, turn, shown)
+    if new_id not in mems:   # a new conversation takes over the memory built during this turn
+        mems[new_id] = memory
+        while len(mems) > state.MAX_CONVERSATIONS:
+            mems.pop(next(iter(mems)))
+    result["conversation_id"] = new_id
     return result
+
+
+def ep_home(req):
+    cid = req.cid
+    things = []
+    goal = state.get_goal(cid)
+    if goal:
+        things.append({"id": "goal", "kind": "goal", "title": goal["name"],
+                       "summary": "%s of %s saved" % (_money_text(goal["saved"]), _money_text(goal["target"])),
+                       "updated": state.iso_time(state.goal_updated(cid))})
+    stored = state.get_challenge(cid)
+    if stored:
+        view = _challenge_view(req, stored)
+        things.append({"id": "challenge", "kind": "challenge",
+                       "title": (view or stored).get("title") or "Your challenge",
+                       "summary": str((view or {}).get("text") or "")})
+    target = _saving_target(req)
+    if target > 0:
+        things.append({"id": "target", "kind": "target", "title": "Monthly saving target",
+                       "summary": "%s a month" % _money_text(target)})
+    n = len(state.list_overrides(cid))
+    if n:
+        things.append({"id": "learned", "kind": "learned", "title": "What I have learned",
+                       "summary": "%d correction%s" % (n, "" if n == 1 else "s")})
+    pts = _features().quiz_stats(state.quiz_history(cid)).get("points") or []
+    if pts:
+        close = sum(1 for p in pts if p.get("accuracy", 0) >= 80)
+        things.append({"id": "quiz", "kind": "quiz", "title": "Quiz score",
+                       "summary": "%d of %d guess%s %s close" % (
+                           close, len(pts), "" if len(pts) == 1 else "es", "was" if len(pts) == 1 else "were")})
+    for p in state.list_pins(cid):
+        things.append({"id": p["id"], "kind": "pin", "title": p["title"],
+                       "summary": "Kept " + state.human_date(p["created_ts"]),
+                       "card_type": p["card_type"], "updated": p["created"]})
+    return {"name": req.session.get("name", ""), "things": things,
+            "conversations": state.list_conversations(cid)}
+
+
+def _money_text(v):
+    """Euro sign first, thousands comma, no decimals when whole."""
+    v = float(v or 0)
+    return "€{:,.0f}".format(v) if round(v, 2) == round(v) else "€{:,.2f}".format(v)
+
+
+def ep_conversation(req):
+    conv = state.get_conversation(req.cid, req.query.get("id"))
+    if conv is None:
+        raise ApiError(404, "not_found")
+    return conv
+
+
+def ep_conversation_delete(req):
+    conv_id = req.body.get("id")
+    if not isinstance(conv_id, str) or not conv_id:
+        raise ApiError(400, "invalid_id")
+    if not state.delete_conversation(req.cid, conv_id):
+        raise ApiError(404, "not_found")
+    req.session.get("conv_memory", {}).pop(conv_id, None)
+    return {"ok": True}
+
+
+def ep_pins(req):
+    try:
+        return state.add_pin(req.cid, req.body.get("title"), req.body.get("card"))
+    except ValueError:
+        raise ApiError(400, "invalid_pin")
+
+
+def ep_pin(req):
+    pin = state.get_pin(req.cid, req.query.get("id"))
+    if pin is None:
+        raise ApiError(404, "not_found")
+    return pin
+
+
+def ep_pins_remove(req):
+    pid = req.body.get("id")
+    if not isinstance(pid, str) or not pid:
+        raise ApiError(400, "invalid_id")
+    if not state.remove_pin(req.cid, pid):
+        raise ApiError(404, "not_found")
+    return {"ok": True}
 
 
 def _run_explain(text, consent):
@@ -976,6 +1072,7 @@ def ep_erase(req):
     req.session["history"] = []
     req.session["ai_payload"] = None
     req.session.setdefault("memory", {}).clear()
+    req.session.setdefault("conv_memory", {}).clear()
     return {"ok": True}
 
 
@@ -1203,6 +1300,12 @@ ROUTES = {
     "/api/suggestions/action": ("POST", ep_suggestion_action),
     "/api/transactions": ("GET", ep_transactions),
     "/api/chat": ("POST", ep_chat),
+    "/api/home": ("GET", ep_home),
+    "/api/conversation": ("GET", ep_conversation),
+    "/api/conversation/delete": ("POST", ep_conversation_delete),
+    "/api/pins": ("POST", ep_pins),
+    "/api/pin": ("GET", ep_pin),
+    "/api/pins/remove": ("POST", ep_pins_remove),
     "/api/afford": ("POST", ep_afford),
     "/api/goal": ("GET|POST", ep_goal),
     "/api/explain": ("POST", ep_explain),

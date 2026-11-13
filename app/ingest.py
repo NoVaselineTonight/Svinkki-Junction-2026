@@ -758,8 +758,10 @@ def _build(data_dir, out_path, limit_customers, t0, grouped):
           f"{len(bench_rows):,} bench rows, {len(personas)} personas, {seconds}s -> {out_path}",
           flush=True)
     try:    # fictional receipt dataset for the demo customers; never fails the ingest
-        from app import receipts as _receipts
-        _receipts.build_dataset(db_path=out_path, today=today)
+        from app import db as _db, receipts as _receipts
+        # only for the app's own database: a build to another path (a test, a sample) leaves nothing beside it
+        if os.path.abspath(str(out_path)) == os.path.abspath(_db.data_db_path()):
+            _receipts.build_dataset(db_path=out_path, today=today)
     except Exception as exc:
         print(f"[ingest] warning: receipt dataset not written: {exc}", flush=True)
     return {"customers": len(cstats), "rows": total_rows, "seconds": seconds}
