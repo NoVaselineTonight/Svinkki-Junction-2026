@@ -343,7 +343,7 @@ body.chat-screen .view > * + * { margin-top: 0; }
 .chip:hover { background: var(--tonal-hover); }
 .chip[aria-pressed="true"] { background: var(--green-strongest); border-color: var(--green-strongest); color: #fff; font-weight: 700; }
 .chat-input { display: flex; gap: 8px; align-items: flex-end; background: var(--bg); padding: 4px 0 0; flex: none; }
-.chat-input .input { flex: 1; border-radius: 24px; resize: none; max-height: 120px; line-height: 1.35; padding-top: 12px; padding-bottom: 12px; min-height: 48px; }
+.chat-input .input { flex: 1; border-radius: 24px; resize: none; overflow-y: hidden; max-height: 120px; line-height: 1.35; padding-top: 12px; padding-bottom: 12px; min-height: 48px; }
 .chat-input .btn { min-width: 76px; }
 .typing { display: inline-flex; gap: 4px; }
 .typing i { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); animation: blink 1.2s infinite; }
@@ -568,3 +568,10 @@ dl.terms dd { margin: 2px 0 0; font-size: 14px; color: var(--text-secondary); }
 body.chat-screen .view { flex: 1 1 0; }
 body.chat-screen .view > .chat { flex: 1 1 0; height: 100%; }
 .chat > .msgs { flex: 1 1 0; }
+
+/* AI model setup, tx link row */
+.tx-link { width: 100%; text-align: left; }
+.tx-link .small-link { margin-top: 0; }
+.ai-status { font-weight: 700; color: var(--green-strongest); }
+.ai-models { margin: 4px 0 8px; padding-left: 18px; }
+.card[hidden], .chat-hint[hidden] { display: none; }

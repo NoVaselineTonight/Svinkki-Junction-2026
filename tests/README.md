@@ -103,3 +103,4 @@ fields. V16 is only the hygiene miniature; run a real secret scan before the dem
 ## Changes
 
 * `test_http.py`: expected settings defaults gained `"challenges": "off"`, and `challenges` validation (on/off only) was added, because `.devloop/WAVE2.md` section 2 added that setting after the tests were written (contract change, not a code defect).
+* `fixture.py`: the environment setup also sets `ANTHROPIC_API_KEY` to empty, points `SVINKKI_AI_KEY_FILE` at a non-existent temp path and `SVINKKI_AI_SETTINGS` at a temp file, so no test can reach a real API key (the repo-root `claude_api_key.txt` is never read by tests). All wave test files go through `fixture.get()`; none set these variables themselves.

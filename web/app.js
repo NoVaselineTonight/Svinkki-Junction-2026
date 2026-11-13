@@ -470,7 +470,7 @@
           if (holder.firstChild) { holder.replaceChildren(); return; }
           categoryPicker(r, holder, opts);
         });
-        main.appendChild(btn);
+        item.appendChild(h('div', { class: 'tx-link' }, btn));
         item.appendChild(holder);
       }
       list.appendChild(item);
@@ -698,6 +698,15 @@
   function showTabs() {
     mode = 'app';
     setChrome(true, me && me.name ? me.name : '');
+  }
+
+  // Re-read /api/me so the chat hint and mode badges follow a change made in Settings.
+  function refreshMe() {
+    return api('/api/me').then(function (m) {
+      if (!m) return;
+      me = m;
+      if (chatCache && chatCache.hint) chatCache.hint.hidden = me.ai_available !== false;
+    }, function () {});
   }
 
   function boot() {
@@ -1510,8 +1519,10 @@
   // ---------- wave 3: explain a text, latest purchase, patterns, goal plan ----------
   var EXPLAIN_MIN = 40, EXPLAIN_MAX = 6000;
 
+  function modeIsAi(m) { return m === 'claude' || m === 'gemini'; }
+  function modeText(m) { return m === 'claude' ? 'AI model: Claude' : (m === 'gemini' ? 'AI model: Gemini' : 'On-device rules'); }
   function modeBadge(mode) {
-    return h('span', { class: 'badge' + (mode === 'gemini' ? ' ai' : '') }, mode === 'gemini' ? 'AI model' : 'On-device rules');
+    return h('span', { class: 'badge' + (modeIsAi(mode) ? ' ai' : '') }, modeText(mode));
   }
 
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
@@ -1798,7 +1809,7 @@
       return;
     }
     var msgs = h('div', { class: 'msgs', role: 'log', 'aria-live': 'polite', 'aria-label': 'Conversation' });
-    var input = h('textarea', { class: 'input chat-text', rows: '1', maxlength: '2000', placeholder: 'Ask about your money...', 'aria-label': 'Your question', autocomplete: 'off', enterkeyhint: 'send' });
+    var input = h('textarea', { class: 'input chat-text', rows: '1', maxlength: '2000', placeholder: 'Ask about your money', 'aria-label': 'Your question', autocomplete: 'off', enterkeyhint: 'send' });
     var sendBtn = h('button', { type: 'submit', class: 'btn' }, 'Send');
     var explainBtn = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Explain a text', title: 'Explain a text' }, icon('doc', 22));
     var form = h('form', { class: 'chat-input' }, explainBtn, input, sendBtn);
@@ -1816,6 +1827,7 @@
     function autosize() {
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 120) + 'px';
+      input.style.overflowY = input.scrollHeight > 120 ? 'auto' : 'hidden';
     }
 
     function send(text) {
@@ -1847,8 +1859,7 @@
       inner.appendChild(richText(res.reply));
       var m = bubble('bot', inner);
       var meta = h('div', { class: 'meta' });
-      if (res.mode === 'gemini') meta.appendChild(h('span', { class: 'badge ai' }, 'AI model'));
-      else meta.appendChild(h('span', { class: 'badge' }, 'On-device rules'));
+      meta.appendChild(modeBadge(res.mode));
       var longNotice = res.notice && typeof res.notice === 'string' && res.notice.length > 40;
       if (res.notice && !longNotice) meta.appendChild(h('span', { class: 'badge' }, String(res.notice)));
       m.appendChild(meta);
@@ -1893,12 +1904,11 @@
     input.addEventListener('input', autosize);
 
     var parts = [h('h1', { class: 'sr-only' }, 'Ask Svinkki')];
-    if (me && me.ai_available === false) {
-      parts.push(h('p', { class: 'chat-hint' }, 'AI model not connected: answers come from built-in rules. Numbers are the same either way.'));
-    }
-    parts.push(msgs, chips, form);
+    var hint = h('p', { class: 'chat-hint' }, 'AI model not connected: answers come from built-in rules. Numbers are the same either way.');
+    hint.hidden = !(me && me.ai_available === false);
+    parts.push(hint, msgs, chips, form);
     var el = h('div', { class: 'chat' }, parts);
-    chatCache = { el: el, input: input, msgs: msgs, scroll: 0 };
+    chatCache = { el: el, input: input, msgs: msgs, hint: hint, scroll: 0 };
     msgs.addEventListener('scroll', function () { if (chatCache) chatCache.scroll = msgs.scrollTop; });
     bubble('bot', h('p', null, 'Hi! Tap a question below or type your own. I can look at your spending, what is safe to spend, savings ideas and more. Numbers always come from your own transactions, and you can open the transactions behind every answer.'));
     root.appendChild(el);
@@ -2578,6 +2588,109 @@
     draw();
   }
 
+  // ---------- AI model (demo setup) ----------
+  var AI_MODELS = {
+    'claude-opus-5-5': ['Opus 5.5', 'most capable'],
+    'claude-sonnet-5-5': ['Sonnet 5.5', 'balanced'],
+    'claude-haiku-5-5': ['Haiku 5.5', 'fastest and cheapest']
+  };
+  function aiModelName(id) { return AI_MODELS[id] ? AI_MODELS[id][0] : String(id); }
+  function aiModelLine(id) { return AI_MODELS[id] ? AI_MODELS[id][0] + ': ' + AI_MODELS[id][1] : String(id); }
+
+  function aiSetupCard(t) {
+    var sec = h('section', { class: 'card' }, h('h2', null, 'AI model (demo setup)'));
+    var status = h('p', { class: 'ai-status', role: 'status' });
+    var msg = h('p', { class: 'small', role: 'status', 'aria-live': 'polite' });
+    var modelBox = h('div');
+    var keyInput = h('input', { type: 'password', class: 'input', id: 'ai-key', placeholder: 'sk-ant-\u2026', autocomplete: 'off', spellcheck: 'false' });
+    var saveBtn = h('button', { type: 'button', class: 'btn' }, 'Save key');
+    var removeBtn = h('button', { type: 'button', class: 'btn secondary' }, 'Remove key');
+    removeBtn.hidden = true;
+    var testBtn = h('button', { type: 'button', class: 'btn secondary' }, 'Test the key');
+    var seg = null;
+    var info = {};
+
+    function say(text, kind) {
+      msg.textContent = text || '';
+      msg.className = 'small' + (kind === 'err' ? ' notice err' : (kind === 'ok' ? ' notice ok' : ''));
+    }
+    function errText(e, what) {
+      if (e.status === 403) return 'The key can only be changed from the computer that runs the demo.';
+      if (e.status === 400) return what === 'model' ? 'That model is not available.' : 'That does not look like a Claude API key.';
+      return e.message;
+    }
+    function paint(d) {
+      info = d || {};
+      if (info.provider === 'claude') {
+        status.textContent = 'Connected: Claude' + (info.model ? ' (' + info.model + ')' : '') + (info.key_hint ? ', key ending ' + info.key_hint : '');
+      } else if (info.provider === 'gemini') {
+        status.textContent = 'Connected: Gemini';
+      } else {
+        status.textContent = 'No AI key saved. Answers come from built-in rules.';
+      }
+      removeBtn.hidden = !info.key_set;
+      var ids = Array.isArray(info.models) ? info.models.filter(function (x) { return typeof x === 'string'; }) : [];
+      modelBox.replaceChildren();
+      seg = null;
+      if (!ids.length) return;
+      var opts = ids.map(function (id) { return { value: id, label: aiModelName(id) }; });
+      seg = segmented('Model', opts, info.model, function (v) {
+        say('Saving...');
+        api('/api/demo/ai', { method: 'POST', body: { model: v } }).then(function (r) {
+          paint(r); say('Saved. Used for the next answer.', 'ok'); refreshMe();
+        }, function (e) {
+          if (seg && info.model) seg.set(info.model);
+          if (!e.handled) say(errText(e, 'model'), 'err');
+        });
+      });
+      modelBox.appendChild(seg.el);
+      modelBox.appendChild(h('ul', { class: 'small muted ai-models' }, ids.map(function (id) { return h('li', null, aiModelLine(id)); })));
+    }
+
+    saveBtn.addEventListener('click', function () {
+      var k = keyInput.value.trim();
+      if (!k) { say('Paste your API key first.', 'err'); return; }
+      saveBtn.disabled = true; say('Saving...');
+      var req = api('/api/demo/ai', { method: 'POST', body: { key: k } });
+      keyInput.value = ''; k = '';
+      req.then(function (r) {
+        saveBtn.disabled = false;
+        paint(r); say('Key saved on this computer. It is remembered until you remove it.', 'ok'); refreshMe();
+      }, function (e) { saveBtn.disabled = false; if (!e.handled) say(errText(e, 'key'), 'err'); });
+    });
+    removeBtn.addEventListener('click', function () {
+      removeBtn.disabled = true; say('Removing...');
+      api('/api/demo/ai', { method: 'POST', body: { clear_key: true } }).then(function (r) {
+        removeBtn.disabled = false; paint(r); say('Key removed.', 'ok'); refreshMe();
+      }, function (e) { removeBtn.disabled = false; if (!e.handled) say(errText(e, 'key'), 'err'); });
+    });
+    testBtn.addEventListener('click', function () {
+      testBtn.disabled = true; say('Testing...');
+      api('/api/demo/ai/test', { method: 'POST', body: {} }).then(function (r) {
+        testBtn.disabled = false;
+        if (r && r.ok) say('Working.', 'ok');
+        else say(r && typeof r.status === 'string' && r.status ? r.status : 'The test did not work.', 'err');
+      }, function (e) { testBtn.disabled = false; if (!e.handled) say(errText(e, 'key'), 'err'); });
+    });
+
+    sec.appendChild(status);
+    sec.appendChild(h('span', { class: 'field-label' }, 'Model'));
+    sec.appendChild(modelBox);
+    sec.appendChild(h('label', { for: 'ai-key', class: 'field-label' }, 'API key'));
+    sec.appendChild(keyInput);
+    sec.appendChild(h('div', { class: 'btn-row' }, saveBtn, removeBtn));
+    sec.appendChild(h('div', { class: 'btn-row' }, testBtn));
+    sec.appendChild(h('p', { class: 'small muted' }, 'The test makes one tiny paid request.'));
+    sec.appendChild(msg);
+    sec.appendChild(h('p', { class: 'small muted' }, 'Demo setup only. In the bank\u2019s app the model runs on the bank\u2019s own account, and customers never see or enter a key. The key is stored in a file on this computer that is not part of the code repository.'));
+    sec.hidden = true;
+    api('/api/demo/ai').then(function (d) {
+      if (!alive(t) || !d) return;
+      paint(d); sec.hidden = false;
+    }, function () {});
+    return sec;
+  }
+
   // ---------- SETTINGS ----------
   function renderSettings(root, t) {
     root.appendChild(h('h1', null, 'Settings and privacy'));
@@ -2602,6 +2715,7 @@
       }, function (e) { if (!e.handled) flash(e.message, true); });
     });
     root.appendChild(h('section', { class: 'card' }, h('h2', null, 'What Svinkki may do'), cc.el));
+    root.appendChild(aiSetupCard(t));
 
     var pc = prefControls(settings, function (s) { saveSettings(s); });
     function saveSettings(s) {

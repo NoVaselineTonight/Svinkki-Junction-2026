@@ -1,4 +1,4 @@
-"""Coach: chat orchestration, guardrails, offline rule-based router, Gemini tool loop.
+"""Coach: chat orchestration, guardrails, offline rule-based router, Gemini and Claude tool loops.
 
 chat(message, history, ctx) -> {"reply", "cards", "evidence", "tools_used", "mode", "ai_payload", ["notice"]}
 Numbers always come from tool results (SR-10). Guardrails run in code before any model call.
@@ -11,7 +11,9 @@ from app import averages as averages_mod
 from app import insights
 from app import tools
 from app import llm_gemini
+from app import llm_claude
 from app.llm_gemini import GeminiError
+from app.llm_claude import ClaudeError
 
 MAX_MESSAGE = 2000
 MAX_ROUNDS = 4
@@ -1653,14 +1655,102 @@ def _gemini_available(ctx):
     return bool(consent.get("ai")) and bool(_api_key(ctx))
 
 
+# ------------------------------------------------------------------ Claude mode
+def _claude_messages(history):
+    msgs = []
+    for h in (history or [])[-HISTORY_TURNS:]:
+        if not isinstance(h, dict):
+            continue
+        text = str(h.get("text") or h.get("content") or "")[:MAX_MESSAGE]
+        if not text:
+            continue
+        role = "user" if h.get("role") == "user" else "assistant"
+        text = anonymise(text)
+        if msgs and msgs[-1]["role"] == role:
+            msgs[-1]["content"] += "\n" + text
+        else:
+            msgs.append({"role": role, "content": text})
+    while msgs and msgs[0]["role"] != "user":
+        msgs.pop(0)
+    return msgs
+
+
+def _claude_turn(message, history, ctx, key):
+    from app import config
+    http_post = getattr(ctx, "http_post", None)
+    bench_ok = bool((_ctx_get(ctx, "consent", {}) or {}).get("benchmarks"))
+    declared = [{"name": t["name"], "description": t["description"], "parameters": t["parameters"]}
+                for t in tools.TOOLS
+                if (t["name"] not in ("get_benchmarks", "get_averages", "get_area_context") or bench_ok)]
+    age_band = (_ctx_get(ctx, "profile", {}) or {}).get("age_band")
+    system = SYSTEM_PROMPT + "\nCustomer profile: age band %s." % (age_band or "unknown")
+    if ((_ctx_get(ctx, "settings", {}) or {}).get("suggestion_level")) == "off":
+        system += "\nThe customer has switched suggestions off: answer direct questions, but do not volunteer alerts or tips."
+    messages = _claude_messages(history)
+    sent_history = json.loads(json.dumps(messages))
+    if messages and messages[-1]["role"] == "user":
+        messages[-1]["content"] += "\n" + message
+    else:
+        messages.append({"role": "user", "content": message})
+    payload = {"system_prompt_summary": SYSTEM_SUMMARY, "profile": {"age_band": age_band},
+               "history": sent_history, "user_message": message, "tool_results": []}
+    calls = []
+    final_text = None
+    model = config.claude_model()
+    for rnd in range(MAX_ROUNDS + 1):
+        # tools stay declared on every call: the API requires them once tool_use blocks are in the thread
+        resp = llm_claude.generate(system, messages, declared, key, model, http_post=http_post)
+        content = resp.get("content") or []
+        uses = [b for b in content if isinstance(b, dict) and b.get("type") == "tool_use"]
+        if not uses:
+            final_text = "".join(str(b.get("text") or "") for b in content
+                                 if isinstance(b, dict) and b.get("type") == "text").strip()
+            break
+        if rnd >= MAX_ROUNDS:
+            break
+        messages.append({"role": "assistant", "content": content})
+        blocks = []
+        for u in uses:
+            name = u.get("name")
+            args = u.get("input") if isinstance(u.get("input"), dict) else {}
+            try:
+                res = tools.call(name, args, ctx)
+            except Exception:
+                res = {"error": "tool failed"}
+            failed = isinstance(res, dict) and "error" in res
+            calls.append((name, args, res))
+            view = _model_view(res) if isinstance(res, dict) else {"result": anonymise(res)}
+            payload["tool_results"].append({"tool": name, "args": _clean(args), "result": view})
+            block = {"type": "tool_result", "tool_use_id": u.get("id"),
+                     "content": json.dumps(view, ensure_ascii=False, default=str)}
+            if failed:
+                block["is_error"] = True
+            blocks.append(block)
+        messages.append({"role": "user", "content": blocks})
+    if not final_text:
+        raise ClaudeError("Claude gave no final answer")
+    return final_text, calls, payload
+
+
+def _claude_available(ctx):
+    consent = _ctx_get(ctx, "consent", {}) or {}
+    if not consent.get("ai"):
+        return False
+    try:
+        from app import config
+        return config.ai_provider() == "claude"
+    except Exception:
+        return False
+
+
 def _special_turn(message, ctx, history_text=None):
     out = _offline_turn(message, ctx)
     res = (out.get("cards") or [{}])[0].get("data") if out.get("cards") else None
     if isinstance(res, dict) and out["tools_used"] == ["explain_text"]:
-        out["mode"] = res.get("mode") if res.get("mode") in ("gemini", "offline") else "offline"
+        out["mode"] = res.get("mode") if res.get("mode") in ("gemini", "claude", "offline") else "offline"
         if res.get("notice"):
             out["notice"] = res["notice"]
-        if out["mode"] == "gemini":
+        if out["mode"] in ("gemini", "claude"):
             try:
                 from app import explain
                 shown = explain.redact(message)[0]
@@ -1681,8 +1771,9 @@ def chat(message, history, ctx):
     mem = _memory(ctx)
     if mem is not None:
         mem["_turn"] = int(mem.get("_turn", 0)) + 1
-    use_gemini = _gemini_available(ctx)
-    mode = "gemini" if use_gemini else "offline"
+    use_claude = _claude_available(ctx)
+    use_gemini = (not use_claude) and _gemini_available(ctx)
+    mode = "claude" if use_claude else ("gemini" if use_gemini else "offline")
 
     # Pasted documents and answers to the coach's own last question are handled by the built-in rules in
     # both modes: the raw text never goes to the chat model (the explainer redacts it first), and a document is
@@ -1697,11 +1788,15 @@ def chat(message, history, ctx):
     if refusal:
         return _package(refusal, [], mode)
 
-    if not use_gemini:
+    if not (use_gemini or use_claude):
         return _offline_turn(message, ctx)
 
     try:
-        text, calls, payload = _gemini_turn(message, history, ctx, _api_key(ctx))
+        if use_claude:
+            from app import config
+            text, calls, payload = _claude_turn(message, history, ctx, config.claude_api_key())
+        else:
+            text, calls, payload = _gemini_turn(message, history, ctx, _api_key(ctx))
     except Exception:
         # GeminiError or anything unexpected in the model path: answer with the built-in rules
         # and say so in the reply itself, not only in a badge.
@@ -1717,8 +1812,8 @@ def chat(message, history, ctx):
         if calls:
             tool, args, res = calls[0]
             reply = render(tool, res, args, {})
-            return _package(reply, calls, "gemini", payload,
+            return _package(reply, calls, mode, payload,
                             notice="The AI's wording contained a figure I couldn't verify, so I replaced it with a checked answer.")
         return _offline_turn(message, ctx,
                              notice="The AI's wording contained a figure I couldn't verify, so I replaced it with a checked answer.")
-    return _package(text, calls, "gemini", payload)
+    return _package(text, calls, mode, payload)

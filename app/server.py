@@ -71,6 +71,7 @@ NO_MONEY_MESSAGES = {
 NO_CONSENT_PATHS = {
     "/api/demo/personas", "/api/demo/login", "/api/demo/random", "/api/logout", "/api/me",
     "/api/consent", "/api/settings", "/api/privacy/erase",
+    "/api/demo/ai", "/api/demo/ai/test",   # demo AI setup: a session is enough
     "/api/explain",   # explaining a pasted text looks at no transactions, so it needs a session only
 }
 
@@ -394,7 +395,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         # rate limit (per session; per client address for anonymous calls)
         hits = session["hits"] if session else srv.limiter.anon_hits(self.client_address[0])
-        bucket = "chat" if path in ("/api/chat", "/api/explain") else "other"
+        bucket = "chat" if path in ("/api/chat", "/api/explain", "/api/demo/ai/test") else "other"
         if not srv.limiter.allow(hits, bucket):
             self._drain_body()   # so the client sees our reply instead of a reset connection
             raise ApiError(429, "rate_limited")
@@ -533,7 +534,10 @@ def ep_me(req):
     return {"name": req.session["name"], "age_band": age_band, "today": config.today(),
             "is_random": str(req.session["name"]).startswith("Customer "),
             "consent": state.get_consent(cid), "settings": state.get_settings(cid),
-            "ai_available": bool(config.gemini_api_key())}
+            "ai_available": config.ai_provider() != "none",
+            "ai_provider": config.ai_provider(),
+            "ai_model": config.claude_model() if config.ai_provider() == "claude" else (
+                config.gemini_model() if config.ai_provider() == "gemini" else "")}
 
 
 def ep_consent(req):
@@ -845,10 +849,14 @@ def ep_chat(req):
 def _run_explain(text, consent):
     """explain_text with the AI model only when AI consent is on and a key is configured (SR-4)."""
     from . import explain
-    key = config.gemini_api_key()
-    allow = bool((consent or {}).get("ai")) and bool(key)
-    return explain.explain_text(text, api_key=key if allow else None,
-                                model=config.gemini_model() if allow else None, allow_ai=allow)
+    provider = config.ai_provider()
+    allow = bool((consent or {}).get("ai")) and provider != "none"
+    if not allow:
+        return explain.explain_text(text, allow_ai=False)
+    if provider == "claude":
+        return explain.explain_text(text, api_key=config.claude_api_key(), model=config.claude_model(),
+                                    allow_ai=True, provider="claude")
+    return explain.explain_text(text, api_key=config.gemini_api_key(), model=config.gemini_model(), allow_ai=True)
 
 
 def ep_explain(req):
@@ -859,6 +867,58 @@ def ep_explain(req):
     if not EXPLAIN_MIN <= len(text) <= EXPLAIN_MAX:
         raise ApiError(400, "invalid_text")
     return _run_explain(text, state.get_consent(req.session["cid"]))   # the text is never logged
+
+
+def _ai_view():
+    key = config.claude_api_key()
+    return {"provider": config.ai_provider(), "model": config.claude_model(),
+            "models": list(config.CLAUDE_MODELS), "key_set": bool(key),
+            "key_hint": key[-4:] if key else ""}
+
+
+def _is_loopback(addr):
+    return str(addr) in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
+def ep_demo_ai(req):
+    if req.handler.command != "POST":
+        return _ai_view()
+    if not _is_loopback(req.handler.client_address[0]):
+        raise ApiError(403, "local_only")
+    body = req.body
+    model, key = body.get("model"), body.get("key")
+    if "model" in body and (not isinstance(model, str) or model not in config.CLAUDE_MODELS):
+        raise ApiError(400, "invalid_model")
+    if "key" in body and (not isinstance(key, str) or not key.startswith("sk-ant-") or len(key) > 300
+                          or any(c.isspace() for c in key)):
+        raise ApiError(400, "invalid_key")
+    try:
+        if "model" in body:
+            config.set_claude_model(model)
+        if "key" in body:
+            config.set_claude_key(key)
+        if body.get("clear_key") is True:
+            config.clear_claude_key()
+    except OSError:
+        raise ApiError(500, "could_not_save")
+    return _ai_view()
+
+
+def ep_demo_ai_test(req):
+    from . import llm_claude
+    if not _is_loopback(req.handler.client_address[0]):
+        raise ApiError(403, "local_only")
+    key = config.claude_api_key()
+    if not key:
+        return {"ok": False, "status": "no key set"}
+    try:
+        llm_claude.generate("You are a connection test.", [{"role": "user", "content": "Reply with the single word: ok"}],
+                            [], key, config.claude_model(), max_tokens=64, timeout=30)
+    except llm_claude.ClaudeError as e:
+        return {"ok": False, "status": str(e)[:120]}
+    except Exception:
+        return {"ok": False, "status": "unexpected error"}
+    return {"ok": True, "status": "ok"}
 
 
 def ep_ai_payload(req):
@@ -1074,6 +1134,8 @@ ROUTES = {
     "/api/demo/login": ("POST", ep_login),
     "/api/demo/random": ("POST", ep_random),
     "/api/logout": ("POST", ep_logout),
+    "/api/demo/ai": ("GET|POST", ep_demo_ai),
+    "/api/demo/ai/test": ("POST", ep_demo_ai_test),
     "/api/me": ("GET", ep_me),
     "/api/consent": ("POST", ep_consent),
     "/api/settings": ("POST", ep_settings),
@@ -1126,7 +1188,9 @@ def main(argv=None):
     args = ap.parse_args(argv)
     port = args.port if args.port is not None else config.port()
     srv = make_server(args.host, port)
-    mode = "Gemini available" if config.gemini_api_key() else "offline coach (no API key)"
+    prov = config.ai_provider()
+    mode = {"claude": "Claude available (%s)" % config.claude_model(),
+            "gemini": "Gemini available"}.get(prov, "offline coach (no API key)")
     print("Svinkki on http://%s:%d  [%s]" % (args.host, srv.server_address[1], mode))
     try:
         srv.serve_forever()

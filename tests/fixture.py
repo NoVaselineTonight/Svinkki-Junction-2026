@@ -430,6 +430,10 @@ def _build():
     os.environ["SVINKKI_STATE_DB"] = str(state_path)
     os.environ["SVINKKI_TODAY"] = TODAY
     os.environ["GEMINI_API_KEY"] = ""
+    # Never call a real API from tests: no Claude key from env or file, and AI settings live in the temp folder.
+    os.environ["ANTHROPIC_API_KEY"] = ""
+    os.environ["SVINKKI_AI_KEY_FILE"] = str(tmp / "no_such_dir" / "claude_api_key.txt")
+    os.environ["SVINKKI_AI_SETTINGS"] = str(tmp / "ai_settings.json")
     import app.ingest as ingest
     result = ingest.build(str(csv_dir), str(db_path))
     con = sqlite3.connect(str(db_path))
