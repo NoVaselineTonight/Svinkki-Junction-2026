@@ -81,7 +81,7 @@ _t("viitekorko", _FI_START + r"viitekor", "fi",
    "Viitekorko on markkinakorko (esimerkiksi euribor), johon lainan korko perustuu.")
 _t("marginaali", _FI_START + r"marginaal", "fi",
    "Marginaali on pankin oma lisä viitekorkoon, ja yhdessä ne muodostavat lainan koron.")
-_t("todellinen vuosikorko", _FI_START + r"todellis\w* vuosikor", "fi",
+_t("todellinen vuosikorko", _FI_START + r"todelli\w* vuosikor", "fi",
    "Todellinen vuosikorko kertoo lainan vuosittaisen kokonaiskustannuksen prosentteina, kun koron lisäksi lasketaan mukaan lainan kulut.")
 _t("nimelliskorko", _FI_START + r"nimelliskor", "fi",
    "Nimelliskorko on lainan sovittu korko ilman kuluja.")
@@ -252,7 +252,7 @@ def _offline(text, lang, redactions, notice):
     watch = watch[:MAX_WATCH]
     if lang == "fi":
         summary = ("Tekstistä löytyi %d selitettävää käsitettä ja %d kohtaa, joissa on lukuja tai päiviä. "
-                   "Täydellinen selkokielinen uudelleenkirjoitus tarvitsee tekoälymallin." % (len(terms), len(points)))
+                   "Täydellinen selkokielinen uudelleenkirjoitus tarvitsee tekoälymallin (AI)." % (len(terms), len(points)))
     else:
         summary = ("I found %d term%s to explain and %d sentence%s with figures or dates. "
                    "A full plain-language rewrite needs the AI model." % (

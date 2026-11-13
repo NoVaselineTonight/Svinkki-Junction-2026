@@ -2010,7 +2010,7 @@
         stat(money(d.max_price_with_15pct_equity, { hero: true }), 'Home price with 15% equity'),
         stat(money(d.equity_needed, { hero: true }), 'Equity needed'),
         stat(money(d.savings_now, { hero: true }), 'Savings now')));
-      if (d.months_to_equity != null) c.appendChild(h('p', { class: 'small' }, 'At ' + money(d.monthly_saving) + ' a month, about ' + Math.ceil(num(d.months_to_equity)) + ' months to reach the equity.'));
+      if (d.months_to_equity != null) c.appendChild(h('p', { class: 'small' }, num(d.months_to_equity) > 120 ? 'At ' + money(d.monthly_saving) + ' a month the equity is more than ten years away. A higher monthly saving changes that.' : 'At ' + money(d.monthly_saving) + ' a month, about ' + Math.ceil(num(d.months_to_equity)) + ' months to reach the equity.'));
       if (d.check) {
         var k = d.check;
         c.appendChild(h('p', { class: 'small' }, 'For a ' + money(k.price, { hero: true }) + ' home: loan ' + money(k.loan, { hero: true }) + ', loan-to-value ' + pct(num(k.ltv) <= 1 ? num(k.ltv) * 100 : k.ltv) + '. Income ' + (k.income_ok ? 'looks sufficient' : 'looks too low') + ', equity ' + (k.equity_ok ? 'looks sufficient' : 'looks too low') + '.'));

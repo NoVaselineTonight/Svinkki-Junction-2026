@@ -1133,7 +1133,11 @@ def _render(tool, res, args=None, hints=None):
 
     if tool == "simulate_what_if":
         lines = _g(res, "lines", []) or []
-        what = ", ".join("%s" % l.get("target") for l in lines) or "those areas"
+        _names = [str(l.get("target")) for l in lines]
+        if sorted(n.lower() for n in _names) == ["fast food", "restaurant"]:
+            what = "dining out"
+        else:
+            what = ", ".join(n.lower() for n in _names) or "those areas"
         pct_txt = ""
         ch = args.get("changes") or []
         if ch:
@@ -1183,8 +1187,14 @@ def _render(tool, res, args=None, hints=None):
                "(about %s)." % (_eur(res.get("monthly_income")), _eur(res.get("max_loan")),
                                 _eur(res.get("max_price_with_15pct_equity")), _eur(res.get("equity_needed"))))
         if res.get("savings_now") is not None and res.get("months_to_equity") is not None:
-            txt += " You have %s saved and at your current pace you'd reach that equity in about %s months." % (
-                _eur(res.get("savings_now")), res.get("months_to_equity"))
+            _m = res.get("months_to_equity")
+            if isinstance(_m, (int, float)) and _m > 120:
+                # A four-digit month count is true but useless; say what it means instead.
+                txt += (" You have %s saved. At your current pace that equity is more than ten years away, "
+                        "so the first step is a higher monthly saving." % _eur(res.get("savings_now")))
+            else:
+                txt += " You have %s saved and at your current pace you'd reach that equity in about %s months." % (
+                    _eur(res.get("savings_now")), _m)
         chk = res.get("check")
         if isinstance(chk, dict):
             txt += (" For a %s home with a %s loan, the rule asks for about %s monthly income (%s) and your equity %s." % (

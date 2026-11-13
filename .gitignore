@@ -1,4 +1,7 @@
 # Secrets (SR-25)
+claude_api_key.txt
+*_api_key.txt
+*.key
 .env
 .env.*
 !.env.example
