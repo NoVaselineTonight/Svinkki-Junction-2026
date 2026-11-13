@@ -9,7 +9,7 @@ Svinkki: talk with your own money
 
 ## One-line pitch
 
-A money coach in one conversation: ask about your own spending in plain English or Finnish, get
+A money coach you talk to: ask about your own spending in plain English or Finnish, get
 numbers computed from your transactions with the purchases shown, and let an AI model see only the
 anonymised results you agreed to share.
 
@@ -19,11 +19,12 @@ Personal Economic Trainer (S-Pankki)
 
 ## Description
 
-Banking apps stop at statements. Svinkki is a coach, not a nag: one conversation inside S-mobiili
-where an S-Bank customer asks their money questions in plain English or Finnish: "How much did I
+Banking apps stop at statements. Svinkki is a coach, not a nag: inside S-mobiili an S-Bank
+customer starts a conversation and asks their money questions in plain English or Finnish: "How much did I
 spend on taxis last month?", "Can I afford a 300 euro jacket?", "Will I make it to payday?", "How
 much could I save if I cut dining out by 20%?". A "What can I ask?" page lists everything it can do,
-so there are no menus to learn.
+so there are no menus to learn. The front page holds previous conversations and "Your things":
+the savings goal, a challenge and answers the customer chose to keep.
 
 **Every number is computed by code, never by the AI model.** Claude chooses which of the app's
 read-only tools to call and explains the result. Each answer carries the transactions it was added
@@ -64,7 +65,7 @@ sit in a WebView. Python standard library only on the server.
 |---|---|
 | Financial literacy | Three baskets on every purchase, quiz, check-in, what-if, plain-language explainer |
 | Originality of AI integration | The model plans and explains, code calculates, every figure is traceable to transactions, the customer sees what the model saw |
-| Mobile UX | Phone-width, one conversation for everything, "What can I ask?" page, consent and frequency in two screens |
+| Mobile UX | Phone-width; a front page with conversations and "Your things", everything else asked in chat; "What can I ask?" page; consent and frequency in two screens |
 | Feasibility | Runs on the provided dataset today; checked live with Claude Haiku 5.5; TODO final test count; about 0.15 cents per answer on Haiku |
 | S-mobiili integration | No build step, embeddable in a WebView, identity held server-side, ready for bank login |
 
