@@ -26,6 +26,9 @@ CLAUDE_MODELS = (
     ("claude-haiku-5-5", "Claude Haiku 5.5 (cheapest)"),
 )
 DEFAULT_CLAUDE_MODEL = "claude-opus-5-5"
+# The Settings choice is stored under this name. It was "claude_model" while the demo ran on the cheapest
+# model; choices saved back then are not read any more, so the coach starts on the best model again.
+_MODEL_SETTING = "claude_model_choice"
 _KEY_RE = re.compile(r"sk-ant-[A-Za-z0-9_\-]{16,300}")
 
 
@@ -167,7 +170,7 @@ def _ai_settings() -> dict:
 def claude_model() -> str:
     """The model chosen in the demo Settings, else CLAUDE_MODEL, else the default."""
     ids = [m for m, _ in CLAUDE_MODELS]
-    saved = _ai_settings().get("claude_model")
+    saved = _ai_settings().get(_MODEL_SETTING)
     if saved in ids:
         return saved
     env = get("CLAUDE_MODEL").strip()
@@ -180,7 +183,7 @@ def set_claude_model(model: str) -> None:
     path = ai_settings_file()
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     data = _ai_settings()
-    data["claude_model"] = model
+    data[_MODEL_SETTING] = model
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f)
