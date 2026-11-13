@@ -60,6 +60,7 @@ Added by the team:
 
 - Consent switches (analyse, AI model, comparison, suggestions) and the customer's own choice of how often check-ins, suggestions, the quiz and challenges arrive.
 - Weekly quiz ("Guess how much you spent on X this week") with an awareness score over time.
+- A simulated S-Bank account at the top of the start page: current account balance, savings and investments, and what is safe to spend until payday; tap it for the latest transactions and "Move money" (`GET /api/account`).
 - Monthly check-in, this week's quiz and "Worth a look" right on the start page.
 - Save and invest inside S-mobiili: the coach or a check-in suggestion offers a move to your own S-Bank savings account or an S-Bank fund; an approval card shows the amount, from, to and the balance after, and nothing moves until you tap "Approve". A move never takes money needed for bills before payday, and nothing can go outside S-mobiili (`app/money.py`).
 - "Can I afford this?" with the effect on a savings goal; goals by date in chat ("I want to go to Japan in 2027").
@@ -117,7 +118,7 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 653 tests in 54.2s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
+The last run printed `Ran 655 tests in 54.1s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 

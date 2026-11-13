@@ -995,6 +995,44 @@
     return box;
   }
 
+  // --- The simulated bank account at the top of the start page ---
+  function accountCard(a) {
+    var cur = a.current || {}, sav = a.savings || {};
+    var btn = h('button', { type: 'button', class: 'acct-card', 'aria-label': 'Your accounts: current account balance ' + money(cur.balance, { exact: true }) },
+      h('span', { class: 'acct-top' }, h('span', { class: 'acct-name' }, cur.name || 'Current account'), h('span', { class: 'acct-num' }, cur.number || '')),
+      h('span', { class: 'acct-bal' }, money(cur.balance, { exact: true })),
+      h('span', { class: 'acct-rows' },
+        h('span', { class: 'acct-row' }, h('span', null, sav.name || 'Savings and investments'), h('b', null, money(sav.balance, { exact: true }))),
+        a.safe_to_spend != null ? h('span', { class: 'acct-row' }, h('span', null, 'Safe to spend' + (a.next_payday ? ' until ' + fmtDate(a.next_payday) : '')),
+          h('b', null, num(a.safe_to_spend) > 0 ? money(a.safe_to_spend) : 'Nothing')) : null),
+      h('span', { class: 'acct-demo' }, 'Demo account · synthetic data'));
+    btn.addEventListener('click', function () { openAccount(); });
+    return btn;
+  }
+
+  function openAccount() {
+    var body = openSheet('Your accounts');
+    var t = token;
+    load(body, t, function () { return api('/api/account'); }, function (a) {
+      var cur = a.current || {}, sav = a.savings || {};
+      var box = h('div', { class: 'thing-body' });
+      box.appendChild(rowsNode([[cur.name + ' ' + (cur.number || ''), money(cur.balance, { exact: true })],
+        [sav.name, money(sav.balance, { exact: true })]].concat((sav.parts || []).map(function (p) { return ['  ' + p.name, money(p.amount, { exact: true })]; }))));
+      if (a.safe_to_spend != null) box.appendChild(h('p', { class: 'small' }, 'Safe to spend' + (a.next_payday ? ' until payday on ' + fmtDate(a.next_payday) : '') + ': ' + (num(a.safe_to_spend) > 0 ? money(a.safe_to_spend) : 'nothing') + '.'));
+      box.appendChild(eyebrow('Latest transactions'));
+      var txBox = h('div', null, loadingNode('Loading...'));
+      box.appendChild(txBox);
+      api('/api/transactions?limit=5').then(function (r) { if (alive(t)) txBox.replaceChildren(txList(r || {}, { bare: true })); },
+        function (e) { if (!e.handled) txBox.replaceChildren(errorNode(e)); });
+      box.appendChild(eyebrow('Move money'));
+      var out = h('div', { 'aria-live': 'polite' });
+      box.appendChild(moneyMoveForm(out, a.destinations, a.can_move));
+      box.appendChild(out);
+      box.appendChild(h('p', { class: 'tiny' }, ht(a.note || '')));
+      body.appendChild(box);
+    });
+  }
+
   // --- Moving money inside S-mobiili: always an explicit approval of one exact move ---
   function moneyProposalCard(pr) {
     var c = cardShell('Approve this move?', 'Inside S-mobiili', 'money-card');
@@ -2392,9 +2430,12 @@
     var starters = h('div', { class: 'starters', hidden: true });
     var thingsBox = h('div', { class: 'home-sec' }, sectionHead('Your things'), loadingNode('Loading...'));
     var convBox = h('div', { class: 'home-sec' });
+    var acctBox = h('div', { class: 'acct-slot' });
     viewEl.appendChild(h('div', { class: 'home' },
+      acctBox,
       h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), h('p', { class: 'muted' }, 'What would you like to know about your money?')),
       comp.el, askLink, forYou, starters, thingsBox, convBox));
+    api('/api/account').then(function (a) { if (alive(t) && a && a.current) acctBox.replaceChildren(accountCard(a)); }, function () {});
 
     // Ready for you, right on the start page: the check-in, this week's quiz and anything worth a look.
     var slots = { checkin: h('div'), quiz: h('div'), alerts: h('div') };

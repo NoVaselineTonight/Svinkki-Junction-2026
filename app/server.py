@@ -824,6 +824,32 @@ def ep_suggestion_action(req):
 # In-app money moves: propose (anyone in the app, including the coach), confirm (only the customer)
 # ---------------------------------------------------------------------------
 
+def ep_account(req):
+    """The customer's simulated S-Bank accounts for the start page: current account balance, savings and
+    investments, and what is safe to spend until payday. Figures come from the per-customer data copy, so an
+    approved in-app move shows at once. The account number is made up (a hash), never a real or customer id."""
+    cap, s = money.available(req.conn, req.today)
+    row = req.conn.execute("SELECT COALESCE(-SUM(CASE WHEN type='investment_deposit' THEN amount END), 0), "
+                           "COALESCE(SUM(CASE WHEN type='investment_withdrawal' THEN amount END), 0) FROM tx").fetchone()
+    saved_total = max(0.0, float(row[0] or 0) - float(row[1] or 0))
+    held = money.holdings(req.cid)
+    in_app = sum(h["amount"] for h in held)
+    digits = int(hashlib.sha256(("acct:" + req.cid).encode()).hexdigest()[:8], 16) % 10000
+    parts = [{"name": h["name"], "amount": h["amount"], "kind": h["kind"]} for h in held]
+    if saved_total - in_app > 0.005:
+        parts.insert(0, {"name": "Earlier savings and investments", "amount": round(saved_total - in_app, 2),
+                         "kind": "earlier"})
+    return {
+        "simulated": True,
+        "current": {"name": "S-Bank current account", "number": "FI** **** **** %04d" % digits,
+                    "balance": s.get("balance")},
+        "savings": {"name": "Savings and investments", "balance": round(saved_total, 2), "parts": parts},
+        "safe_to_spend": s.get("safe_total"), "next_payday": s.get("next_payday"),
+        "can_move": round(cap, 2), "destinations": money.destinations(),
+        "note": "A demo account built from synthetic data. Money only moves inside S-mobiili, after you approve it.",
+    }
+
+
 def ep_money(req):
     cap, s = money.available(req.conn, req.today)
     return {"holdings": money.holdings(req.cid), "destinations": money.destinations(),
@@ -1409,6 +1435,7 @@ ROUTES = {
     "/api/transactions": ("GET", ep_transactions),
     "/api/chat": ("POST", ep_chat),
     "/api/home": ("GET", ep_home),
+    "/api/account": ("GET", ep_account),
     "/api/money": ("GET", ep_money),
     "/api/money/propose": ("POST", ep_money_propose),
     "/api/money/confirm": ("POST", ep_money_confirm),
