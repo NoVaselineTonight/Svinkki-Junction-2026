@@ -217,14 +217,14 @@ class RouterTests(unittest.TestCase):
     def test_help_questions_route_and_group_exists(self):
         for lang in ("en", "fi"):
             groups = self.coach.help_groups(lang)
-            g = [x for x in groups if x["title"] in ("Receipts", "Kuitit")]
+            g = [x for x in groups if x["title"] in ("My receipts", "Kuittini")]
             self.assertEqual(len(g), 1, lang)
             self.assertEqual(len(g[0]["items"]), 3)
             for it in g[0]["items"]:
                 self.assertIn(self.tool(it["question"]), ("get_receipts", "receipt_insights", "product_habit"),
                               it["question"])
         help_card = self.coach.help_turn("help")["cards"][0]["data"]["groups"]
-        self.assertTrue(any(x["title"] == "Receipts" for x in help_card))
+        self.assertTrue(any(x["title"] == "My receipts" for x in help_card))
 
 
 class ReplyTests(unittest.TestCase):

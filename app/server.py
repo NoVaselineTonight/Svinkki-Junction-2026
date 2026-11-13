@@ -802,6 +802,24 @@ def ep_transactions(req):
                                     ts_from=ts_from, ts_to=ts_to, **kw)
 
 
+def _used_title(ev, kw, groups):
+    """The title of one "transactions used" group; two groups never share a title (the second one is
+    told apart by what it filters on: its category, basket, type or kind of spending)."""
+    title = str(ev.get("title") or "Transactions")[:120]
+    taken = {g["title"] for g in groups}
+    if title not in taken:
+        return title
+    for k in ("label", "basket", "type", "context", "q"):
+        if kw.get(k):
+            cand = ("%s (%s)" % (title, str(kw[k]).replace("_", " ").lower()))[:120]
+            if cand not in taken:
+                return cand
+    n = 2
+    while ("%s (%d)" % (title, n))[:120] in taken:
+        n += 1
+    return ("%s (%d)" % (title, n))[:120]
+
+
 def _used_groups(conn, today, evidence):
     """The transactions behind each evidence filter of a chat turn (W9)."""
     ins = _insights()
@@ -826,7 +844,7 @@ def _used_groups(conn, today, evidence):
             res = ins.transactions(conn, today, limit=USED_ROWS, **kw)
         except Exception:
             continue
-        groups.append({"title": str(ev.get("title") or "Transactions")[:120],
+        groups.append({"title": _used_title(ev, kw, groups),
                        "count": res["count"], "total": res["total"], "spent": res["spent"],
                        "rows": res["rows"], "truncated": res["truncated"]})
         if len(groups) >= MAX_USED_GROUPS:
@@ -927,6 +945,10 @@ def ep_chat(req):
     def explain(text):
         return _run_explain(text, req.consent)
 
+    def save_goal(name, target, deadline=None, monthly_needed=None):
+        """'Yes, save it' after a goal plan in the chat: the same validation as POST /api/goal."""
+        return state.set_goal(req.cid, {"name": name, "target": target, "saved": 0})
+
     ctx = SimpleNamespace(cid=req.cid,   # only the seed of the simulated receipts; no tool returns it
                           conn=req.conn, today=req.today, profile=db.profile(req.cid),
                           consent=dict(req.consent), settings=dict(req.settings),
@@ -934,7 +956,7 @@ def ep_chat(req):
                           quiz_history=state.quiz_history(req.cid),
                           challenge=state.get_challenge(req.cid),
                           area_lookup=area_lookup, remember=remember,
-                          explain=explain, memory=memory)
+                          explain=explain, save_goal=save_goal, memory=memory)
     result = coach.chat(msg, history, ctx)
     session["ai_payload"] = result.pop("ai_payload", None)
     conn = req.conn

@@ -43,6 +43,7 @@ from . import insights as ins
 
 SIM_NOTE = ("Simulated receipt lines for the demo: the challenge data has payment amounts only. "
             "A real version would read your S Group purchase data, with your consent.")
+DEMO_LABEL = "Demo receipts"       # the one tag a receipt card carries
 PASTE_NOTE = "Read from the text you pasted."
 
 GROUP_NAMES = {
@@ -519,8 +520,7 @@ def _fuel_lines(rng, total_c, d, ftype, prof):
 
 def _bonus(kind, total, monthly_grocery):
     rate = 1 if kind == "fuel" else bonus_rate(1 if monthly_grocery is None else monthly_grocery)
-    return {"rate_pct": rate, "amount": round(total * rate / 100.0, 2),
-            "label": "simulated Bonus estimate"}
+    return {"rate_pct": rate, "amount": round(total * rate / 100.0, 2), "label": "Bonus estimate"}
 
 
 def receipt_for(tx_row, habit_seed=None, monthly_grocery=None):
@@ -561,11 +561,6 @@ def receipt_for(tx_row, habit_seed=None, monthly_grocery=None):
 
 _PERIOD_MONTHS = {"last_month": 1, "this_month": None, "last_3_months": 3, "last_6_months": 6,
                   "last_12_months": 12}
-_PERIOD_PHRASE = {"last_month": "last month", "last_3_months": "the last three months",
-                  "last_6_months": "the last six months", "last_12_months": "the last twelve months",
-                  "this_month": "this month", "last_week": "last week", "this_week": "this week"}
-
-
 def _key(p):
     return str(p or "").strip().lower().replace(" ", "_").replace("-", "_")
 
@@ -578,8 +573,35 @@ def _months_in(period, frm, to):
     return max(days / 30.4375, 0.25)
 
 
-def _phrase(period, frm, to):
-    return _PERIOD_PHRASE.get(_key(period)) or ins.human_range(frm, to)
+def _phrase(period, frm, to, today=None):
+    """The period as a phrase with its preposition: "in August", "over the last 3 months"."""
+    return ins.human_period(frm, to, today or to)
+
+
+_REMAINDER = ("Muovikassi", "Pantti")     # lines that only balance a receipt to the payment to the cent
+
+
+def _without_receipt(conn, frm, to):
+    """Payments labelled Groceries or Fuel that are not card purchases (for example a bill the customer
+    re-labelled), so they have no receipt. {label: (count, total)}."""
+    cur = conn.execute(
+        "SELECT label, COUNT(*), COALESCE(-SUM(amount), 0) FROM tx WHERE label IN ('Groceries', 'Fuel') "
+        "AND COALESCE(type, '') <> 'purchase' AND amount < 0 AND d >= ? AND d <= ? GROUP BY label", (frm, to))
+    return {r[0]: (int(r[1]), round(float(r[2]), 2)) for r in cur.fetchall()}
+
+
+def _without_receipt_text(missing):
+    parts = []
+    for lab in ("Fuel", "Groceries"):
+        if lab in missing:
+            n, t = missing[lab]
+            parts.append("%d payment%s labelled %s (%s)" % (n, "" if n == 1 else "s", ins.label_words(lab),
+                                                            ins._eur(t)))
+    if not parts:
+        return ""
+    return " Also %s %s not a card purchase, so there is no receipt for %s." % (
+        " and ".join(parts), "is" if sum(v[0] for v in missing.values()) == 1 else "are",
+        "it" if sum(v[0] for v in missing.values()) == 1 else "them")
 
 
 _COLS = "id, d, ts, amount, merchant, label, type"
@@ -675,28 +697,34 @@ def receipts(conn, today, period="last_month", habit_seed=None, limit=20):
     gc = sum(int(round(r["total"] * 100)) for r in allr if not _is_fuel(r))
     fc = sum(int(round(r["total"] * 100)) for r in allr if _is_fuel(r))
     n_f = sum(1 for r in allr if _is_fuel(r))
-    return {
-        "period": {"from": frm, "to": to, "label": ins.human_range(frm, to)},
+    missing = _without_receipt(conn, frm, to)
+    res = {
+        "period": {"from": frm, "to": to, "label": ins.human_period(frm, to, today)},
+        "label": DEMO_LABEL,
         "count": len(allr), "shown": min(limit, len(allr)), "total": round((gc + fc) / 100.0, 2),
         "grocery_count": len(allr) - n_f, "grocery_total": round(gc / 100.0, 2),
         "fuel_count": n_f, "fuel_total": round(fc / 100.0, 2),
         "receipts": allr[:limit],
         "note": SIM_NOTE,
-        "explain": ("Each grocery and fuel purchase in %s was turned into a simulated receipt "
-                    "(kind: grocery or fuel). `total` covers both kinds. The lines add up to the "
-                    "payment amount to the cent." % ins.human_range(frm, to)),
+        "explain": ("Each grocery and fuel payment became a demo receipt whose lines add up to the payment. "
+                    "Fuel is counted separately from groceries.%s" % _without_receipt_text(missing)),
         "evidence": _evidence(frm, to, True, True),
     }
+    if missing:
+        res["without_receipt"] = {k: {"count": v[0], "total": v[1]} for k, v in missing.items()}
+    return res
 
 
 # --------------------------------------------------------------------------- insights
 
-def _aggregate(rcs):
-    """Cent-exact aggregates: by group and by product."""
+def _aggregate(rcs, skip=()):
+    """Cent-exact aggregates: by group and by product. Lines named in `skip` are left out."""
     groups, prods = {}, {}
     for rc in rcs:
         seen_g, seen_p = set(), set()
         for ln in rc["lines"]:
+            if ln["name"] in skip:
+                continue
             c = int(round(ln["line_total"] * 100))
             g = groups.setdefault(ln["group"], {"c": 0, "items": 0, "tx": set()})
             g["c"] += c
@@ -718,15 +746,21 @@ def receipt_insights(conn, today, period="last_3_months", habit_seed=None):
     frs = [r for r in every if _is_fuel(r)]
     total_c = sum(int(round(r["total"] * 100)) for r in rcs)
     total = round(total_c / 100.0, 2)
-    groups, prods = _aggregate(rcs)
+    groups, _all_prods = _aggregate(rcs)
+    # the balancing lines (a plastic bag or a deposit that takes up the last cents) are real money in the
+    # group totals, but they are never a product the customer chose, so they stay out of the top lists
+    groups_top, prods = _aggregate(rcs, skip=_REMAINDER)
     fuel_block = _fuel_block(frs, months)
+    missing = _without_receipt(conn, frm, to)
+    if missing.get("Fuel"):
+        fuel_block["other_payments"] = {"count": missing["Fuel"][0], "total": missing["Fuel"][1]}
 
     by_group = []
     for g, v in sorted(groups.items(), key=lambda kv: -kv[1]["c"]):
         by_group.append({"group": g, "name": GROUP_NAMES.get(g, g), "total": round(v["c"] / 100.0, 2),
                          "share": round(v["c"] / total_c, 3) if total_c else 0.0, "items": v["items"]})
     top = []
-    for name, v in sorted(prods.items(), key=lambda kv: -kv[1]["c"])[:10]:
+    for name, v in sorted(prods.items(), key=lambda kv: (-len(kv[1]["tx"]), -kv[1]["c"], kv[0]))[:10]:
         t = round(v["c"] / 100.0, 2)
         top.append({"name": name, "times": len(v["tx"]),
                     "qty": int(v["qty"]) if v["unit"] == "kpl" else round(v["qty"], 2),
@@ -736,61 +770,71 @@ def receipt_insights(conn, today, period="last_3_months", habit_seed=None):
               "monthly": round(tc / 100.0 / months, 2), "yearly": round(tc / 100.0 * 12.0 / months, 2),
               "groups": [GROUP_NAMES[g] for g in TREAT_GROUPS]}
 
+    when = _phrase(period, frm, to, today)
+    pct = "{:.0f}%".format
     hl = []
     if rcs:
+        # 1. the product bought most often, 2. the biggest group, then the extras the customer may care about
+        if top:
+            t0 = top[0]
+            hl.append("You buy %s most often: %d time%s %s, %s in total."
+                      % (t0["name"], t0["times"], "" if t0["times"] == 1 else "s", when, _eur(t0["total"])))
+        top_groups = sorted(groups_top.items(), key=lambda kv: (-kv[1]["c"], kv[0]))
+        if top_groups:
+            g, gv = top_groups[0]
+            hl.append("Your biggest grocery group is %s: %s, %s of the total."
+                      % (GROUP_NAMES.get(g, g).lower(), _eur(gv["c"] / 100.0),
+                         pct(100 * gv["c"] / total_c) if total_c else "0%"))
+        extras = []
         e = groups.get("energy_drinks")
         if e and len(e["tx"]) >= 3:
             et = e["c"] / 100.0
-            hl.append("You bought energy drinks %d times: about %s a month, %s a year."
-                      % (len(e["tx"]), _eur0(et / months), _eur0(et * 12.0 / months)))
+            extras.append("You bought energy drinks %d times: about %s a month, %s a year."
+                          % (len(e["tx"]), _eur0(et / months), _eur0(et * 12.0 / months)))
         a = groups.get("alcohol_mild")
-        if a and len(a["tx"]) >= 4 and len(hl) < 2:
+        if a and len(a["tx"]) >= 4:
             at = a["c"] / 100.0
-            hl.append("Beer and cider showed up on %d receipts: about %s a month."
-                      % (len(a["tx"]), _eur0(at / months)))
+            extras.append("Beer and cider showed up on %d receipts: about %s a month."
+                          % (len(a["tx"]), _eur0(at / months)))
         sn = groups.get("snacks_sweets")
-        if sn and len(sn["tx"]) >= 5 and len(hl) < 2:
+        if sn and len(sn["tx"]) >= 5:
             st = sn["c"] / 100.0
-            hl.append("Snacks and sweets were on %d receipts: about %s a month, %s a year."
-                      % (len(sn["tx"]), _eur0(st / months), _eur0(st * 12.0 / months)))
-        if by_group:
-            b = by_group[0]
-            hl.append("%s was the biggest part of your grocery receipts: %s, %s of the total."
-                      % (b["name"], _eur(b["total"]), "{:.0f}%".format(100 * b["share"])))
+            extras.append("Snacks and sweets were on %d receipts: about %s a month, %s a year."
+                          % (len(sn["tx"]), _eur0(st / months), _eur0(st * 12.0 / months)))
         if tc:
-            hl.append("Snacks, soft drinks, energy drinks and beer or cider together came to about "
-                      "%s a month (%s of grocery spending)."
-                      % (_eur0(treats["monthly"]), "{:.0f}%".format(100 * treats["share"])))
-        if top:
-            t0 = top[0]
-            hl.append("Your most frequent product was %s: %d times, %s in total."
-                      % (t0["name"], t0["times"], _eur(t0["total"])))
+            extras.append("Snacks, soft drinks, energy drinks and beer or cider together came to about "
+                          "%s a month (%s of grocery spending)." % (_eur0(treats["monthly"]), pct(100 * treats["share"])))
+        hl += extras
         hl = hl[:4]
         if len(hl) < 2 and top:
-            hl.append("There were %d simulated grocery receipts in %s, %s in total."
-                      % (len(rcs), ins.human_range(frm, to), _eur(total)))
+            hl.append("There were %d grocery receipts %s, %s in total." % (len(rcs), when, _eur(total)))
     else:
-        hl = ["There are no grocery purchases in %s to look at." % ins.human_range(frm, to)]
+        hl = ["There are no grocery purchases %s to look at." % when]
     if fuel_block["fills"]:
         fb = fuel_block
-        hl = hl[:3] + ["You filled up %s: about %.0f litres for %s, roughly %s a month at an "
-                       "average of %s a litre."
-                       % ("once" if fb["fills"] == 1 else "%d times" % fb["fills"], fb["litres"],
-                          _eur(fb["total"]), _eur0(fb["monthly"]),
-                          _eur(fb["avg_price_per_litre"]))]
+        line = ("You filled up %s: about %.0f litres for %s, roughly %s a month at an average of %s a litre."
+                % ("once" if fb["fills"] == 1 else "%d times" % fb["fills"], fb["litres"],
+                   _eur(fb["total"]), _eur0(fb["monthly"]), _eur(fb["avg_price_per_litre"])))
+        if fuel_block.get("other_payments"):
+            op = fuel_block["other_payments"]
+            line += (" That counts card purchases at the station only; %d other payment%s labelled fuel (%s) "
+                     "%s not on a receipt." % (op["count"], "" if op["count"] == 1 else "s", _eur(op["total"]),
+                                               "is" if op["count"] == 1 else "are"))
+        hl = hl[:3] + [line]
 
     bonus_total = round(sum(r["bonus"]["amount"] for r in rcs), 2)
     return {
-        "period": {"from": frm, "to": to, "label": ins.human_range(frm, to), "months": round(months, 2)},
+        "period": {"from": frm, "to": to, "label": ins.human_period(frm, to, today), "months": round(months, 2)},
+        "label": DEMO_LABEL,
         "receipt_count": len(rcs), "total": total, "by_group": by_group, "top_products": top,
         "treats": treats, "fuel": fuel_block, "highlights": hl,
         "bonus": {"estimated_total": bonus_total,
-                  "note": "simulated Bonus estimate: a purchase rebate that grows with monthly "
-                          "grocery spend, not your real Bonus balance"},
+                  "note": "A purchase rebate that grows with monthly grocery spend, not your real Bonus balance."},
         "note": SIM_NOTE,
-        "explain": ("Grocery receipts in %s were simulated, then summed by product group. Fuel "
-                    "receipts are kept apart in `fuel` and do not count in the grocery figures. "
-                    "Yearly figures scale the period to 12 months." % ins.human_range(frm, to)),
+        "explain": ("Grocery receipts %s were summed by product group. Balancing lines such as a plastic bag or a "
+                    "deposit count in the group totals but never as a top product or the biggest group. Fuel is "
+                    "counted separately from groceries. Yearly figures scale the period to 12 months.%s"
+                    % (when, _without_receipt_text(missing) if missing.get("Groceries") else "")),
         "evidence": _evidence(frm, to, True, bool(frs)),
     }
 
@@ -930,17 +974,17 @@ def product_habit(conn, today, query, period="last_3_months", habit_seed=None):
     monthly = round(total / months, 2)
     yearly = round(total * 12.0 / months, 2)
     per = round(total / times, 2) if times else 0.0
-    ph = _phrase(period, frm, to)
+    ph = _phrase(period, frm, to, today)
     if times and fuel_q:
         n_txt = "once" if times == 1 else "%d times" % times
-        text = ("You filled up %s in %s: %s for %s. At this pace that is about %s a year."
+        text = ("You filled up %s %s: %s for %s. At this pace that is about %s a year."
                 % (n_txt, ph, _qty_text(qty, "litres"), _eur(total), _eur0(yearly)))
     elif times:
         n_txt = "once" if times == 1 else "%d times" % times
-        text = ("You bought %s %s in %s, %s for %s. At this pace that is about %s a year."
+        text = ("You bought %s %s %s, %s for %s. At this pace that is about %s a year."
                 % (m["name"], n_txt, ph, _qty_text(qty, m["noun"]), _eur(total), _eur0(yearly)))
     else:
-        text = "No %s showed up on your simulated receipts in %s." % (m["name"], ph)
+        text = "No %s showed up on your receipts %s." % (m["name"], ph)
     base["evidence"] = _evidence(frm, to, grocery=(not fuel_q) or "grocery" in kinds,
                                  fuel=fuel_q or "fuel" in kinds)
     base.update({
@@ -948,8 +992,9 @@ def product_habit(conn, today, query, period="last_3_months", habit_seed=None):
         "times": times, "qty": int(qty) if abs(qty - round(qty)) < 1e-9 else round(qty, 2),
         "total": total, "monthly": monthly, "yearly": yearly, "per_purchase": per, "text": text,
         "receipts_with_it": ids,
-        "explain": ("Counted the simulated receipt lines for %s in %s. Yearly scales the period to "
-                    "12 months, so it is a pace, not a forecast." % (m["name"], ins.human_range(frm, to))),
+        "explain": ("Counted the receipt lines for %s %s. Yearly scales the period to "
+                    "12 months, so it is a pace, not a forecast." % (m["name"], ph)),
+        "label": DEMO_LABEL,
     })
     return base
 
@@ -1075,7 +1120,7 @@ def parse_receipt_text(text):
     base_c = sum_c if sum_c > 0 else 0
     by_group = [{"group": g, "name": GROUP_NAMES.get(g, g), "total": round(v["c"] / 100.0, 2),
                  "share": round(v["c"] / base_c, 3) if base_c else 0.0, "items": v["items"]}
-                for g, v in sorted(groups.items(), key=lambda kv: -kv[1]["c"])]
+                for g, v in sorted(groups.items(), key=lambda kv: (kv[0] == "other", -kv[1]["c"]))]
     tc = sum(groups[g]["c"] for g in TREAT_GROUPS if g in groups)
     return {
         "store": store, "total": None if total is None else round(total, 2),

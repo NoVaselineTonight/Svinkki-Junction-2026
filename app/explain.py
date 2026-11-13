@@ -253,12 +253,11 @@ def _offline(text, lang, redactions, notice):
             watch.append(msgs[lang])
     watch = watch[:MAX_WATCH]
     if lang == "fi":
-        summary = ("Tekstistä löytyi %d selitettävää käsitettä ja %d kohtaa, joissa on lukuja tai päiviä. "
-                   "Täydellinen selkokielinen uudelleenkirjoitus tarvitsee tekoälymallin (AI)." % (len(terms), len(points)))
+        summary = ("Tekstistä löytyi %d selitettävää käsitettä ja %d kohtaa, joissa on lukuja tai päiviä."
+                   % (len(terms), len(points)))
     else:
-        summary = ("I found %d term%s to explain and %d sentence%s with figures or dates. "
-                   "A full plain-language rewrite needs the AI model." % (
-                       len(terms), "" if len(terms) == 1 else "s", len(points), "" if len(points) == 1 else "s"))
+        summary = ("I found %d term%s to explain and %d sentence%s with figures or dates." % (
+            len(terms), "" if len(terms) == 1 else "s", len(points), "" if len(points) == 1 else "s"))
     return {"mode": "offline", "language": lang, "summary": summary, "key_points": points, "terms": terms,
             "watch_out": watch, "redactions": redactions,
             "disclaimer": DISCLAIMER_FI if lang == "fi" else DISCLAIMER_EN, "notice": notice}

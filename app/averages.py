@@ -246,10 +246,9 @@ def _is_num(v):
 
 
 def _fmt_eur(v):
-    v = float(v)
-    sign = "-" if v < 0 else ""
-    v = abs(v)
-    return sign + ("€{:,.0f}".format(v) if v >= 10 else "€{:.2f}".format(v))
+    """House rule R1: whole euros from EUR 20, cents below, never a minus sign (the sentence words it)."""
+    from app import insights
+    return insights.money(v, zero="€0")
 
 
 def _fmt_num(v):
@@ -258,7 +257,31 @@ def _fmt_num(v):
 
 
 def _fmt_pct(v):
-    return "{:.0f} %".format(100.0 * float(v))
+    return "{:.0f}%".format(100.0 * float(v))
+
+
+_COUNT_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+                "eleven", "twelve"]
+
+
+def _freq(v):
+    """A count per month as words: "about 3 times a month", "about once every two or three months"."""
+    v = float(v)
+    if v >= 1.5:
+        return "about %d times a month" % round(v)
+    if v >= 0.67:
+        return "about once a month"
+    if v <= 0:
+        return "not at all"
+    interval = 1.0 / v
+    if interval > 12:
+        return "less than once a year"
+    lo, hi = int(interval), int(interval) + (0 if interval == int(interval) else 1)
+    if lo == 1:
+        return "about once every month or two"
+    if lo == hi:
+        return "about once every %s months" % _COUNT_WORDS[lo]
+    return "about once every %s or %s months" % (_COUNT_WORDS[lo], _COUNT_WORDS[hi])
 
 
 def _fmt(unit, v):
@@ -312,8 +335,15 @@ def _sentence(metric, name, unit, you, typ, who, mean):
         m_noun = _label_info(rest)[4]
         return "You spend about %s a month on %s; %s typically spend %s." % (fy, m_noun, who, ft)
     if kind == "visits":
-        noun, verb, _, _, _ = _label_info(rest)
-        return "You %s about %s %s a month; %s %s about %s." % (verb, fy, noun, who, verb, ft)
+        noun, verb, thing, _, _ = _label_info(rest)
+        if _is_num(you) and _is_num(typ):
+            fyw, ftw = _freq(you), _freq(typ)
+            if fyw == ftw:
+                return "You and %s both %s %s %s." % (who, verb, thing, fyw)
+            return "You %s %s %s; %s %s." % (verb, thing, fyw, who, ftw)
+        return "%s %s %s %s." % (_cap(who), verb, thing, _freq(typ)) if _is_num(typ) else "No figure yet."
+    if metric == "surplus" and _is_num(you) and you < 0:
+        return "You spend about %s a month more than you earn; %s typically have %s left over." % (fy, who, ft)
     if kind == "ticket":
         t = _label_info(rest)[2]
         return "%s costs you about %s on average; for %s it is typically %s." % (_cap(t), fy, who, ft)
@@ -434,6 +464,8 @@ def averages(conn, today, profile, topic=None, bench_many=None, bench_meta=None,
         typ = st.get("mean") if use_mean else st.get("median")
         if not _is_num(typ):
             continue
+        if metric.startswith("users:") and float(typ) >= 0.95:
+            continue       # "100% of people use taxis" says nothing; the row is left out
         name, unit = _meta_for(metric, cat, bench_meta)
         you = mine.get(metric)
         you = round(float(you), 4 if unit == "share" else 2) if _is_num(you) else None

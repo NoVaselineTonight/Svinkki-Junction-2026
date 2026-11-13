@@ -5,6 +5,7 @@ Acceptance: W12 to W15; plan: SR-10, SR-11, SR-22, SR-23.
 All data is invented (tests/fixture_wave3.py on top of tests/fixture_wave2.py).
 """
 import json
+import math
 import re
 import unittest
 import urllib.error
@@ -112,7 +113,8 @@ class ExplainTextTests(unittest.TestCase):
         self.assertIn("150", points, "the euro amount must be a key point")
         self.assertTrue(r["disclaimer"].strip())
         self.assertTrue(r["summary"].strip())
-        self.assertIn("AI", r["summary"], "the summary says a full rewrite needs the AI model")
+        self.assertNotIn("AI", r["summary"], "the summary no longer repeats that a rewrite needs the AI model")
+        self.assertRegex(r["summary"], r"\d+ \S+.*\d+", "the summary counts the terms and the figure sentences")
         self.assertEqual(r["redactions"], 0)
         self.assertTrue(r["watch_out"], "a fee and a penalty interest are in the text")
         for t in r["terms"]:
@@ -340,7 +342,12 @@ class GoalPlanTests(unittest.TestCase):
             with self.subTest(target=target, saved=saved):
                 r = self.plan(target=target, saved=saved, deadline="2027-06-30")
                 self.assertGreater(r["months_left"], 0)
-                self.assertAlmostEqual(r["monthly_needed"], (target - saved) / r["months_left"], delta=0.011)
+                # one rounding, up, in the text and in the field (so the reply and the card show the same figure)
+                exact = (target - saved) / r["months_left"]
+                self.assertEqual(r["monthly_needed"], float(math.ceil(round(exact, 6))))
+                self.assertGreaterEqual(r["monthly_needed"], exact)
+                self.assertLess(r["monthly_needed"] - exact, 1.0)
+                self.assertIn("€%s a month" % format(int(r["monthly_needed"]), ","), r["text"])
                 self.assertTrue(8.5 <= r["months_left"] <= 10.0, r["months_left"])
                 self.assertEqual(r["saved"], saved)
 

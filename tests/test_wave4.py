@@ -428,7 +428,10 @@ class FinnishTests(_NoKeyFile):
         self.assertEqual(fi["tools_used"], ["simulate_what_if"])
         first = fi["reply"].split(".")[0]
         self.assertRegex(first.lower(), r"jos|säästä")
-        self.assertRegex(fi["reply"], r"\d+,\d\d\s*€")
+        # R1: the estimate is in whole euros, Finnish style ("14 €"), and equals the exact saving rounded
+        want = round(fi["cards"][0]["data"]["saved_monthly"])
+        self.assertRegex(fi["reply"], r"(?<![\d,])%d €" % want)
+        self.assertNotIn("Tässä vastaus englanniksi", fi["reply"])
 
 
 # ---------------------------------------------------------------------------------------------

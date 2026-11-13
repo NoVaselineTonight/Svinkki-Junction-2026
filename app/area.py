@@ -83,20 +83,19 @@ def area_context(postal: str, customer: dict | None = None) -> dict:
     if customer and mi is not None:
         inc = customer.get("monthly_income")
         hc = customer.get("housing_cost")
-        caveat = ("Paavo incomes are yearly disposable income for all residents aged 18 or over in "
-                  f"{iy}; your figure is what arrives on this account now, so this is rough context, "
-                  "not a ranking.")
         if inc:
             compare.append({"name": "Monthly income", "you": round(inc), "area": round(mi / 12),
-                            "text": f"Your monthly income here is {_eur(inc)}; the area's median is about "
-                                    f"{_eur(mi / 12)} a month. {caveat}"})
+                            "text": f"Your monthly income here is {_eur(inc)}; a typical resident has about "
+                                    f"{_eur(mi / 12)} a month."})
         if inc and hc is not None and inc > 0:
             compare.append({"name": "Housing cost share of income", "you": round(hc / inc, 3), "area": None,
                             "text": f"Your housing cost of {_eur(hc)} is {_pct(hc / inc)} of your monthly income."})
 
     note = (f"Source: Statistics Finland, Paavo open data by postal code area, licence CC BY 4.0. "
             f"Reference year {iy} for income, {a.get('population_year')} for population, households "
-            f"and dwellings. This is public area data and involves no other customer's bank data.")
+            f"and dwellings. Area incomes are yearly disposable income of all residents aged 18 or over; your "
+            f"figure is what arrives on this account now, so the comparison is rough context, not a ranking. "
+            f"This is public area data and involves no other customer's bank data.")
     explain = ("These are public statistics about everyone who lives in the area, not about this bank's "
                "customers. Income is yearly disposable money income of residents aged 18 or over; "
                "home ownership is the share of households.")

@@ -212,7 +212,8 @@ class OfflineCoachM4Tests(CoachCase):
         self.assertAlmostEqual(d["saved_monthly"], 0.2 * d["baseline_monthly"], delta=0.011)
         self.assertGreaterEqual(d["baseline_monthly"], 48.00 - 0.01)                # at least the restaurant spend
         self.assertLessEqual(d["baseline_monthly"], 48.00 + 9.90 + 11.50 + 24.00 + 0.01)   # at most restaurant + fast food + bar
-        self.assertTrue(fx.text_has_amount(r["reply"], d["saved_monthly"], abs_tol=0.011), r["reply"])
+        # R1: an estimate is shown in whole euros; the figure must be the exact value rounded
+        self.assertTrue(fx.text_has_amount(r["reply"], round(d["saved_monthly"]), abs_tol=0.011), r["reply"])
 
     def test_where_did_my_money_go(self):
         r = self.ask("Where did my money go?")
@@ -223,14 +224,15 @@ class OfflineCoachM4Tests(CoachCase):
             for b in ("regular", "unexpected", "everyday"):
                 values.add(fx.spend(A, frm, to, basket=b)[0])
             values.add(fx.spend(A, frm, to, baskets=("regular", "unexpected", "everyday"))[0])
-        self.assertTrue(any(fx.text_has_amount(r["reply"], v, abs_tol=0.011) for v in values if v > 0),
-                        "reply should state at least one basket total: %s" % r["reply"])
+        self.assertTrue(any(fx.text_has_amount(r["reply"], round(v), abs_tol=0.011) for v in values if v > 0),
+                        "reply should state at least one basket total (whole euros, R1): %s" % r["reply"])
 
     def test_how_can_i_save_more(self):
         r = self.ask("How can I save more?")
         self.basic(r, ["get_save_more"])
         ideas = self.ins.save_more(self.ctx.conn, TODAY)["ideas"]
-        self.assertTrue(any(fx.text_has_amount(r["reply"], i["saved_monthly"], abs_tol=0.011) for i in ideas), r["reply"])
+        self.assertTrue(any(fx.text_has_amount(r["reply"], round(i["saved_monthly"]), abs_tol=0.011) for i in ideas),
+                        r["reply"])
 
     def test_mortgage_readiness(self):
         r = self.ask("What kind of mortgage can I get approved for?")
@@ -434,7 +436,7 @@ class GeminiCoachTests(CoachCase):
         r, fake = self.run_gemini([urllib.error.URLError("no network")])
         self.assertEqual(r["mode"], "offline")
         self.assertTrue(fx.text_has_amount(r["reply"], 62.10), r["reply"])
-        self.assertRegex(r["reply"].lower(), r"offline|unavailable|not available|couldn't reach|could not reach|fall(ing)? back|without the ai")
+        self.assertRegex(str(r.get("notice")).lower(), r"offline|unavailable|not available|couldn't reach|could not reach|fall(ing)? back|without the ai")
 
     def test_M3_no_ai_consent_means_no_call_even_with_a_key(self):
         ctx = fx.make_ctx(A, consent={"analysis": True, "ai": False, "benchmarks": True, "suggestions": True})

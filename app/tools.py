@@ -394,7 +394,7 @@ def _merge_spend(parts, period):
         ev.extend(p.get("evidence") or [])
     return {"period": parts[0].get("period"), "total": total, "count": count, "by_label": by,
             "evidence": ev,
-            "explain": "Dining out is Restaurant plus Fast food purchases in the period."}
+            "explain": "Dining out is restaurants plus fast food."}
 
 
 def _expand_targets(changes):

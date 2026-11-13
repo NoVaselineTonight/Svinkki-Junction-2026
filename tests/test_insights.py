@@ -413,7 +413,11 @@ class MortgageTests(InsightCase):
         self.assertGreater(r["equity_needed"], 0)
         self.assertIsNone(r["check"])
         self.assertIsInstance(r["rule"], str)
-        self.assertIn("0.01841", r["rule"])
+        # the rule is in plain words (no coefficient); the numbers above still follow 0.01841 per euro
+        for part in ("25-year", "6%", "35%"):
+            self.assertIn(part, r["rule"])
+        self.assertNotIn("0.01841", r["rule"])
+        self.assertAlmostEqual(r["account_balance"], self.ins._balance(self.conn), delta=0.01)
         self.assertTraceable(r)
 
     def test_disclaimer_is_not_a_promise(self):
