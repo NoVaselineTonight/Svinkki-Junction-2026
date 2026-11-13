@@ -1,6 +1,6 @@
 # Svinkki: a personal economic trainer
 
-Svinkki is a prototype for the S-Pankki challenge at Junction 2026. It lets a bank customer talk with their own money: ask "How much did I spend on taxis last month?" or "What kind of spender am I?" and get a number worked out from their own transactions, with the transactions shown under the answer. It sorts spending into the brief's three baskets (regular essentials, unexpected necessities, everyday spending), shows what is safe to spend until payday, simulates what-if changes and compares the customer with people of the same age using group statistics and Statistics Finland open data. It is a web app with a phone-width layout and no build step, so it can be embedded in a mobile app.
+Svinkki is a prototype for the S-Pankki challenge at Junction 2026. It lets a bank customer talk with their own money: ask "How much did I spend on taxis last month?" or "What kind of spender am I?" and get a number worked out from their own transactions, with the transactions shown under the answer. It sorts spending into the brief's three baskets (regular essentials, unexpected necessities, everyday spending), shows what is safe to spend until payday, simulates what-if changes and compares the customer with people of the same age using group statistics and Statistics Finland open data. It works like an AI assistant app: a front page with a "New conversation" button, the customer's earlier conversations, and "Your things" (a savings goal, a challenge, answers the customer chose to keep), which appear once they have been created in a conversation. A "What can I ask?" button lists everything the coach can do. It is a web app with a phone-width layout and no build step, so it can be embedded in a mobile app such as S-mobiili.
 
 Python 3.13, standard library only. Nothing is installed. Nothing moves money.
 
@@ -54,6 +54,7 @@ Core from the brief:
 - Spender type and ways to save more.
 - Benchmarks against groups of similar customers (age band, widened when the group is small) and Statistics Finland open data.
 - Free exploration of your own data: filter transactions by period, label, basket and text.
+- Questions in English or Finnish ("Paljonko käytin takseihin viime kuussa?").
 
 Added by the team:
 
@@ -65,7 +66,9 @@ Added by the team:
 - Leak finder (small purchases, weekday and hour patterns, payday week, repeating charges), quiet alerts, spending patterns and a light note on the latest purchase.
 - Payday plan across the baskets, and easy opt-in challenges tracked from your transactions.
 - Finance-text explainer for pasted loan or fund text, and a mortgage readiness check (a check, not a credit decision).
+- Receipts from S Group stores as material: "What do I buy most?", "How much do I spend on energy drinks?", "Show my receipts", or paste the text of a receipt and have it read. The challenge data has payment amounts only, so the receipt lines are simulated from each grocery and fuel payment (they add up to the payment to the cent) and the answer says so. Groceries come from Prisma, S-market, Alepa and Sale, fuel from ABC stations. `python -m app.receipts` (also run at the end of `app.ingest`) writes the receipts of the six demo customers to `data/receipts/` as one JSON file and one CSV per customer, and the app reads them from there.
 - "Try as a random customer" login, for demonstrating on data nobody picked.
+- "Reset demo" in Settings: forgets every demo customer's choices, goals, conversations and kept answers and returns to the login screen. The AI key and model are kept.
 
 ## How it is built
 
@@ -81,20 +84,21 @@ Added by the team:
 | `app/averages.py` | Compares one customer with group statistics (groups of 20 or more) |
 | `app/area.py`, `app/paavo.json` | Public postal-code-area context |
 | `app/open_data.json` | Statistics Finland household spending by age group |
+| `app/receipts.py` | Simulated S Group receipts for grocery payments, receipt insights, and a reader for pasted receipt text |
 | `app/tools.py` | The read-only tools the coach can call |
 | `app/coach.py` | Chat orchestration, guardrails, built-in rule router, Claude and Gemini tool loops |
 | `app/llm_claude.py` | Minimal Claude Messages API client (urllib) |
 | `app/llm_gemini.py` | Minimal Gemini REST client (urllib) |
 | `app/explain.py` | Finance-text explainer and redaction of personal details |
-| `app/state.py` | Writable state: consent, settings, goal, learned categories, quiz results |
-| `web/` | `index.html`, `app.js`, `styles.css`, `mark.svg`: the vanilla frontend |
+| `app/state.py` | Writable state: consent, settings, goal, learned categories, quiz results, conversations, kept answers |
+| `web/` | `index.html`, `app.js`, `styles.css`, `brand/`: the vanilla frontend (front page, conversation, sheets) |
 | `tests/` | `unittest` suite on an invented population, see `tests/README.md` |
 
 ## Privacy and security
 
 - The customer id lives only in the server-side session. An id in a request is ignored.
 - Each request works on an in-memory copy holding only that customer's rows, so other customers' data is not reachable.
-- Every number is computed by code and carries the transactions it came from. The model explains; it does not calculate.
+- Every number is computed by code and carries the transactions it came from. The model explains; it does not calculate. A reply with a euro amount the code did not produce loses that sentence, or is replaced by the built-in answer (`SVINKKI_STRICT_NUMBERS=1` also checks percentages and plain numbers).
 - The model gets an anonymised payload (no name, id, postal code or exact age) and only with consent. Settings has "What the AI saw", which shows the last payload exactly.
 - Comparisons use group statistics only, never fewer than 20 customers.
 
@@ -106,14 +110,15 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 419 tests in 21.7s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
+The last run printed `Ran 638 tests in 40.9s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 
 - The data is synthetic.
 - Login is a demo picker, not bank authentication.
-- The AI-model path has only been tested against a fake HTTP layer, not live.
-- Item-level receipt analysis is not possible: the dataset has merchants and categories, not basket contents.
+- The Claude path was checked live on 13 Nov 2026 with Claude Haiku 5.5 on a handful of questions. The automated tests use a fake HTTP layer. Gemini has not been tried live.
+- Receipt lines are simulated: the dataset has merchants and amounts, not basket contents. A real version would read the customer's S Group purchase data with consent.
+- The S-Pankki name and logo are used with S-Pankki's permission for this demo and pitch only.
 - Repeating charges and investment withdrawals are rare in the synthetic data, so subscription detection and the savings-leakage alert often have nothing to show.
 - This is a hackathon prototype. See "What a real launch would still need" in `docs/SECURITY_PLAN.md`.
 

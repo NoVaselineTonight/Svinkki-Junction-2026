@@ -186,13 +186,16 @@ class ClientTests(unittest.TestCase):
         self.assertNotIn("invalid x-api-key", str(out))
         self.assertEqual(fake.calls, 1, "a wrong key is not retried")
 
-    def test_busy_service_is_retried_once(self):
+    def test_busy_service_is_retried_up_to_twice(self):
         out, fake = self.create([fc.http_error(529, "overloaded_error"), fc.cl_text("Hello")])
         self.assertEqual(self.lc.text_of(out), "Hello")
         self.assertEqual(fake.calls, 2)
+        out, fake = self.create([fc.http_error(529, "overloaded_error"), fc.http_error(503), fc.cl_text("Hello")])
+        self.assertEqual(self.lc.text_of(out), "Hello")
+        self.assertEqual(fake.calls, 3)
         out, fake = self.create([fc.http_error(529, "overloaded_error")])
         self.assertIsInstance(out, self.lc.ClaudeError)
-        self.assertEqual(fake.calls, 2)
+        self.assertEqual(fake.calls, 3)
 
     def test_timeout_and_network_failure_are_claude_errors(self):
         for exc in (socket.timeout("slow"), OSError("down"), ValueError("odd")):
@@ -326,9 +329,9 @@ class ClaudeCoachTests(unittest.TestCase):
                     socket.timeout("slow"), fc.cl_refusal(), fc.cl_text("You", stop_reason="max_tokens")):
             r, _ = self.run_claude([bad])
             self.assertEqual(r["mode"], "offline", bad)
-            self.assertEqual(r.get("notice"), "AI model unavailable")
+            self.assertEqual(r.get("notice"), "AI is offline, so this is a simpler answer.")
             self.assertTrue(fx.text_has_amount(r["reply"], 62.10), r["reply"])
-            self.assertIn("built-in rules", r["reply"])
+            self.assertNotIn("built-in rules", r["reply"], "the fallback is said once, in the notice")
             self.assertFalse(r.get("ai_payload"))
             self.assertNotIn(fc.FAKE_KEY, json.dumps(r, default=str))
 

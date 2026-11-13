@@ -75,14 +75,94 @@ def _r(x):
     return round(float(x or 0.0) + 0.0, 2)
 
 
+def money(x, zero="nothing"):
+    """Money in a sentence (house rule R1): whole euros from EUR 20 up, cents below, "nothing" for zero.
+
+    The sign is dropped on purpose: word a negative in the sentence ("EUR 458 more than came in")."""
+    v = round(abs(float(x or 0.0)), 2)
+    if v == 0:
+        return zero
+    if v >= 20 or v == int(v):
+        return "€{:,.0f}".format(v)
+    return "€{:,.2f}".format(v)
+
+
 def _eur(x):
-    x = float(x or 0.0)
-    return ("-" if x < 0 else "") + "€{:,.2f}".format(abs(x))
+    """An exact amount (a price, a payment, a total): whole euros from EUR 20, cents below."""
+    return money(x)
 
 
 def _eur0(x):
-    x = float(x or 0.0)
-    return ("-" if x < 0 else "") + "€{:,.0f}".format(abs(x))
+    """An estimate (per month, per day, a yearly pace): always whole euros, cents only below EUR 1."""
+    v = round(abs(float(x or 0.0)), 2)
+    if 0 < v < 1:
+        return "€{:.2f}".format(v)
+    return money(round(v))
+
+
+_LABEL_WORDS = {
+    "taxi": "taxis", "restaurant": "restaurants", "bar": "bars", "night out": "nights out",
+    "dining out": "dining out", "gym & sports": "gym and sports", "cinema": "the cinema",
+    "savings & investments": "savings and investments", "other": "other spending",
+    "transfer out": "transfers out", "doctor": "doctor visits", "dentist": "dentist visits",
+    "clothing": "clothes", "event": "events", "hobby": "hobbies",
+}
+_LABEL_TITLES = {"groceries": "Grocery", "gym & sports": "Gym and sports", "savings & investments": "Savings",
+                 "night out": "Night out", "dining out": "Dining out"}
+
+
+def label_words(label):
+    """A category as a lower-case noun inside a sentence (house rule R9): "taxis", "fuel", "groceries"."""
+    s = str(label or "").strip()
+    return _LABEL_WORDS.get(s.lower(), s.lower())
+
+
+def target_words(name):
+    """A what-if or filter target as words: a basket name, "nights out" or a category noun."""
+    k = str(name or "").strip().lower().replace("_", " ")
+    if k in _NIGHT_KEYS:
+        return "nights out"
+    if k in _BASKET_KEYS:
+        return BASKET_NAMES[_BASKET_KEYS[k]].lower()
+    return label_words(name)
+
+
+def label_title(label):
+    """A category as an adjective at the start of a title: "Grocery purchases", "Fuel purchases"."""
+    s = str(label or "").strip()
+    return _LABEL_TITLES.get(s.lower(), s[:1].upper() + s[1:])
+
+
+def higher_words(uplift_pct):
+    """"about 40% higher", and from double upwards "more than double" / "about 3 times as high"."""
+    try:
+        r = 1.0 + float(uplift_pct) / 100.0
+    except (TypeError, ValueError):
+        return "higher"
+    if r < 2.0:
+        return "about %d%% higher" % round(float(uplift_pct))
+    if r < 2.15:
+        return "about double"
+    if r < 3.0:
+        return "more than double"
+    return "about %d times as high" % round(r)
+
+
+def ratio_words(value, base):
+    """How `value` compares with `base` as words (house rule R3), to follow with the base figure.
+
+    Below double it stays a percentage ("88% above"); from double it is worded."""
+    try:
+        r = float(value) / float(base)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return "above"
+    if r < 2.0:
+        return "%d%% above" % round((r - 1) * 100)
+    if r < 2.15:
+        return "about double"
+    if r < 3.0:
+        return "more than double"
+    return "about %d times" % round(r)
 
 
 def _last_day(y, m):
@@ -133,8 +213,34 @@ def _ev(title, frm=None, to=None, **kw):
     return out
 
 
-def _spend_filters(frm, to, title="All spending"):
-    return [_ev(title, frm, to, basket=b) for b in SPEND_BASKETS]
+def _spend_filters(frm, to, when=None):
+    """One evidence filter per spending basket; each title names its basket ("Regular essentials, August")."""
+    return [_ev("%s, %s" % (BASKET_NAMES[b], when) if when else BASKET_NAMES[b], frm, to, basket=b)
+            for b in SPEND_BASKETS]
+
+
+def months_span(frm, to, today=None):
+    """Whole months as words: "March to August" (one month: "August"); the year only when it is not this one."""
+    try:
+        a, b = _d(frm), _d(to)
+    except (ValueError, TypeError):
+        return "%s to %s" % (frm, to)
+    first = human_month("%d-%02d" % (a.year, a.month), today)
+    if (a.year, a.month) == (b.year, b.month):
+        return first
+    return "%s to %s" % (first, human_month("%d-%02d" % (b.year, b.month), today))
+
+
+def _when(frm, to, today):
+    """A period as a title suffix without a preposition: "August", "last 6 months", "21-24 Sep"."""
+    try:
+        t = _d(today)
+        a, b = _d(frm), _d(to)
+    except (ValueError, TypeError):
+        return str(frm)
+    if b == t and (b - a).days >= 50:
+        return human_period(frm, to, today).replace("over the ", "")
+    return human_range(a, b, today)
 
 
 _MON_FULL = ["", "January", "February", "March", "April", "May", "June", "July", "August",
@@ -142,33 +248,84 @@ _MON_FULL = ["", "January", "February", "March", "April", "May", "June", "July",
 _MON_SHORT = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
-def human_range(frm, to=None):
+def human_range(frm, to=None, today=None):
     """Human wording for a date or date range, for user-facing text only (machine fields stay ISO).
 
     A whole calendar month -> "August 2026"; within one month -> "21-24 Sep 2026";
-    across months -> "1 Aug to 15 Sep 2026"; across years -> "28 Dec 2025 to 3 Jan 2026"."""
+    across months -> "1 Aug to 15 Sep 2026"; across years -> "28 Dec 2025 to 3 Jan 2026".
+    With `today` the current year is left out ("August", "21-24 Sep"). For a sentence prefer
+    human_period, which also picks the preposition and the relative wording."""
     try:
         a = _d(frm)
         b = _d(to) if to else a
+        ty = _d(today).year if today else None
     except (ValueError, TypeError):
         return "%s to %s" % (frm, to) if to else str(frm)
+
+    def yr(d):
+        return "" if ty is not None and d.year == ty else " %d" % d.year
     if a == b:
-        return "%d %s %d" % (a.day, _MON_SHORT[a.month], a.year)
+        return "%d %s%s" % (a.day, _MON_SHORT[a.month], yr(a))
     if a.day == 1 and b == _month_end(a):
-        return "%s %d" % (_MON_FULL[a.month], a.year)
+        return "%s%s" % (_MON_FULL[a.month], yr(a))
     if a.year == b.year and a.month == b.month:
-        return "%d-%d %s %d" % (a.day, b.day, _MON_SHORT[a.month], a.year)
+        return "%d-%d %s%s" % (a.day, b.day, _MON_SHORT[a.month], yr(a))
     if a.year == b.year:
-        return "%d %s to %d %s %d" % (a.day, _MON_SHORT[a.month], b.day, _MON_SHORT[b.month], b.year)
-    return "%d %s %d to %d %s %d" % (a.day, _MON_SHORT[a.month], a.year, b.day, _MON_SHORT[b.month], b.year)
+        return "%d %s to %d %s%s" % (a.day, _MON_SHORT[a.month], b.day, _MON_SHORT[b.month], yr(b))
+    return "%d %s%s to %d %s%s" % (a.day, _MON_SHORT[a.month], yr(a), b.day, _MON_SHORT[b.month], yr(b))
 
 
-def human_month(ym):
-    """"2026-08" -> "August 2026"."""
+def human_month(ym, today=None):
+    """"2026-08" -> "August 2026" ("August" when `today` is given and it is the same year)."""
     try:
-        return "%s %d" % (_MON_FULL[int(str(ym)[5:7])], int(str(ym)[:4]))
+        y, m = int(str(ym)[:4]), int(str(ym)[5:7])
+        name = _MON_FULL[m]
     except (ValueError, IndexError):
         return str(ym)
+    try:
+        if today and _d(today).year == y:
+            return name
+    except (ValueError, TypeError):
+        pass
+    return "%s %d" % (name, y)
+
+
+def human_period(frm, to=None, today=None):
+    """A period as a phrase for a sentence, preposition included (house rule R2).
+
+    "in August", "last month", "this month so far", "over the last 4 months", "today", "yesterday",
+    "on 25 Sep", "from 21 to 24 Sep". The current year is never written; other years are."""
+    try:
+        a = _d(frm)
+        b = _d(to) if to else a
+        t = _d(today) if today else None
+    except (ValueError, TypeError):
+        return "in " + human_range(frm, to)
+    if t is not None:
+        if a == b == t:
+            return "today"
+        if a == b == t - timedelta(days=1):
+            return "yesterday"
+        first = _month_start(t)
+        if a == first and b == t and b < _month_end(t):
+            return "this month so far"
+        mon = t - timedelta(days=t.weekday())
+        if a == mon and b == t and a != b:
+            return "this week so far"
+        if a == mon - timedelta(days=7) and b == mon - timedelta(days=1):
+            return "last week"
+        if a == date(t.year, 1, 1) and b == t and a != b:
+            return "this year so far"
+        days = (b - a).days + 1
+        if b == t and days >= 50:
+            n = max(2, int(round(days / DAYS_PER_MONTH)))
+            return "over the last %d months" % n
+    r = human_range(a, b, today)
+    if a == b:
+        return "on " + r
+    if a.day == 1 and b == _month_end(a):
+        return "in " + r
+    return "from " + (r if " to " in r else r.replace("-", " to ", 1))
 
 
 def _pct_text(x):
@@ -462,7 +619,7 @@ def _balance(conn):
 def _rules_text():
     # Always short: one sentence per basket (the classify text may be longer).
     return ("Regular essentials are the bills and basics you need every month, like housing, utilities and groceries. "
-            "Unexpected necessities are costs you cannot plan, like doctors, repairs and big one-off needs. "
+            "Unexpected necessities are costs you cannot plan or often cannot skip, like doctor, dentist and other health costs, home repairs, and bigger electronics or furniture. "
             "Everyday spending is everything else you choose to buy.")
 
 
@@ -523,10 +680,9 @@ def spend(conn, today, period="last_month", label=None, basket=None, context=Non
                         "AND context='night_out' %s" % (base_sql, where), [frm, to] + params)
         night = {"total": _r(nr[0]), "count": int(nr[1])}
         if night["count"]:
-            note = " Of this, %s (%d purchase%s) happened during nights out." % (
-                _eur(night["total"]), night["count"], "" if night["count"] == 1 else "s")
+            note = " %s of this was on a night out." % _eur(night["total"])
     if label:
-        evidence = _target_filters(target, frm, to, "%s purchases" % nice)
+        evidence = _target_filters(target, frm, to, "%s purchases" % label_title(str(label)))
         if basket:
             for e in evidence:
                 e["basket"] = str(basket).lower()
@@ -534,7 +690,7 @@ def spend(conn, today, period="last_month", label=None, basket=None, context=Non
         evidence = [_ev("%s spending" % BASKET_NAMES.get(str(basket).lower(), basket), frm, to,
                         basket=str(basket).lower())]
     else:
-        evidence = _spend_filters(frm, to)
+        evidence = _spend_filters(frm, to, _when(frm, to, today))
     if context and str(context).lower() == "night_out" and not label:
         evidence = [_ev("Night out spending", frm, to, context="night_out")]
     if ts_from or ts_to:
@@ -543,11 +699,17 @@ def spend(conn, today, period="last_month", label=None, basket=None, context=Non
                 e["ts_from"] = str(ts_from)[:19]
             if ts_to:
                 e["ts_to"] = str(ts_to)[:19]
+    last_night = isinstance(period, str) and period.strip().lower().replace(" ", "_") == "last_night"
+    if last_night:
+        for e in evidence:
+            e["title"] = "%s, last night" % (label_words(label).capitalize() if label else e["title"])
+    when = "last night" if last_night else human_period(frm, to, today)
     if count == 0:
-        explain = "No matching spending in %s." % human_range(frm, to)
+        explain = "No matching spending %s." % when
     else:
-        explain = "Added up %d outgoing payment%s for %s in %s.%s" % (
-            count, "" if count == 1 else "s", nice, human_range(frm, to), note)
+        what = label_words(label) if label else "everything"
+        explain = "Added up %d outgoing payment%s for %s %s.%s" % (
+            count, "" if count == 1 else "s", what, when, note)
     res = {"period": {"from": frm, "to": to, "name": period if isinstance(period, str) else "custom"},
            "total": _r(total), "count": count, "by_label": by_label, "evidence": evidence,
            "explain": explain}
@@ -575,14 +737,19 @@ def overview(conn, today, month=None):
                  "diff": _r(f["baskets"][k] - avg["baskets"][k])}
     vs["spent"] = {"this": spent, "average": avg["spent"], "diff": _r(spent - avg["spent"])}
     vs["months_in_average"] = avg["months"]
-    evidence = _spend_filters(frm, to, "Spending in %s" % human_month(frm[:7]))
-    evidence.append(_ev("Income in %s" % human_month(frm[:7]), frm, to, type="salary"))
+    mname = human_month(frm[:7], today)
+    evidence = _spend_filters(frm, to, mname)
+    evidence.append(_ev("Income, %s" % mname, frm, to, type="salary"))
     if not _scalar(conn, "SELECT COUNT(*) FROM tx WHERE d>=? AND d<=?", (frm, to)):
-        explain = "There are no transactions in %s." % human_range(frm, to)
+        explain = "There are no transactions in %s." % mname
     else:
-        explain = ("Income %s minus spending %s (regular, unexpected and everyday baskets) minus %s put "
-                   "into savings leaves %s for %s." % (_eur(f["income"]), _eur(spent), _eur(f["saved"]),
-                                                       _eur(f["surplus"]), human_month(frm[:7])))
+        saved_part = " and %s put into savings" % _eur(f["saved"]) if f["saved"] > 0.005 else ""
+        if f["surplus"] >= 0:
+            left = "leaves %s" % _eur(f["surplus"]) if f["surplus"] > 0.005 else "leaves nothing"
+        else:
+            left = "leaves you %s short" % _eur(f["surplus"])
+        explain = ("Income %s minus spending %s%s %s for %s. Spending is the regular, unexpected and "
+                   "everyday baskets together." % (_eur(f["income"]), _eur(spent), saved_part, left, mname))
     return {"month": frm[:7], "period": {"from": frm, "to": to}, "income": f["income"],
             "baskets": f["baskets"], "spent": spent, "saved": f["saved"], "surplus": f["surplus"],
             "top_labels": top, "vs_average": vs, "evidence": evidence, "explain": explain}
@@ -602,11 +769,11 @@ def baskets(conn, today, period="last_month"):
         out.append({"key": key, "name": BASKET_NAMES[key], "total": _r(totals[key]),
                     "share": _r(totals[key] / denom) if denom else 0.0,
                     "top": [{"label": r[0], "total": _r(r[1])} for r in rows],
-                    "evidence": _ev("%s, %s" % (BASKET_NAMES[key], human_range(frm, to)), frm, to, basket=key)})
-    explain = ("Every outgoing payment in %s is placed in exactly one basket by fixed rules; "
-               "shares are of the %s that went out in total." % (human_range(frm, to), _eur(denom)))
+                    "evidence": _ev("%s, %s" % (BASKET_NAMES[key], _when(frm, to, today)), frm, to, basket=key)})
+    explain = ("Every outgoing payment %s is placed in exactly one basket by fixed rules; "
+               "shares are of the %s that went out in total." % (human_period(frm, to, today), _eur(denom)))
     if not denom:
-        explain = "No outgoing payments in %s." % human_range(frm, to)
+        explain = "No outgoing payments %s." % human_period(frm, to, today)
     return {"period": {"from": frm, "to": to}, "baskets": out, "rules": _rules_text(),
             "explain": explain, "evidence": [b["evidence"] for b in out]}
 
@@ -736,15 +903,20 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
     working = [
         "Balance now: %s" % _eur(balance),
         "minus regular bills before payday: %s" % _eur(bills_total),
-        "minus buffer for unexpected necessities: %s" % _eur(buffer),
+        "minus buffer for unexpected necessities: %s" % _eur0(buffer),
         "minus planned savings: %s" % _eur(planned),
         "equals safe to spend: %s over %d days" % (_eur(safe_total), days_left),
     ]
+    plan_part = " and %s of planned savings" % _eur(planned) if planned > 0.005 else ""
+    if safe_total >= 0:
+        result_part = "leaves %s" % _eur(safe_total) if safe_total > 0.005 else "leaves nothing"
+    else:
+        result_part = "leaves you %s short" % _eur(safe_total)
     explain = ("Your balance %s minus %s of bills expected before payday%s, minus a %s buffer for unexpected "
-               "necessities and %s of planned savings leaves %s for %d days." % (
+               "necessities%s %s for %d days." % (
                    _eur(balance), _eur(bills_total),
-                   " on %s" % human_range(nxt) if nxt else " (no payday seen, assuming 30 days)",
-                   _eur(buffer), _eur(planned), _eur(safe_total), days_left))
+                   " on %s" % human_range(nxt, None, today) if nxt else " (no payday seen, assuming 30 days)",
+                   _eur0(buffer), plan_part, result_part, days_left))
     return {
         "balance": _r(balance), "next_payday": nxt.isoformat() if nxt else None, "days_left": days_left,
         "upcoming_bills": bills, "bills_total": _r(bills_total), "unexpected_buffer": _r(buffer),
@@ -757,13 +929,14 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
 # --------------------------------------------------------------------------- what if
 
 def _norm_pct(p):
+    """A percentage is a percentage: 0.5 means half a percent. Outside 0..100 is an error."""
     try:
         p = float(p)
     except (TypeError, ValueError):
         return 0.0
-    if 0 < abs(p) < 1:
-        p *= 100.0
-    return max(0.0, min(100.0, p))
+    if p != p or p < 0 or p > 100:
+        raise ValueError("pct must be between 0 and 100")
+    return p
 
 
 def what_if(conn, today, changes, months=12):
@@ -807,7 +980,8 @@ def what_if(conn, today, changes, months=12):
         b, s = base[i] / div, saved[i] / div
         lines.append({"target": name, "pct": _r(pct), "baseline": _r(b), "new": _r(b - s), "saved": _r(s)})
         if frm:
-            evidence.extend(_target_filters(tg, frm, to, "%s, last %d months" % (name, n)))
+            evidence.extend(_target_filters(tg, frm, to, "%s, last %d months" % (
+                target_words(name).capitalize(), n)))
     ub, us = union_base / div, union_saved / div
     saved_monthly = _r(us)
     if not n:
@@ -815,13 +989,18 @@ def what_if(conn, today, changes, months=12):
     elif not parsed:
         explain = "No changes were given, so nothing was simulated."
     else:
-        desc = ", ".join("%s by %s%%" % (l["target"], ("%g" % l["pct"])) for l in lines)
-        explain = ("Taking your average monthly spend over the last %d full months (%s) and cutting %s would "
-                   "save about %s a month, %s over %d months." % (
-                       n, human_range(frm, to), desc, _eur(saved_monthly),
-                       _eur(saved_monthly * months), months))
+        groups = []
+        for l in lines:        # neighbouring cuts of the same size read as one ("restaurants and fast food by 20%")
+            if groups and groups[-1][0] == l["pct"]:
+                groups[-1][1].append(target_words(l["target"]))
+            else:
+                groups.append((l["pct"], [target_words(l["target"])]))
+        desc = ", ".join("%s by %s%%" % (" and ".join(names), "%g" % pct) for pct, names in groups)
+        over = "a year" if months == 12 else "over %d months" % months
+        explain = ("Based on your last %d full months (%s), cutting %s would save about %s a month, %s %s." % (
+            n, months_span(frm, to, today), desc, _eur0(saved_monthly), _eur0(us * months), over))
     return {"baseline_monthly": _r(ub), "new_monthly": _r(ub - us), "saved_monthly": saved_monthly,
-            "saved_total": _r(saved_monthly * months), "months": months, "lines": lines,
+            "saved_total": _r(us * months), "months": months, "lines": lines,
             "evidence": evidence, "explain": explain}
 
 
@@ -830,6 +1009,15 @@ def what_if(conn, today, changes, months=12):
 _SOCIAL = ("Night out", "Restaurant", "Fast food", "Bar", "Events", "Cinema", "Entertainment")
 _TRAVEL = ("Flights", "Hotels", "Travel agency", "Car rental", "Travel")
 _HOME = ("Groceries", "Home improvement", "Furniture", "Electronics")
+
+
+def _kept_text(kept):
+    """What is left each month, worded so a negative never needs a minus sign."""
+    if kept > 0.005:
+        return "You keep about %s a month after spending." % _eur0(kept)
+    if kept < -0.005:
+        return "You spend about %s a month more than you earn." % _eur0(kept)
+    return "You keep nothing a month after spending."
 
 
 def spender_type(conn, today):
@@ -874,22 +1062,21 @@ def spender_type(conn, today):
         typ, title = "Balanced", "Balanced: no single area dominates"
         why = "no area was unusually large (you kept %s, social spending %s)" % (
             _pct_text(kept_share), _pct_text(social))
-    summary = ("Over the last %d full months (%s) %s. Rules, checked in order: Stretched if spending is "
-               "97%% of income or more, Saver if you keep 20%% or more, Social spender if social spending is "
-               "12%% or more, Explorer if travel is 8%% or more, Home-maker if groceries and home items are "
-               "22%% or more, otherwise Balanced." % (len(ms), human_range(frm, to), why))
+    summary = "Over the last %d months %s." % (len(ms), why)
     traits = [
-        {"name": "Kept after spending", "value": _r(100 * kept_share),
-         "note": "percent of income not spent (%s a month)" % _eur0(avg["kept"])},
-        {"name": "Social spending", "value": _r(100 * social),
-         "note": "percent of income on restaurants, bars, nights out and events"},
-        {"name": "Housing", "value": _r(100 * housing), "note": "percent of income on rent or housing payments"},
-        {"name": "Groceries", "value": _r(100 * groceries), "note": "percent of income on groceries"},
-        {"name": "Travel", "value": _r(100 * travel), "note": "percent of income on travel"},
+        {"name": "Kept after spending", "value": _r(100 * kept_share), "note": "Kept"},
+        {"name": "Social spending", "value": _r(100 * social), "note": "Going out"},
+        {"name": "Housing", "value": _r(100 * housing), "note": "Housing"},
+        {"name": "Groceries", "value": _r(100 * groceries), "note": "Groceries"},
+        {"name": "Travel", "value": _r(100 * travel), "note": "Travel"},
     ]
-    evidence = _spend_filters(frm, to, "Spending, last %d months" % len(ms))
+    evidence = _spend_filters(frm, to, "last %d months" % len(ms))
     explain = ("Compared your average monthly spending in each area with your average monthly income of %s "
-               "over the last %d full months." % (_eur(income), len(ms)))
+               "over the last %d full months (%s). %s Rules, checked in "
+               "order: Stretched if spending is 97%% of income or more, Saver if you keep 20%% or more, Social "
+               "spender if social spending is 12%% or more, Explorer if travel is 8%% or more, Home-maker if "
+               "groceries and home items are 22%% or more, otherwise Balanced." % (
+                   _eur(income), len(ms), months_span(frm, to, today), _kept_text(avg["kept"])))
     return {"type": typ, "title": title, "summary": summary, "traits": traits, "shares": shares,
             "why": why, "months": len(ms), "evidence": evidence, "explain": explain}
 
@@ -941,9 +1128,9 @@ def save_more(conn, today):
     if top and top[0][1] >= 20:
         k, v = top[0]
         s = v * 0.15
-        ideas.append({"title": "Spend 15%% less on %s" % k.lower(),
-                      "detail": ("%s is your biggest flexible area after food and going out, about %s a month. "
-                                 "Cutting it by 15%% frees %s a month." % (k, _eur0(v), _eur0(s))),
+        ideas.append({"title": "Spend 15%% less on %s" % label_words(k),
+                      "detail": ("Your biggest flexible area after food and going out is %s, about %s a month. "
+                                 "Cutting it by 15%% frees %s a month." % (label_words(k), _eur0(v), _eur0(s))),
                       "saved_monthly": _r(s), "target": k,
                       "evidence": _ev(k, frm, to, label=k)})
     surplus = avg["surplus"]
@@ -964,7 +1151,7 @@ def save_more(conn, today):
         explain = "Nothing stands out as easy to trim in the last %d months." % len(ms)
     else:
         explain = ("Each idea is a share of your own average monthly spend over the last %d full months "
-                   "(%s); the ideas overlap, so do not add them together." % (len(ms), human_range(frm, to)))
+                   "(%s); the ideas overlap, so do not add them together." % (len(ms), months_span(frm, to, today)))
     return {"ideas": ideas, "surplus_avg": _r(surplus), "evidence": evidence, "explain": explain}
 
 
@@ -1020,8 +1207,7 @@ def mortgage(conn, today, price=None, equity=None):
                  "equity_source": "given" if given else "15% of the price assumed",
                  "required_income": _r(req_income), "income_ok": income >= req_income,
                  "equity_ok": bool(equity_ok)}
-    rule = ("Required monthly income = loan x 0.01841 (25 years, 6% stress rate, payment at most 35% of "
-            "income). Approved applicants in the dataset put in a median of 15% equity.")
+    rule = "Assumes a 25-year loan, a 6% test rate and payments of at most 35% of income."
     ev = []
     if ms:
         ev = [_ev("Income, last %d months" % len(ms), ms[0][0], ms[-1][1], type="salary"),
@@ -1030,10 +1216,12 @@ def mortgage(conn, today, price=None, equity=None):
     if income <= 0:
         explain = "No income was seen in the last full months, so the rule cannot be applied."
     else:
-        explain = ("Your average monthly income of %s supports a loan of up to %s under the rule, which is "
-                   "a price of about %s with 15%% equity." % (_eur(income), _eur0(max_loan), _eur0(max_price)))
+        explain = ("Your average monthly income of %s supports a loan of up to %s under the rule, which is a "
+                   "price of about %s with 15%% equity. Approved applicants in the dataset typically put in "
+                   "15%% equity." % (_eur(income), _eur0(max_loan), _eur0(max_price)))
     return {"monthly_income": _r(income), "max_loan": _r(max_loan),
             "max_price_with_15pct_equity": _r(max_price), "equity_needed": _r(equity_needed),
+            "account_balance": _r(balance),   # money in the account; savings_now adds net investment deposits
             "savings_now": _r(savings_now), "monthly_saving": _r(monthly_saving),
             "months_to_equity": months_to, "rule": rule, "check": check,
             "disclaimer": _MORTGAGE_DISCLAIMER, "evidence": ev, "explain": explain}
@@ -1050,9 +1238,35 @@ def _unb64(s):
     return json.loads(base64.urlsafe_b64decode(str(s) + pad).decode())
 
 
-_QUIZ_SKIP = {"Housing", "Utilities", "Other", "Transfer out", "Savings & investments", "Salary", "Other income"}
+# The quiz only asks about everyday spending the customer can steer. Never health, groceries,
+# housing, utilities, fuel or pharmacy (D2).
+_QUIZ_ALLOWED = ("Restaurant", "Fast food", "Bar", "Taxi", "Shopping", "Clothing", "Entertainment",
+                 "Events", "Cinema", "Hobbies", "Dining out", "Night out")
 _QUIZ_PHRASE = {"Restaurant": "restaurants", "Taxi": "taxis", "Night out": "nights out",
-                "Fast food": "fast food", "Groceries": "groceries", "Bar": "bars"}
+                "Fast food": "fast food", "Bar": "bars", "Dining out": "eating out",
+                "Clothing": "clothes"}
+_QUIZ_DINING = ("Restaurant", "Fast food")
+_WEEKDAYS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _quiz_where(label):
+    """(sql, params) selecting one quiz label; 'Dining out' is Restaurant + Fast food outside nights out."""
+    if label == "Dining out":
+        return ("label IN (?, ?) AND COALESCE(context,'')<>'night_out'", _QUIZ_DINING)
+    return _disp_sql(label)
+
+
+def _quiz_evidence(label, frm, to, today=None):
+    title = "%s, %s" % (label_words(label).capitalize(), human_range(frm, to, today))
+    if label == "Dining out":
+        return [_ev("%s (%s)" % (title, label_words(v)), frm, to, label=v, context="none") for v in _QUIZ_DINING]
+    return [_disp_evidence(label, frm, to, title)]
+
+
+def _quiz_actual(conn, label, frm, to):
+    sql, p = _quiz_where(label)
+    return float(_scalar(conn, "SELECT -SUM(amount) FROM tx WHERE %s AND d>=? AND d<=? AND %s"
+                         % (_SPEND_SQL, sql), [frm, to] + list(p)))
 
 
 def _nice_ceil(x):
@@ -1064,10 +1278,18 @@ def _weekly_avg(conn, label, t, weeks=12):
     mon = t - timedelta(days=t.weekday())
     frm = (mon - timedelta(days=7 * weeks)).isoformat()
     to = (mon - timedelta(days=1)).isoformat()
-    sql, p = _disp_sql(label)
-    v = _scalar(conn, "SELECT -SUM(amount) FROM tx WHERE %s AND d>=? AND d<=? AND %s" % (_SPEND_SQL, sql),
-                [frm, to] + list(p))
-    return float(v) / weeks
+    return _quiz_actual(conn, label, frm, to) / weeks
+
+
+def _usual_same_days(conn, label, week_start, days, weeks=8):
+    """Average spending on `label` over the first `days` days of each of the `weeks` weeks before the
+    week starting `week_start`: like with like for a week that is not finished (D14)."""
+    ws = _d(week_start)
+    total = 0.0
+    for k in range(1, weeks + 1):
+        a = ws - timedelta(days=7 * k)
+        total += _quiz_actual(conn, label, a.isoformat(), (a + timedelta(days=days - 1)).isoformat())
+    return total / weeks
 
 
 def quiz(conn, today, seed=None):
@@ -1076,7 +1298,7 @@ def quiz(conn, today, seed=None):
     for pname in ("this_week", "last_week"):
         frm, to = period(today, pname)
         cands = sorted(x["label"] for x in _by_display(conn, frm, to)
-                       if x["label"] not in _QUIZ_SKIP and x["total"] > 0)
+                       if x["label"] in _QUIZ_ALLOWED and x["total"] > 0)
         if cands:
             key = str(seed) if seed is not None else str(today)
             idx = (abs(int(seed)) if isinstance(seed, (int, float)) and not isinstance(seed, bool)
@@ -1084,12 +1306,16 @@ def quiz(conn, today, seed=None):
             chosen = (cands[idx], frm, to, pname)
             break
     if chosen is None:
-        frm, to = period(today, "this_week")
-        chosen = ("Groceries", frm, to, "this_week")
+        # nothing steerable bought lately: ask about the steerable area this customer uses most
+        frm, to = period(today, "last_week")
+        best, best_v = "Restaurant", 0.0
+        for lab in _QUIZ_ALLOWED:
+            v = _weekly_avg(conn, lab, t)
+            if v > best_v:
+                best, best_v = lab, v
+        chosen = (best, frm, to, "last_week")
     label, frm, to, pname = chosen
-    sql, p = _disp_sql(label)
-    actual = float(_scalar(conn, "SELECT -SUM(amount) FROM tx WHERE %s AND d>=? AND d<=? AND %s"
-                           % (_SPEND_SQL, sql), [frm, to] + list(p)))
+    actual = _quiz_actual(conn, label, frm, to)
     base = _weekly_avg(conn, label, t)
     mx, step = _nice_ceil(max(base * 3, actual * 1.25, 40))
     phrase = _QUIZ_PHRASE.get(label, label.lower())
@@ -1112,9 +1338,7 @@ def quiz_answer(conn, today, quiz_id, guess, profile=None, bench_lookup=None):
     except (TypeError, ValueError):
         raise ValueError("guess must be a number")
     t = _d(today)
-    sql, p = _disp_sql(label)
-    actual = float(_scalar(conn, "SELECT -SUM(amount) FROM tx WHERE %s AND d>=? AND d<=? AND %s"
-                           % (_SPEND_SQL, sql), [frm, to] + list(p)))
+    actual = _quiz_actual(conn, label, frm, to)
     diff = guess - actual
     tol = max(2.0, 0.10 * actual)
     ad = abs(diff)
@@ -1127,24 +1351,50 @@ def quiz_answer(conn, today, quiz_id, guess, profile=None, bench_lookup=None):
     else:
         verdict = "Quite far off: you guessed %s %s than the real figure." % (
             _eur0(ad), "more" if diff > 0 else "less")
-    base = _weekly_avg(conn, label, t)
-    monthly = actual * 52 / 12.0
-    if base > 0 and actual > base * 1.2 and actual - base >= 3:
-        tip = ("That is %s more than your usual %s a week. If you matched your usual week, you would keep "
-               "about %s a month." % (_eur0(actual - base), _eur0(base), _eur0((actual - base) * 52 / 12.0)))
-    elif base > 0 and actual < base * 0.8:
-        tip = ("That is %s less than your usual %s a week, a good week. Keeping that up would save about %s "
-               "a month." % (_eur0(base - actual), _eur0(base), _eur0((base - actual) * 52 / 12.0)))
-    elif actual > 0:
-        tip = ("At this pace %s costs you about %s a month. Trimming it by a fifth would save about %s a "
-               "year." % (label.lower(), _eur0(monthly), _eur0(actual * 0.2 * 52)))
+    phrase_l = _QUIZ_PHRASE.get(label, label.lower())
+    partial = t <= _d(to)          # the quiz week is not finished: compare like with like (D14)
+    if partial:
+        elapsed = max(1, (min(t, _d(to)) - _d(frm)).days + 1)
+        base = _usual_same_days(conn, label, frm, elapsed)
+        span = ("on Monday" if elapsed == 1 else
+                "from Monday to %s" % _WEEKDAYS_LONG[(_d(frm) + timedelta(days=elapsed - 1)).weekday()])
+        same = "your usual %s %s (average of the last 8 weeks)" % (_eur0(base), span)
+        if base > 0 and actual > base * 1.2 and actual - base >= 3:
+            tip = ("So far this week you have spent %s, which is %s more than %s. If the rest of the week "
+                   "stays at your usual pace, you would end the week above your usual." % (
+                       _eur0(actual), _eur0(actual - base), same))
+        elif base > 0 and actual < base * 0.8:
+            tip = ("So far this week you have spent %s, which is %s less than %s. It is early, but a good "
+                   "start; staying near that pace would keep your %s down." % (
+                       _eur0(actual), _eur0(base - actual), same, phrase_l))
+        elif actual > 0 and base > 0:
+            tip = "So far this week you have spent %s on %s, about the same as %s." % (
+                _eur0(actual), phrase_l, same)
+        elif actual > 0:
+            tip = ("So far this week you have spent %s on %s; you usually spend nothing on it over the "
+                   "same days." % (_eur0(actual), phrase_l))
+        else:
+            tip = "So far this week you have spent nothing on %s." % phrase_l
     else:
-        tip = "You spent nothing on %s in this period. Tracking small categories like this is how patterns show up." % label.lower()
+        base = _weekly_avg(conn, label, t)
+        monthly = actual * 52 / 12.0
+        if base > 0 and actual > base * 1.2 and actual - base >= 3:
+            tip = ("That is %s more than your usual %s a week. If you matched your usual week, you would keep "
+                   "about %s a month." % (_eur0(actual - base), _eur0(base), _eur0((actual - base) * 52 / 12.0)))
+        elif base > 0 and actual < base * 0.8:
+            tip = ("That is %s less than your usual %s a week, a good week. Keeping that up would save about %s "
+                   "a month." % (_eur0(base - actual), _eur0(base), _eur0((base - actual) * 52 / 12.0)))
+        elif actual > 0:
+            tip = ("At this pace %s costs you about %s a month. Trimming it by a fifth would save about %s a "
+                   "year." % (label_words(label), _eur0(monthly), _eur0(actual * 0.2 * 52)))
+        else:
+            tip = "You spent nothing on %s in this period. Tracking small categories like this is how patterns show up." % label_words(label)
     out = {"actual": _r(actual), "guess": _r(guess), "diff": _r(diff), "verdict": verdict, "tip": tip,
            "label_or_context": label, "period": {"from": frm, "to": to},
-           "evidence": [_disp_evidence(label, frm, to, "%s, %s" % (label, human_range(frm, to)))]}
+           "evidence": _quiz_evidence(label, frm, to, today)}
     if profile is not None and bench_lookup is not None:
-        peer = peer_compare(actual, {"from": frm, "to": to}, label, profile, bench_lookup)
+        peer = peer_compare(actual, {"from": frm, "to": to},
+                            list(_QUIZ_DINING) if label == "Dining out" else label, profile, bench_lookup)
         if peer:
             out["peer"] = peer
     return out
@@ -1171,10 +1421,10 @@ def _checkin_period(today, frequency):
     return a, b, "last month"
 
 
-def _surplus_when(frequency, frm, to):
+def _surplus_when(frequency, frm, to, today=None):
     if frequency == "monthly":
-        return "in %s" % human_month(str(frm)[:7])
-    return "in %s" % human_range(frm, to)
+        return "in %s" % human_month(str(frm)[:7], today)
+    return human_period(frm, to, today)
 
 
 def checkin(conn, today, frequency="monthly"):
@@ -1198,17 +1448,47 @@ def checkin(conn, today, frequency="monthly"):
     big = _one(conn, "SELECT -amount, label, d FROM tx WHERE %s AND d>=? AND d<=? ORDER BY amount LIMIT 1"
                % _SPEND_SQL, (frm, to))
     if big and big[0] and big[0] >= 100 and big[1] not in ("Housing", "Utilities"):
-        highlights.append("Largest single purchase: %s on %s (%s)." % (_eur0(big[0]), big[2], big[1]))
+        highlights.append("Largest single purchase: %s on %s (%s)." % (
+            _eur0(big[0]), human_range(big[2], None, today), big[1]))
     nrow = _one(conn, "SELECT COALESCE(-SUM(amount),0), COUNT(*) FROM tx WHERE context='night_out' "
                       "AND d>=? AND d<=?", (frm, to))
     if nrow[1]:
         highlights.append("Nights out added up to %s." % _eur0(nrow[0]))
     adj = {"weekly": "weekly", "biweekly": "two-week", "monthly": "monthly"}[frequency]
-    headline = ("Your %s check-in (%s): you earned %s, spent %s and have %s %s." % (
-        adj, human_range(frm, to), _eur0(f["income"]), _eur0(f["spent"]), _eur0(abs(f["surplus"])),
-        "left over" if f["surplus"] >= 0 else "more going out than coming in"))
+    no_salary = (frequency != "monthly" and not _scalar(
+        conn, "SELECT COUNT(*) FROM tx WHERE type='salary' AND d>=? AND d<=?", (frm, to), default=0))
+    if no_salary:
+        # D18: a short period without a payday is not a deficit; leave income out of the headline
+        first = _scalar(conn, "SELECT MIN(d) FROM tx", default=None)
+        windows = []
+        for k in range(1, 9):
+            wf, wt = _d(frm) - timedelta(days=days * k), _d(frm) - timedelta(days=days * (k - 1) + 1)
+            if first and wf.isoformat() >= str(first):
+                windows.append(_flows(conn, wf.isoformat(), wt.isoformat())["spent"])
+        unit = "week" if frequency == "weekly" else "two weeks"
+        if len(windows) >= 3:
+            usual = sum(windows) / len(windows)
+            gap = f["spent"] - usual
+            if abs(gap) <= max(5.0, 0.1 * usual):
+                cmp_text = "about your usual %s (%s)" % (unit, _eur0(usual))
+            else:
+                cmp_text = "%s %s than your usual %s (%s)" % (
+                    _eur0(abs(gap)), "more" if gap > 0 else "less", unit, _eur0(usual))
+            headline = "Your %s check-in (%s): you spent %s, %s. No salary arrived in this period." % (
+                adj, _when(frm, to, today), _eur0(f["spent"]), cmp_text)
+        else:
+            headline = "Your %s check-in (%s): you spent %s. No salary arrived in this period." % (
+                adj, _when(frm, to, today), _eur0(f["spent"]))
+    else:
+        if f["surplus"] >= 0:
+            tail = ", leaving %s" % _eur0(f["surplus"]) if f["surplus"] > 0.005 else ", leaving nothing"
+        else:
+            tail = ", which is %s more than came in" % _eur0(f["surplus"])
+        headline = ("Your %s check-in (%s): you earned %s and spent %s%s." % (
+            adj, _when(frm, to, today), _eur0(f["income"]), _eur0(f["spent"]), tail))
     if not _scalar(conn, "SELECT COUNT(*) FROM tx WHERE d>=? AND d<=?", (frm, to), default=0):
-        headline = "Your %s check-in (%s): there were no transactions in this period." % (adj, human_range(frm, to))
+        headline = "Your %s check-in (%s): there were no transactions in this period." % (
+            adj, _when(frm, to, today))
 
     sugg = []
     # review overdraft
@@ -1216,15 +1496,15 @@ def checkin(conn, today, frequency="monthly"):
     if low and low[0] is not None:
         sugg.append({"id": "review_overdraft:%s" % frm, "kind": "review_overdraft",
                      "title": "Review the days your balance went below zero?",
-                     "detail": ("Your balance was below zero on %d day%s, down to %s. Would you like to look at "
-                                "what drove it?" % (low[1], "" if low[1] == 1 else "s", _eur(low[0]))),
+                     "detail": ("Your balance was below zero on %d day%s, at worst %s below zero. Would you like "
+                                "to look at what drove it?" % (low[1], "" if low[1] == 1 else "s", _eur(low[0]))),
                      "amount": _r(abs(low[0])), "action_label": "Show me"})
     # save surplus
     if f["surplus"] >= 20:
         amt = float(round(f["surplus"]))
         sugg.append({"id": "save_surplus:%s" % frm, "kind": "save_surplus",
                      "title": "You had a %s surplus %s. Would you like to set it aside?" % (
-                         _eur0(amt), _surplus_when(frequency, frm, to)),
+                         _eur0(amt), _surplus_when(frequency, frm, to, today)),
                      "detail": ("You had %s left over after spending and saving in %s. You could set it aside "
                                 "as a buffer or put it toward investing: your choice. This only records your "
                                 "intention; nothing moves automatically." % (_eur0(amt), word)),
@@ -1264,14 +1544,14 @@ def checkin(conn, today, frequency="monthly"):
     prio = {"save_surplus": 0, "review_overdraft": 1, "trim_category": 2, "build_buffer": 3}
     sugg.sort(key=lambda s: prio[s["kind"]])
     sugg = sugg[:3]
-    evidence = _spend_filters(frm, to, "Spending, %s" % human_range(frm, to))
-    evidence.append(_ev("Income", frm, to, type="salary"))
+    evidence = _spend_filters(frm, to, _when(frm, to, today))
+    evidence.append(_ev("Income, %s" % _when(frm, to, today), frm, to, type="salary"))
     return {"period": {"from": frm, "to": to, "frequency": frequency}, "headline": headline,
             "income": f["income"], "spent": f["spent"], "surplus": f["surplus"], "saved": f["saved"],
             "baskets": f["baskets"], "highlights": highlights, "suggestions": sugg,
             "evidence": evidence,
-            "explain": ("Income minus spending minus money put into investments in %s; suggestions "
-                        "are worked out from those totals and your usual spending." % human_range(frm, to))}
+            "explain": ("Income minus spending minus money put into investments %s; suggestions "
+                        "are worked out from those totals and your usual spending." % human_period(frm, to, today))}
 
 
 # --------------------------------------------------------------------------- peer comparison
@@ -1312,6 +1592,13 @@ def _peer_group_words(key):
     if band:
         return "people aged %s" % band
     return "customers"
+
+
+def peer_near(key):
+    """The peer group in everyday words (house rule R5): "most people your age nearby"."""
+    who = _peer_group_words(key)
+    return ("most people your age nearby" if who.endswith("in your area") else
+            "most people your age" if who.startswith("people aged") else "most customers")
 
 
 def peer_compare(total, period, target, profile, bench_lookup):
@@ -1374,17 +1661,20 @@ def peer_compare(total, period, target, profile, bench_lookup):
     else:
         span = "over %d days" % days
     who = _peer_group_words(group_key)
+    near = peer_near(group_key)
     stat = "%s of %d customers" % ("average" if basis == "mean" else "median", n)
     if direction == "about the same":
-        sentence = "That is about the same as %s typically spend %s (%s)." % (who, span, stat)
+        sentence = "That is about the same as %s spend %s." % (near, span)
     else:
-        sentence = "That is %s %s than %s typically spend %s (%s)." % (_eur0(abs(diff)), direction, who, span, stat)
+        sentence = "That is %s %s than %s spend %s." % (_eur0(abs(diff)), direction, near, span)
     # the area digits are masked: the comparison is shown to the model and the UI without a postal code
     masked = "|".join("area:*" if q.startswith("area:") else q for q in str(group_key).split("|"))
     desc = "All customers" if who == "customers" else who[0].upper() + who[1:]
     out = {"group": {"key": masked, "n": n, "description": desc},
            "peer_typical": typical, "peer_mean": mean, "you": _r(you), "diff": diff,
-           "direction": direction, "basis": basis, "sentence": sentence}
+           "direction": direction, "basis": basis, "sentence": sentence,
+           "explain": "Compared with the typical (%s) figure for %d customers (%s), scaled to the same length "
+                      "of time." % ("average" if basis == "mean" else "median", n, who)}
     if is_list:
         out["approximate"] = True
     return out
@@ -1460,15 +1750,10 @@ _BENCH_METRICS = [
 
 
 def _group_description(key):
-    parts = []
-    for p in str(key).split("|"):
-        if p == "all":
-            parts.append("all customers")
-        elif p.startswith("age:"):
-            parts.append("aged %s" % p[4:])
-        elif p.startswith("area:"):
-            parts.append("living in postal area %s" % p[5:])
-    return "Customers " + " ".join(parts) if parts else "Peer group"
+    if not key:
+        return "Peer group"
+    who = _peer_group_words(key)
+    return who[:1].upper() + who[1:]
 
 
 def benchmarks(conn, today, profile, bench_lookup):
@@ -1529,11 +1814,12 @@ def benchmarks(conn, today, profile, bench_lookup):
         explain = ("No peer group of at least 20 customers is available for your profile, so only your own "
                    "monthly averages are shown.")
     else:
-        explain = ("Your monthly average over the last %d full months is placed against the 25th percentile, "
-                   "median and 75th percentile of %d customers (%s); only group statistics are used, never "
-                   "individual customers." % (len(ms), group["n"], group["description"].lower()))
+        explain = ("Your monthly average over the last %d full months is placed against the typical figure "
+                   "(median) and the range from the 25th to the 75th percentile for %d customers (%s); only "
+                   "group statistics are used, never individual customers." % (
+                       len(ms), group["n"], group["description"].lower()))
     frm, to = _span(ms)
-    evidence = _spend_filters(frm, to, "Your spending, last %d months" % len(ms)) if ms else []
+    evidence = _spend_filters(frm, to, "last %d months" % len(ms)) if ms else []
     out = {"group": group, "rows": rows, "explain": explain, "evidence": evidence}
     od = _open_data_block(raw, profile)
     if od:
@@ -1609,10 +1895,10 @@ def goal(conn, today, target_amount, monthly=None, starting_amount=0.0):
         raise ValueError("starting_amount must be a number")
     if monthly in (None, ""):
         mo = avg["kept"]
-        basis = "your average monthly saving capacity (income minus spending) of %s" % _eur(mo)
+        basis = "your average monthly saving capacity (income minus spending) of %s" % _eur0(mo)
     else:
         mo = float(monthly)
-        basis = "a monthly amount of %s" % _eur(mo)
+        basis = "a monthly amount of %s" % _eur0(mo)
     ev = [_ev("Investment deposits", None, None, type="investment_deposit")]
     gap = target - already
     if gap <= 0:
@@ -1622,12 +1908,13 @@ def goal(conn, today, target_amount, monthly=None, starting_amount=0.0):
     if mo <= 0:
         return {"months": None, "date": None, "monthly": _r(mo), "target": _r(target),
                 "already_saved": _r(already), "evidence": ev,
-                "explain": "With %s a month there is no saving, so the goal cannot be reached yet." % _eur(mo)}
+                "explain": ("You are not keeping anything after spending each month (income minus spending is %s), "
+                            "so the goal cannot be reached yet." % ("below zero" if mo < -0.005 else "zero"))}
     months = int(math.ceil(gap / mo))
     when = _add_months(t, months)
     return {"months": months, "date": when.isoformat(), "monthly": _r(mo), "target": _r(target),
             "already_saved": _r(already), "evidence": ev,
             "assumed_monthly": monthly in (None, ""),
-            "explain": ("Starting from %s, %s still to go at %s takes %d months, around %s. A different "
-                        "monthly amount changes the date." % (_eur(already), _eur(gap), basis, months,
-                                                              when.strftime("%B %Y")))}
+            "explain": ("%s%s still to go at %s takes %d months, around %s. A different monthly amount "
+                        "changes the date." % (_eur0(gap), " (after %s already saved)" % _eur(already) if already > 0 else "",
+                                               basis, months, human_month(when.strftime("%Y-%m"), today)))}

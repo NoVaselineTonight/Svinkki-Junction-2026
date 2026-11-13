@@ -217,12 +217,17 @@ class DataEndpointTests(Http3Case):
         self.assertEqual(r.status, 200, r.text)
         d = r.json
         self.assertEqual(d["needs"], [])
-        self.assertAlmostEqual(d["monthly_needed"], (3000 - d["saved"]) / d["months_left"], delta=0.011)
+        import math
+        exact = (3000 - d["saved"]) / d["months_left"]          # M13: one rounding, up to whole euros
+        self.assertEqual(d["monthly_needed"], float(math.ceil(round(exact, 6))))
+        self.assertTrue(exact <= d["monthly_needed"] < exact + 1)
         self.assertEqual(d["saved"], 0)
         self.assertEqual(c.post("/api/goal", {"name": "Japan", "target": 3000, "saved": 500}).status, 200)
         r2 = c.post("/api/goal-plan", {"name": "Japan", "target": 3000, "deadline": "2027"})
         self.assertEqual(r2.json["saved"], 500)
-        self.assertAlmostEqual(r2.json["monthly_needed"], 2500 / r2.json["months_left"], delta=0.011)
+        exact2 = 2500 / r2.json["months_left"]
+        self.assertEqual(r2.json["monthly_needed"], float(math.ceil(round(exact2, 6))))
+        self.assertTrue(exact2 <= r2.json["monthly_needed"] < exact2 + 1)
 
     def test_W15_goal_plan_without_target_asks_for_it(self):
         c = self.session("A")
@@ -247,8 +252,11 @@ class DataEndpointTests(Http3Case):
 
 # ---------------------------------------------------------------------------------------------
 class ChatWave3Tests(Http3Case):
-    def chat(self, c, msg):
-        r = c.post("/api/chat", {"message": msg})
+    def chat(self, c, msg, conversation_id=None):
+        body = {"message": msg}
+        if conversation_id:     # a follow-up belongs to the conversation the first answer started
+            body["conversation_id"] = conversation_id
+        r = c.post("/api/chat", body)
         self.assertEqual(r.status, 200, r.text)
         return r.json
 
@@ -270,7 +278,7 @@ class ChatWave3Tests(Http3Case):
         card1 = self.goal_card(r1)
         if card1 is not None:
             self.assertIsNone(card1["monthly_needed"])
-        r2 = self.chat(c, second)
+        r2 = self.chat(c, second, r1.get("conversation_id"))
         data = self.goal_card(r2)
         self.assertIsNotNone(data, [x["type"] for x in r2["cards"]])
         want = self.oracle(3000.0, "2027")
@@ -384,9 +392,11 @@ class CoachWave3Tests(unittest.TestCase):
                 self.assertIn("get_patterns", r1["tools_used"])
                 data = self.card(r1, "patterns")
                 self.assertTrue(data["patterns"])
-                self.assertTrue(r1["reply"].strip().endswith("Want to hear why?"), r1["reply"])
+                # a Finnish question without a Finnish template gets the English reply plus a short note (B2)
+                self.assertTrue(r1["reply"].replace("(Vastaan tähän vielä englanniksi.)", "").strip()
+                                .endswith("Want to hear why?"), r1["reply"])
                 r2 = self.ask(ctx, second)
-                for line in data["patterns"][0]["why"]:
+                for line in data["patterns"][0]["why"][:2]:      # the reply keeps two why lines (brevity)
                     self.assertIn(line, r2["reply"])
 
     def test_W14_yes_without_a_pending_pattern_does_not_invent_one(self):

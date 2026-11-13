@@ -1,8 +1,11 @@
 """Writable app state in data/state.db: consent, settings, suggestion intents, quiz payloads, goal,
 category overrides ("what Svinkki has learned"), the active challenge and quiz results."""
+import datetime
 import json
 import math
 import os
+import re
+import secrets
 import sqlite3
 import threading
 import time
@@ -27,6 +30,15 @@ INTENT_ACTIONS = ("accept", "dismiss", "snooze")
 MAX_OVERRIDES = 200
 MAX_QUIZ_RESULTS = 500
 OVERRIDE_SCOPES = ("tx", "merchant")
+MAX_CONVERSATIONS = 30
+MAX_TURNS = 80
+MAX_TURN_BYTES = 300_000
+MAX_PINS = 20
+MAX_PIN_BYTES = 200_000
+TITLE_CHARS = 60
+_PIN_TYPE_RE = re.compile(r"^[A-Za-z0-9_]{1,40}$")
+_PIN_ID_RE = re.compile(r"^pin:([0-9]{1,18})$")
+_last_ts = [0.0]
 
 _lock = threading.Lock()
 _ready = set()
@@ -46,6 +58,14 @@ CREATE INDEX IF NOT EXISTS overrides_cid ON overrides(cid);
 CREATE TABLE IF NOT EXISTS quiz_results(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL,
                                         data TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS quiz_results_cid ON quiz_results(cid);
+CREATE TABLE IF NOT EXISTS conversations(id TEXT PRIMARY KEY, cid TEXT NOT NULL, title TEXT NOT NULL,
+                                         created REAL, updated REAL);
+CREATE INDEX IF NOT EXISTS conversations_cid ON conversations(cid);
+CREATE TABLE IF NOT EXISTS turns(conv_id TEXT NOT NULL, n INTEGER NOT NULL, data TEXT NOT NULL, ts REAL,
+                                 PRIMARY KEY(conv_id, n));
+CREATE TABLE IF NOT EXISTS pins(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL, title TEXT NOT NULL,
+                                card TEXT NOT NULL, created REAL);
+CREATE INDEX IF NOT EXISTS pins_cid ON pins(cid);
 """
 
 
@@ -157,8 +177,22 @@ def get_intents(cid) -> dict:
 def erase(cid) -> None:
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results"):
+                  "quiz_results", "pins"):
             conn.execute(f"DELETE FROM {t} WHERE cid=?", (cid,))
+        conn.execute("DELETE FROM turns WHERE conv_id IN (SELECT id FROM conversations WHERE cid=?)",
+                     (cid,))
+        conn.execute("DELETE FROM conversations WHERE cid=?", (cid,))
+    _run(go)
+
+
+def reset_all() -> None:
+    """Demo reset: forget every customer's choices, goals, learned categories, quizzes and challenges.
+
+    The AI key and the chosen model are not app state and are kept."""
+    def go(conn):
+        for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
+                  "quiz_results", "conversations", "turns", "pins"):
+            conn.execute(f"DELETE FROM {t}")
     _run(go)
 
 
@@ -350,3 +384,217 @@ def quiz_history(cid) -> list:
     rows = _run(lambda c: c.execute(
         "SELECT data FROM quiz_results WHERE cid=? ORDER BY id", (cid,)).fetchall())
     return [json.loads(r[0]) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Conversations, turns and kept answers (pins)
+# ---------------------------------------------------------------------------
+
+def _now():
+    """time.time(), but never equal to or below the previous value, so 'newest first' is stable."""
+    t = time.time()
+    if t <= _last_ts[0]:
+        t = _last_ts[0] + 1e-6
+    _last_ts[0] = t
+    return t
+
+
+def iso_time(ts) -> str:
+    return datetime.datetime.fromtimestamp(ts or 0).astimezone().isoformat(timespec="seconds")
+
+
+_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def human_date(ts) -> str:
+    d = datetime.datetime.fromtimestamp(ts or 0)
+    return "%d %s %d" % (d.day, _MONTHS[d.month - 1], d.year)
+
+
+def make_title(text) -> str:
+    """First user message cut to 60 characters at a word boundary; a pasted receipt is 'A receipt'."""
+    s = " ".join(str(text or "").split())
+    if s.lower().startswith("[pasted receipt"):
+        return "A receipt"
+    if not s:
+        return "New conversation"
+    if len(s) <= TITLE_CHARS:
+        return s
+    cut = s[:TITLE_CHARS]
+    if not s[TITLE_CHARS].isspace():
+        i = cut.rfind(" ")
+        if i > 0:
+            cut = cut[:i]
+    return cut.rstrip()
+
+
+def goal_updated(cid):
+    row = _run(lambda c: c.execute("SELECT updated FROM goal WHERE cid=?", (cid,)).fetchone())
+    return row[0] if row else None
+
+
+def conversation_history(cid, conv_id, turns=20):
+    """The stored conversation as chat history [{role, content}] (last `turns` turns), or None when
+    the id is not this customer's."""
+    if not isinstance(conv_id, str) or not conv_id or len(conv_id) > 100:
+        return None
+
+    def go(conn):
+        if not conn.execute("SELECT 1 FROM conversations WHERE id=? AND cid=?", (conv_id, cid)).fetchone():
+            return None
+        return conn.execute("SELECT data FROM turns WHERE conv_id=? ORDER BY n DESC LIMIT ?",
+                            (conv_id, int(turns))).fetchall()
+    rows = _run(go)
+    if rows is None:
+        return None
+    out = []
+    for (raw,) in reversed(rows):
+        t = json.loads(raw)
+        out.append({"role": "user", "content": t.get("h") or t.get("user") or ""})
+        out.append({"role": "assistant", "content": str(t.get("reply", ""))})
+    return out
+
+
+def add_turn(cid, conv_id, turn, title_source) -> str:
+    """Store one turn. Without a known conversation id of this customer a new conversation is created
+    (titled from title_source). Returns the conversation id."""
+    if not isinstance(turn, dict):
+        raise ValueError("turn must be an object")
+    data = json.dumps(turn, ensure_ascii=False, default=str)
+    if len(data.encode("utf-8")) > MAX_TURN_BYTES:
+        slim = dict(turn)
+        slim["cards"] = []
+        slim["used"] = []
+        data = json.dumps(slim, ensure_ascii=False, default=str)
+
+    def go(conn):
+        now = _now()
+        if isinstance(conv_id, str) and conv_id and len(conv_id) <= 100 and conn.execute(
+                "SELECT 1 FROM conversations WHERE id=? AND cid=?", (conv_id, cid)).fetchone():
+            target = conv_id
+            conn.execute("UPDATE conversations SET updated=? WHERE id=?", (now, target))
+        else:
+            target = secrets.token_urlsafe(16)
+            conn.execute("INSERT INTO conversations(id, cid, title, created, updated) VALUES(?,?,?,?,?)",
+                         (target, cid, make_title(title_source), now, now))
+        n = (conn.execute("SELECT MAX(n) FROM turns WHERE conv_id=?", (target,)).fetchone()[0] or 0) + 1
+        conn.execute("INSERT INTO turns(conv_id, n, data, ts) VALUES(?,?,?,?)", (target, n, data, now))
+        conn.execute("DELETE FROM turns WHERE conv_id=? AND n<=?", (target, n - MAX_TURNS))
+        old = conn.execute("SELECT id FROM conversations WHERE cid=? ORDER BY updated DESC, rowid DESC "
+                           "LIMIT -1 OFFSET ?", (cid, MAX_CONVERSATIONS)).fetchall()
+        for (oid,) in old:
+            conn.execute("DELETE FROM turns WHERE conv_id=?", (oid,))
+            conn.execute("DELETE FROM conversations WHERE id=?", (oid,))
+        return target
+    return _run(go)
+
+
+def list_conversations(cid, limit=MAX_CONVERSATIONS) -> list:
+    rows = _run(lambda c: c.execute(
+        "SELECT id, title, updated, (SELECT COUNT(*) FROM turns WHERE conv_id=conversations.id) "
+        "FROM conversations WHERE cid=? ORDER BY updated DESC, rowid DESC LIMIT ?",
+        (cid, int(limit))).fetchall())
+    return [{"id": r[0], "title": r[1], "updated": iso_time(r[2]), "turns": r[3]} for r in rows]
+
+
+def get_conversation(cid, conv_id):
+    """The whole conversation for display, or None when the id is not this customer's."""
+    if not isinstance(conv_id, str) or not conv_id or len(conv_id) > 100:
+        return None
+
+    def go(conn):
+        head = conn.execute("SELECT id, title, created, updated FROM conversations WHERE id=? AND cid=?",
+                            (conv_id, cid)).fetchone()
+        if not head:
+            return None
+        return head, conn.execute("SELECT data, ts FROM turns WHERE conv_id=? ORDER BY n",
+                                  (conv_id,)).fetchall()
+    res = _run(go)
+    if res is None:
+        return None
+    head, rows = res
+    turns = []
+    for raw, ts in rows:
+        t = json.loads(raw)
+        turns.append({"user": t.get("user", ""), "reply": t.get("reply", ""), "cards": t.get("cards") or [],
+                      "used": t.get("used") or [], "mode": t.get("mode"), "notice": t.get("notice"),
+                      "ts": iso_time(ts)})
+    return {"id": head[0], "title": head[1], "created": iso_time(head[2]), "updated": iso_time(head[3]),
+            "turns": turns}
+
+
+def delete_conversation(cid, conv_id) -> bool:
+    if not isinstance(conv_id, str) or not conv_id or len(conv_id) > 100:
+        return False
+
+    def go(conn):
+        if not conn.execute("SELECT 1 FROM conversations WHERE id=? AND cid=?", (conv_id, cid)).fetchone():
+            return False
+        conn.execute("DELETE FROM turns WHERE conv_id=?", (conv_id,))
+        conn.execute("DELETE FROM conversations WHERE id=?", (conv_id,))
+        return True
+    return _run(go)
+
+
+def _pin_row_id(pin_id):
+    m = _PIN_ID_RE.match(pin_id) if isinstance(pin_id, str) else None
+    return int(m.group(1)) if m else None
+
+
+def add_pin(cid, title, card) -> dict:
+    if not isinstance(title, str) or not 1 <= len(title.strip()) <= 80:
+        raise ValueError("invalid title")
+    title = title.strip()
+    if not isinstance(card, dict):
+        raise ValueError("card must be an object")
+    ctype = card.get("type")
+    if not isinstance(ctype, str) or not _PIN_TYPE_RE.match(ctype):
+        raise ValueError("invalid card type")
+    if not isinstance(card.get("data"), dict):
+        raise ValueError("card data must be an object")
+    raw = json.dumps(card, ensure_ascii=False)
+    if len(raw.encode("utf-8")) > MAX_PIN_BYTES:
+        raise ValueError("card too large")
+
+    def go(conn):
+        now = _now()
+        cur = conn.execute("INSERT INTO pins(cid, title, card, created) VALUES(?,?,?,?)",
+                           (cid, title, raw, now))
+        conn.execute("DELETE FROM pins WHERE cid=? AND id NOT IN "
+                     "(SELECT id FROM pins WHERE cid=? ORDER BY id DESC LIMIT ?)", (cid, cid, MAX_PINS))
+        return {"id": "pin:%d" % cur.lastrowid, "title": title, "created": iso_time(now)}
+    return _run(go)
+
+
+def list_pins(cid) -> list:
+    """Newest first. The card itself is not loaded, only its type."""
+    rows = _run(lambda c: c.execute(
+        "SELECT id, title, created, card FROM pins WHERE cid=? ORDER BY id DESC", (cid,)).fetchall())
+    out = []
+    for rid, title, created, raw in rows:
+        try:
+            ctype = json.loads(raw).get("type") or ""
+        except ValueError:
+            ctype = ""
+        out.append({"id": "pin:%d" % rid, "title": title, "created_ts": created,
+                    "created": iso_time(created), "card_type": ctype})
+    return out
+
+
+def get_pin(cid, pin_id):
+    rid = _pin_row_id(pin_id)
+    if rid is None:
+        return None
+    row = _run(lambda c: c.execute("SELECT id, title, card, created FROM pins WHERE id=? AND cid=?",
+                                   (rid, cid)).fetchone())
+    if not row:
+        return None
+    return {"id": "pin:%d" % row[0], "title": row[1], "card": json.loads(row[2]),
+            "created": iso_time(row[3])}
+
+
+def remove_pin(cid, pin_id) -> bool:
+    rid = _pin_row_id(pin_id)
+    if rid is None:
+        return False
+    return bool(_run(lambda c: c.execute("DELETE FROM pins WHERE id=? AND cid=?", (rid, cid)).rowcount))
