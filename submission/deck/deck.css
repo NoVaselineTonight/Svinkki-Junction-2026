@@ -73,6 +73,14 @@ h1 em, h2 em { font-style: normal; color: var(--green); }
 .dark .col h3 { color: var(--neon); }
 .num { font-size: 26px; font-weight: 800; color: var(--deep); background: var(--neon); border-radius: 30px; padding: 6px 18px; margin-bottom: 26px; }
 
+/* real questions and answers: who asked above, the cropped conversation below */
+.qa { display: grid; grid-template-columns: repeat(3, 1fr); gap: 60px; margin-top: 40px; align-items: start; }
+.qa .col .phone { width: 345px; border-radius: 42px; padding: 10px; }
+.qa .col .phone img { border-radius: 30px; }
+.who { font-size: 26px; font-weight: 700; color: var(--grey); margin-bottom: 18px; letter-spacing: .02em; }
+.who b { color: var(--deep); background: var(--neon); border-radius: 30px; padding: 6px 16px; margin-right: 10px; }
+.dark .who { color: rgba(255, 255, 255, .7); }
+
 /* contrast: a statement vs an answer */
 .versus { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: center; margin-top: 70px; }
 .stmt { background: #fff; border-radius: 30px; padding: 34px 40px; font-size: 30px; color: var(--grey); box-shadow: 0 10px 40px rgba(0, 0, 0, .06); }
