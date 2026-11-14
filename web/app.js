@@ -97,6 +97,9 @@
     var sign = (n < 0 && !isZero) ? '-' : (opts.plus && n > 0 ? '+' : '');
     return sign + '€' + s;
   }
+  // A figure looked up as it is (a spend total, one payment, a balance, a receipt): the answer writes it with
+  // cents, so the card does too ("€92.85", not "€93").
+  var EXACT = { exact: true };
   // Whole euros for figures where cents are noise: "€445".
   function euros(n) { return money(Math.round(num(n)), { hero: true }).replace(/\.00$/, ''); }
 
@@ -259,9 +262,52 @@
     showConsent();
   }
 
-  // Something under "Your things" changed: redraw Home when it is the screen.
+  // ---------- Home kept up to date ----------
+  // Home's lists (account, baskets, Your things, conversations) refresh in place through homeRefresh, without
+  // touching the check-in or the quiz, so an answer the customer has just got stays on the screen.
+  // homeStale: something changed while Home was covered by a sheet; 'full' when Settings changed what Home shows.
+  var homeRefresh = null, homeStale = false;
+  function markHomeStale(full) { homeStale = full ? 'full' : (homeStale || true); }
+
+  // Something under "Your things" changed: refresh Home's lists now when Home is in view, else when it is shown.
   function thingsChanged() {
-    if (mode === 'home' && !sheetState) showHome();
+    markHomeStale(false);
+    if (mode === 'home' && !sheetState && homeRefresh && homeStale !== 'full') { homeStale = false; homeRefresh(); }
+  }
+
+  // ---------- the phone's Back button ----------
+  // History entries: the first screen is the bottom (depth 0), a conversation is depth 1, and a sheet is one more
+  // than what is under it. Back closes a sheet, leaves a conversation to Home, and only leaves the app from Home.
+  // history.back() is asynchronous, so entries pushed while one is on its way back wait for it.
+  var histConv = false;      // a conversation's entry is on the stack
+  var navPending = 0, navQueue = [], navTimer = null;
+  function navDo(fn) { if (navPending) navQueue.push(fn); else fn(); }
+  function navFlush() {
+    clearTimeout(navTimer);
+    navPending = 0;
+    var q = navQueue;
+    navQueue = [];
+    q.forEach(navDo);
+  }
+  function pushNav(depth) {
+    navDo(function () { try { history.pushState({ svk: depth }, ''); } catch (e) { /* no history API */ } });
+  }
+  function popNav() {
+    navDo(function () {
+      navPending++;
+      clearTimeout(navTimer);
+      navTimer = setTimeout(navFlush, 1500);   // a back that never arrives must not hold up later entries
+      history.back();
+    });
+  }
+  function navDepth() { return sheetState && sheetState.pushed ? sheetState.depth : (histConv ? 1 : 0); }
+  function leaveConv() { if (histConv) { histConv = false; popNav(); } }
+  function onPop(e) {
+    if (navPending) { navPending--; if (!navPending) navFlush(); return; }   // our own step back
+    var to = e && e.state && typeof e.state.svk === 'number' ? e.state.svk : 0;
+    if (to > navDepth()) { popNav(); return; }      // Forward: there is nothing ahead to show
+    if (sheetState && sheetState.pushed && to < sheetState.depth) closeSheet({ fromPop: true });
+    if (mode === 'conv' && histConv && to < 1) { histConv = false; showHome(); }
   }
 
   // ---------- shared UI pieces ----------
@@ -395,11 +441,11 @@
     );
   }
 
-  function labelBars(list, mx, cls) {
+  function labelBars(list, mx, cls, exact) {
     var box = h('div', { class: 'bars' });
     (list || []).forEach(function (x) {
       var v = num(x.total != null ? x.total : x.amount);
-      box.appendChild(barRow(x.label || x.name || x.target || '?', v, mx, cls));
+      box.appendChild(barRow(x.label || x.name || x.target || '?', v, mx, cls, exact ? money(v, EXACT) : null));
     });
     return box;
   }
@@ -441,7 +487,9 @@
 
   // opts.full: a full-height page instead of a bottom sheet.
   function openSheet(title, opts) {
-    closeSheet();
+    // One sheet opened from another takes over its history entry.
+    var keep = sheetState && sheetState.pushed ? sheetState.depth : 0;
+    closeSheet({ keepEntry: true });
     opts = opts || {};
     var previous = document.activeElement;
     var app = document.getElementById('app');
@@ -469,13 +517,17 @@
     document.body.appendChild(overlay);
     document.body.classList.add('sheet-open');
     if (app) app.inert = true;     // the screen behind the sheet cannot be reached
-    sheetState = { overlay: overlay, onKey: onKey, previous: previous, onClose: opts.onClose || null };
+    var depth = keep || (histConv ? 2 : 1);
+    if (!keep) pushNav(depth);
+    sheetState = { overlay: overlay, onKey: onKey, previous: previous, onClose: opts.onClose || null, pushed: true, depth: depth };
     closeBtn.focus();
     return body;
   }
 
-  function closeSheet() {
+  // opts.fromPop: closed by the Back button, whose entry is gone already. opts.keepEntry: another sheet follows.
+  function closeSheet(opts) {
     if (!sheetState) return;
+    opts = opts || {};
     var st = sheetState;
     document.removeEventListener('keydown', st.onKey);
     st.overlay.remove();
@@ -485,7 +537,13 @@
     sheetState = null;
     var p = st.previous;
     if (p && p.focus && document.contains(p)) p.focus();
+    if (st.pushed && !opts.fromPop && !opts.keepEntry) popNav();
     if (st.onClose) st.onClose();
+    // What was changed in the sheet (a goal, a note, a category, Settings) shows on Home now.
+    if (!opts.keepEntry && mode === 'home' && homeStale) {
+      if (homeStale === 'full') showHome();
+      else if (homeRefresh) { homeStale = false; homeRefresh(); }
+    }
   }
 
   // ---------- transactions ----------
@@ -566,7 +624,7 @@
     if (opts.note) box.appendChild(h('p', { class: 'notice ok', role: 'status' }, opts.note));
     if (!opts.bare) {
       box.appendChild(h('p', { class: 'small muted' },
-        plural(res.count != null ? num(res.count) : rows.length, 'transaction', 'transactions') + ', ' + money(Math.abs(num(res.total)))
+        plural(res.count != null ? num(res.count) : rows.length, 'transaction', 'transactions') + ', ' + money(Math.abs(num(res.total)), EXACT)
         + (res.truncated ? ' (showing the first ' + rows.length + ')' : '')));
     }
     if (!rows.length) {
@@ -660,6 +718,7 @@
   function showLogin() {
     mode = 'login';
     closeSheet();
+    leaveConv();
     clearView();
     setChrome('login', '');
     localConv = null;
@@ -757,7 +816,8 @@
     function fire(key) { return function (v) { state[key] = v; onChange(key, state); }; }
     var rows = [
       switchRow('sw-analysis', 'Analyse my transactions', 'Needed for every answer. Only your own rows.', state.analysis, fire('analysis'), { tag: 'needed' }),
-      switchRow('sw-ai', 'Let an AI help with the wording', 'It sees results only, never your name, account or raw transactions.', state.ai, fire('ai')),
+      switchRow('sw-ai', 'Let an AI help with the wording', 'It sees results only, never your name, account or raw transactions.'
+        + (me && me.ai_available === false ? ' No AI model is connected right now, so built-in rules answer either way.' : ''), state.ai, fire('ai')),
       switchRow('sw-bench', 'Compare me with people like me', 'Compare your spending with groups of 20+ similar customers. Only group totals are used.', state.benchmarks, fire('benchmarks')),
       switchRow('sw-sugg', 'Give me suggestions', 'Svinkki may suggest things, like putting leftover money aside. Nothing happens unless you say so.', state.suggestions, fire('suggestions'))
     ];
@@ -792,6 +852,7 @@
   function showConsent() {
     mode = 'consent';
     closeSheet();
+    leaveConv();
     clearView();
     setChrome('consent', me && me.name ? me.name : '');
     var consent = (me && me.consent) || {};
@@ -828,7 +889,9 @@
     choose.body.appendChild(pc.el);
     viewEl.appendChild(h('div', { class: 'welcome' },
       h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'),
-      h('p', null, 'I\'m Svinkki, your money coach. I read your own transactions to answer your questions. An AI helps with the wording; it never sees your name or account.'),
+      h('p', null, 'I\'m Svinkki, your money coach. I read your own transactions to answer your questions. ' + (me && me.ai_available
+        ? 'An AI helps with the wording; it never sees your name or account.'
+        : 'No AI model is connected right now, so built-in rules write every answer on this server.')),
       h('p', { class: 'muted' }, 'Money only moves when you approve it, and only to your own S-Bank savings or funds. You can change these choices any time in Settings.'),
       go, hint, status, choose.el));
   }
@@ -837,11 +900,13 @@
   function boot() {
     mode = 'boot';
     closeSheet();
+    leaveConv();
     clearView();
     setChrome('boot', '');
     viewEl.appendChild(loadingNode('Loading...'));
     return api('/api/me').then(function (m) {
       me = m;
+      loadModelName();
       if (!me.consent || !me.consent.analysis) { showConsent(); return; }
       showHome();
     }, function (e) {
@@ -1343,7 +1408,7 @@
       var cnt = g.count != null ? num(g.count) : rows.length;
       var grp = h('div', { class: 'used-group' });
       grp.appendChild(h('div', { class: 'used-head' }, h('b', null, ht(g.title) || 'Transactions'),
-        h('span', { class: 'tiny' }, plural(cnt, 'transaction', 'transactions') + ', ' + money(Math.abs(num(g.spent != null && num(g.spent) > 0 ? g.spent : g.total))))));
+        h('span', { class: 'tiny' }, plural(cnt, 'transaction', 'transactions') + ', ' + money(Math.abs(num(g.spent != null && num(g.spent) > 0 ? g.spent : g.total)), EXACT))));
       if (!rows.length) grp.appendChild(h('p', { class: 'small muted' }, 'No transactions matched.'));
       else grp.appendChild(txList({ rows: rows }, { bare: true }));
       if (rows.length && rows.length < cnt) grp.appendChild(h('p', { class: 'tiny' }, 'Showing ' + rows.length + ' of ' + cnt + '.'));
@@ -1396,6 +1461,27 @@
   var EXPLAIN_MIN = 40, EXPLAIN_MAX = 6000;
 
   function isAiMode(mode) { return mode === 'claude' || mode === 'gemini'; }
+
+  // The name of the Claude model set up for the demo, "Claude Opus 5.5", read once from the AI setup.
+  var aiModelName = '', aiModelNames = {};
+  function loadModelName() {
+    if (!(me && me.ai_available)) return;
+    api('/api/demo/ai').then(function (st) {
+      ((st && st.models) || []).forEach(function (m) {
+        if (m && m.id && m.label) aiModelNames[m.id] = String(m.label).replace(/\s*\(.*\)\s*$/, '');
+      });
+      aiModelName = aiModelNames[st && st.model] || '';
+    }, function () {});
+  }
+
+  // Where an answer came from: "On-device rules" for the built-in rules, else the model's name.
+  function sourceLabel(res) {
+    var mode = res && res.mode;
+    if (mode === 'offline') return 'On-device rules';
+    if (mode === 'claude') return res.model ? (aiModelNames[res.model] || String(res.model)) : (aiModelName || 'Claude');
+    if (mode === 'gemini') return String(res.model || 'Gemini');
+    return '';
+  }
 
   function explainCard(d) {
     var c = cardShell('In plain words');
@@ -1693,9 +1779,9 @@
       var rest = list.slice(3).map(receiptNode);
       more(c, [rest.length ? h('div', { class: 'rc-list' }, rest) : null,
         rowsNode([
-          d.grocery_total != null && num(d.fuel_total) > 0 ? ['Groceries', money(d.grocery_total)] : null,
-          d.fuel_total != null && num(d.fuel_total) > 0 ? ['Fuel', money(d.fuel_total)] : null,
-          ['In total', money(d.total)]
+          d.grocery_total != null && num(d.fuel_total) > 0 ? ['Groceries', money(d.grocery_total, EXACT)] : null,
+          d.fuel_total != null && num(d.fuel_total) > 0 ? ['Fuel', money(d.fuel_total, EXACT)] : null,
+          ['In total', money(d.total, EXACT)]
         ])]);
       return c;
     },
@@ -1736,11 +1822,11 @@
     },
     receipt_parsed: function (d) {
       var c = cardShell(d.store || 'Your receipt', d.date ? fmtDate(d.date) : '');
-      keyFig(c, money(d.total != null ? d.total : d.lines_total), plural((d.lines || []).length, 'line', 'lines'));
+      keyFig(c, money(d.total != null ? d.total : d.lines_total, EXACT), plural((d.lines || []).length, 'line', 'lines'));
       var g0 = (d.by_group || []).filter(function (g) { return num(g.total) > 0 && !/^other/i.test(String(g.group || g.name)); })[0];
       addRows(c, [g0 ? ['Biggest group', g0.name + ', ' + money(g0.total)] : null]);
       if (d.matches_total === false && d.lines_total != null) {
-        c.appendChild(h('p', { class: 'notice' }, 'The lines add up to ' + money(d.lines_total) + ', not the receipt total.'));
+        c.appendChild(h('p', { class: 'notice' }, 'The lines add up to ' + money(d.lines_total, EXACT) + ', not the receipt total.'));
       }
       var un = (d.unparsed || []).length;
       more(c, [
@@ -1752,11 +1838,11 @@
     },
     spend: function (d) {
       var c = cardShell('Spending', d.period ? fmtRange(d.period) : '');
-      keyFig(c, money(d.total), plural(num(d.count), 'payment', 'payments'));
+      keyFig(c, money(d.total, EXACT), plural(num(d.count), 'payment', 'payments'));
       var labels = (d.by_label || []).filter(function (x) { return num(x.total) > 0; });
       var np = d.night_out_part;
-      more(c, [labels.length > 1 ? labelBars(labels.slice(0, 8), maxOf(labels)) : null, peerBlock(d),
-        np && num(np.total) > 0 ? h('p', { class: 'small' }, 'Of this, ' + money(np.total) + ' was on nights out.') : null], d);
+      more(c, [labels.length > 1 ? labelBars(labels.slice(0, 8), maxOf(labels), null, true) : null, peerBlock(d),
+        np && num(np.total) > 0 ? h('p', { class: 'small' }, 'Of this, ' + money(np.total, EXACT) + ' was on nights out.') : null], d);
       return c;
     },
     overview: function (d) {
@@ -1791,7 +1877,7 @@
       }
       var bills = d.upcoming_bills || [];
       more(c, [eyebrow('How it is worked out'), rowsNode([
-        ['Money in your account', money(d.balance)],
+        ['Money in your account', money(d.balance, EXACT)],
         ['Bills before payday', '-' + money(d.bills_total)],
         ['Buffer for surprises', '-' + money(d.unexpected_buffer)],
         num(d.planned_savings) > 0 ? ['Planned savings', '-' + money(d.planned_savings)] : null,
@@ -1916,7 +2002,7 @@
       return c;
     },
     afford: function (d) {
-      var c = cardShell('Can I afford it?', d.item ? cap(String(d.item)) + (d.price != null ? ', ' + money(d.price) : '') : '');
+      var c = cardShell('Can I afford it?', d.item ? cap(String(d.item)) + (d.price != null ? ', ' + money(d.price, Math.round(num(d.price) * 100) % 100 ? EXACT : null) : '') : '');
       return affordInto(c, d);
     },
     leaks: function (d) {
@@ -1951,7 +2037,7 @@
     money_holdings: function (d) {
       var c = cardShell('Savings and investments', 'In S-mobiili');
       var held = d.holdings || [];
-      if (held.length) addRows(c, held.map(function (x) { return [x.name, money(x.amount)]; }));
+      if (held.length) addRows(c, held.map(function (x) { return [x.name, money(x.amount, EXACT)]; }));
       else c.appendChild(h('p', { class: 'small muted' }, 'Nothing moved yet.'));
       var out = h('div', { 'aria-live': 'polite' });
       more(c, [moneyMoveForm(out, d.destinations, d.available_to_move), out]);
@@ -2472,6 +2558,8 @@
   // Two next questions for an answer: by its first card, never the question just asked. None for an answer
   // without a card that only asks something back (a goal plan waiting for a yes, an amount to fill in).
   function followUps(res, asked) {
+    if (res && Array.isArray(res.followups) && res.followups.length) return res.followups.slice(0, 3);
+    // Fallback when the server sends none (the built-in rules): a fixed table by the answer's first card.
     var cards = (res && res.cards) || [];
     var reply = String((res && res.reply) || '').trim();
     if (!cards.length && /\?$/.test(reply)) return [];
@@ -2535,12 +2623,28 @@
     return h('div', { class: 'sec-head' }, h('h2', null, title), extra || null);
   }
 
+  // One short line instead of an empty or out-of-date page when Home's data cannot be loaded.
+  function homeErrorNode(retry) {
+    return h('div', { class: 'notice err home-err', role: 'alert' },
+      h('span', null, 'Part of this page could not load. Check your connection.'),
+      h('button', { type: 'button', class: 'link-btn', onclick: retry }, 'Try again'));
+  }
+
   function showHome() {
+    homeStale = false;
+    homeRefresh = null;
     mode = 'home';
     closeSheet();
+    leaveConv();
     clearView();
     setChrome('home');
     var t = token;
+    var errBox = h('div', { class: 'home-err-slot' });
+    // A feature that is off answers 404 (the quiz, a check-in): that is not an error.
+    function homeFailed(e) {
+      if (!alive(t) || !e || e.handled || e.status === 404 || errBox.firstChild) return;
+      errBox.appendChild(homeErrorNode(function () { showHome(); }));
+    }
     var first = firstName();
     var comp = composer('Ask anything about your money', 'Ask Svinkki a question', function (text) { openConversation({ message: text }); });
     var askLink = h('button', { type: 'button', class: 'link-btn ask-link', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, 'Goals, receipts, contracts and more', icon('chev', 16));
@@ -2558,19 +2662,28 @@
     var acctBox = h('div', { class: 'acct-slot' });
     var greetLine = h('p', { class: 'muted', 'aria-live': 'polite' }, 'Ask me anything about your money, even the hard questions.');
     viewEl.appendChild(h('div', { class: 'home' },
-      acctBox,
+      errBox, acctBox,
       h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), greetLine),
       comp.el, suggest, monthBox, forYou, convBox, thingsBox));
-    api('/api/account').then(function (a) { if (alive(t) && a && a.current) acctBox.replaceChildren(accountCard(a)); }, function () {});
-
-    // The brief's core lesson, always in view: last month in the three baskets. A row opens its transactions.
-    api('/api/baskets').then(function (d) {
-      if (!alive(t) || !d) return;
-      var node = monthBaskets(d);
-      if (!node) return;
-      monthBox.replaceChildren(sectionHead('Where your money went' + (d.period ? ' in ' + fmtPeriod(d.period) : '')), node);
-      monthBox.hidden = false;
-    }, function () {});
+    // The lists that change when the customer does something; refreshed in place, never the check-in or the quiz.
+    function refresh() {
+      if (!alive(t)) return;
+      errBox.replaceChildren();
+      api('/api/account').then(function (a) { if (alive(t) && a && a.current) acctBox.replaceChildren(accountCard(a)); }, homeFailed);
+      // The brief's core lesson, always in view: last month in the three baskets. A row opens its transactions.
+      api('/api/baskets').then(function (d) {
+        if (!alive(t) || !d) return;
+        var node = monthBaskets(d);
+        monthBox.hidden = !node;
+        if (node) monthBox.replaceChildren(sectionHead('Where your money went' + (d.period ? ' in ' + fmtPeriod(d.period) : '')), node);
+      }, homeFailed);
+      api('/api/home').then(function (d) { convApi = true; render(d); }, function (e) {
+        if (e && e.status === 404) { fallbackHome().then(render); return; }   // an older server without /api/home
+        homeFailed(e);
+      });
+    }
+    homeRefresh = refresh;
+    refresh();
 
     // Ready for you: the check-in, this week's quiz and anything worth a look, rows of one list, closed until tapped.
     var slots = { checkin: h('div'), quiz: h('div'), alerts: h('div') };
@@ -2594,15 +2707,15 @@
       place('checkin', fold('calendar', 'Your check-in',
         (num(c.income) <= 0 ? money(c.spent) + ' spent' : (sur >= 0 ? money(sur) + ' left over' : money(-sur) + ' more out than in')) +
         (when ? ' · ' + when : ''), checkinCard(c)));
-    }, function () {});
+    }, homeFailed);
     api('/api/quiz').then(function (q) {
       if (q && q.quiz_id) place('quiz', fold('help', 'Weekly quiz', 'One guess about your own spending', quizCard(q)));
-    }, function () {});
+    }, homeFailed);
     api('/api/alerts').then(function (d) {
       var list = (d && Array.isArray(d.alerts)) ? d.alerts : [];
       if (list.length) place('alerts', fold('flag', 'Worth a look', plural(list.length, 'thing', 'things') + ' in your recent spending',
         CARDS.alerts({ alerts: list, explain: d.explain })));
-    }, function () {});
+    }, homeFailed);
 
     function render(d) {
       if (!alive(t)) return;
@@ -2644,11 +2757,6 @@
         }
       }
     }
-
-    api('/api/home').then(function (d) { convApi = true; render(d); }, function (e) {
-      if (e && e.handled) return;
-      fallbackHome().then(render);
-    });
   }
 
   function convRow(cv) {
@@ -2685,6 +2793,7 @@
     opts = opts || {};
     mode = 'conv';
     closeSheet();
+    if (!histConv) { histConv = true; pushNav(1); }    // Back leaves the conversation to Home
     clearView();
     setChrome('conv');
     chat = buildChat(opts);
@@ -2987,8 +3096,9 @@
       if (cards.childNodes.length) m.appendChild(cards);
       var acts = h('div', { class: 'reply-acts' });
       if (used) acts.appendChild(used.btn);
-      // Only an AI-worded reply is marked; built-in answers carry no tag.
-      if (isAiMode(res.mode)) acts.appendChild(h('span', { class: 'mode-tag', title: 'Worded by an AI model. The figures come from your own transactions.' }, 'AI'));
+      // Every answer says where it came from, small and plain: the built-in rules or the model's name.
+      var source = sourceLabel(res);
+      if (source) acts.appendChild(h('span', { class: 'source-tag' }, source));
       if (acts.childNodes.length) m.appendChild(acts);
       if (used) m.appendChild(used.body);
       if (res.notice) m.appendChild(h('p', { class: 'tiny reply-note' }, ht(String(res.notice))));
@@ -3287,6 +3397,7 @@
         api('/api/demo/ai', { method: 'POST', body: req }).then(function (now) {
           if (!alive(t)) return;
           if (me) me.ai_available = now.provider !== 'offline';
+          loadModelName();
           draw(now, k ? 'Saved. Use "Test the key" to check that it works.' : 'Saved.');
         }, function (e) {
           if (!alive(t) || (e && e.handled)) return;
@@ -3341,6 +3452,7 @@
       flash('Saving...');
       api('/api/settings', { method: 'POST', body: Object.assign(settingsWith(), s, { monthly_saving_target: num(me && me.settings && me.settings.monthly_saving_target) }) }).then(function (r) {
         me.settings = (r && r.settings) || s;
+        markHomeStale(true);
         flash('Saved.');
       }, function (e) { if (!e.handled) flash(e.message, true); });
     });
@@ -3353,6 +3465,7 @@
       api('/api/consent', { method: 'POST', body: st }).then(function (r) {
         me.consent = (r && r.consent) || st;
         if (!me.consent.analysis) { showConsent(); return; }
+        markHomeStale(true);
         flash('Saved.');
       }, function (e) { if (!e.handled) flash(e.message, true); });
     });
@@ -3439,6 +3552,8 @@
     document.getElementById('back-btn').addEventListener('click', function () { showHome(); });
     document.getElementById('new-btn').addEventListener('click', function () { openConversation({ focus: true }); });
     document.getElementById('gear-btn').addEventListener('click', function () { openSettings(); });
+    try { history.replaceState({ svk: 0 }, ''); } catch (e) { /* no history API */ }
+    window.addEventListener('popstate', onPop);
     boot();
   }
 
