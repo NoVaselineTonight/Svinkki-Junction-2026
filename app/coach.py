@@ -34,7 +34,7 @@ SYSTEM_PROMPT = """You are Svinkki, this customer's personal money coach inside 
 Your job is to be useful. After each answer the customer should know something about their own money they did not know, or have a decision made easier. An answer that would fit anyone, that dodges the question, or that asks the customer for something you could work out or estimate yourself, is a failed answer.
 What you work with:
 - Their own data, through the tools: about two years of transactions, grocery and fuel receipts down to single products, how spending has moved over the months, the balance over time, forecasts. After these rules comes a section "What you know about this customer" with checked figures and findings from their own account. The tools answer the question; the section makes the answer personal. It is a pool to choose from, not a script: use the one or two things that bear on THIS question and leave the rest.
-- Your general knowledge of the world: what things roughly cost, how loans, funds, taxes, insurance, housing and everyday money work in Finland, sensible rules of thumb. Use it freely. When the customer asks what something costs, or wants to plan something without knowing its price (a trip, a car, a wedding, a renovation, a pet, moving out), give a realistic estimate yourself: call general_estimate with a range and what it assumes, then tie it to their money with calculate, can_i_afford or plan_goal_by_date (how many months of their usual leftover it is, what to set aside each month, whether it fits by a date). Never answer that you cannot estimate, and never hand the question back by asking what they expect it to cost. If something that matters is unknown (when, how long, how many people, what standard), assume something sensible, say in a few words what you assumed, and invite them to correct it.
+- Your general knowledge of the world: what things roughly cost, how loans, funds, taxes, insurance, housing and everyday money work in Finland, sensible rules of thumb. Use it freely. Saving towards something ("plan to save for a car", "help me save for a trip", "I want to buy a sofa", a deposit, a buffer), with or without a price or a date: call make_savings_plan FIRST and ALONE, then answer from its `decision`: it prices the goal, takes their leftover, names cuts in their own categories and decides the monthly amount and the date by code, so do not also call general_estimate, plan_goal_by_date, calculate or propose_plan for it, and do not ask questions first. When the customer only asks what something costs, or wants to plan something that is not saving (a trip's budget, a renovation), give a realistic estimate yourself: call general_estimate with a range and what it assumes, then tie it to their money with calculate, can_i_afford or plan_goal_by_date (how many months of their usual leftover it is, what to set aside each month, whether it fits by a date). Never answer that you cannot estimate, and never hand the question back by asking what they expect it to cost. If something that matters is unknown (when, how long, how many people, what standard), assume something sensible, say in a few words what you assumed, and invite them to correct it.
 - Arithmetic by code: calculate works out sums, differences, shares, yearly totals and "how many months" from figures you already have. Use it instead of doing sums in your head.
 - Be quick: the customer is waiting. Ask for every tool you need in the same step whenever one does not depend on another's result (several get_spend calls, an estimate plus their data), and put all your sums into one calculate call.
 - Figures: every figure you may use is shown with its slot, like "€2,480 {{f1}}", and every tool result lists its figures under "figures". In your answer write the slot instead of the digits: "You spent {{f4}} on taxis last month." / "Käytit takseihin {{f4}} viime kuussa." The app fills in the exact figure in the customer's language. Use a slot only where its label fits the sentence (the same category, income versus spending, the same period). calculate takes slots too ("{{f4}} * 12"); quote the slot of its result. Small counts (up to 12), years and month names you may write yourself.
@@ -1251,6 +1251,49 @@ def goal_intent(message, today, pct=None):
     return args
 
 
+_PLAN_ASK = re.compile(
+    r"\b(?:save|saving|put aside|set aside)\s+(?:up\s+|money\s+)*(?:for|towards?)\b|"
+    r"\bplan\b[^.?!]{0,40}\b(?:save|saving|buy|get|afford)\b|"
+    r"\b(?:want|wanna|would like|planning|plan|going|hope|need)\s+(?:to\s+)?(?:buy|get)\s+(?:a|an|my|our|new|the)\b|"
+    r"\bhow (?:do|can|could|should) i (?:get|buy|afford|save for)\b|\bsaving goal\b|"
+    r"\bsäästä\w*\s+(?:\w+\s+)?\w+(?:aan|ään|een|iin|oon|uun|yyn|öön|seen|hin|an|en|in|on|un|yn|än|ön)\b|"
+    r"\b(?:säästö|säästämis)\w*\s*suunnitelm\w*|\bsuunnitelm\w*[^.?!]{0,40}\bsäästä\w*|"
+    r"\bhalu(?:an|aisin)\s+(?:ostaa|hankkia)\b|\b\w+\s+varten\s+säästä\w*", re.I)
+
+
+def savings_plan_intent(message, today, pct=None):
+    """make_savings_plan arguments for 'make me a plan to save for a car' and the like, or None."""
+    s = message.lower()
+    if pct is not None or _CUT_VERB.search(s) or re.search(r"\bwhat if\b|\bafford\b(?!.*\bplan\b)|"
+                                                           r"\bhow much did i\b|\bsave more\b|\bwhere can i save\b", s):
+        return None
+    if not _PLAN_ASK.search(s):
+        return None
+    from . import goalplan
+    est = goalplan.estimate_price(message)
+    own = goal_name_from_text(message)
+    if own.lower() in ("it", "that", "this", "them", "one", "something", "things"):
+        own = ""
+    if own and est and goalplan.estimate_price(own) and est[0] != "a long-haul trip":
+        own = own.lower()      # "Car" -> "car"; a place name such as "Japan" keeps its capital
+    name = own or (re.sub(r"^(?:a|an)\s+", "", est[0]) if est else "")
+    if not name and re.search(goalplan.BUFFER_RE, s):
+        name = "emergency buffer"
+    if not name or len(name) > 40:
+        return None
+    deadline, span = parse_deadline(message, today)
+    blank = message if not span else message[:span[0]] + " " * (span[1] - span[0]) + message[span[1]:]
+    args = {"goal": name}
+    am = amounts_from_text(blank)
+    if am:
+        args["target"] = am[0][0]
+    if deadline:
+        args["deadline"] = deadline
+    if "target" not in args and not est and not re.search(goalplan.BUFFER_RE, s):
+        return None      # an unknown thing without a price: the old flow asks for it
+    return args
+
+
 _AMOUNT_ONLY = re.compile(
     r"^\s*(?:about|around|roughly|approx(?:imately)?\.?|maybe|like|some|noin|n\.|suunnilleen|arviolta|ehkä|jotain)?\s*"
     r"(?:€\s*)?(?P<n>\d{1,3}(?:[ ,.]\d{3})+(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?P<k>k\b)?"
@@ -1695,7 +1738,10 @@ def _route_en(message, ctx):
         return "check_mortgage", args, {}
 
     # --- wave 3 rules
+    sp = savings_plan_intent(message, today, pct)
     gi = goal_intent(message, today, pct)
+    if sp and (not gi or "target" not in gi):
+        return "make_savings_plan", sp, {}
     if gi:
         return "plan_goal_by_date", gi, {}
     if re.search(r"spending patterns?|patterns? in my (spending|purchases|shopping)|any patterns?|\bimpulse|"
@@ -3136,6 +3182,8 @@ def _finish(text, today=None, fi=False):
 def render(tool, res, args=None, hints=None):
     """The plain-language reply for a tool result, in the house style."""
     hints = hints or {}
+    if tool == "make_savings_plan" and isinstance(res, dict) and "error" not in res and hints.get("lang") == "fi"             and str(res.get("text_fi") or "").strip():
+        return str(res["text_fi"]).strip()
     if tool in TEXT_TOOLS and isinstance(res, dict) and "error" not in res and str(res.get("text") or "").strip():
         return str(res["text"]).strip()       # these tools word their own result
     return _finish(_render(tool, res, args, hints), hints.get("today"))
@@ -3143,7 +3191,7 @@ def render(tool, res, args=None, hints=None):
 
 TEXT_TOOLS = ("get_money_story", "get_season_outlook", "get_category_story", "explain_month", "get_low_points",
               "get_income_profile", "receipt_trends", "grocery_basket_profile", "grocery_cut_ideas", "get_findings",
-              "general_estimate", "project_savings", "loan_payment", "save_goal")
+              "general_estimate", "project_savings", "loan_payment", "save_goal", "make_savings_plan")
 
 
 def _render(tool, res, args=None, hints=None):
@@ -4338,7 +4386,7 @@ def _run_offline(message, ctx, history=None):
         res = _food(args, ctx)
         tool_used = "get_spend"
     else:
-        res = tools.call(tool, args, ctx)
+        res = call_tool(tool, args, ctx)
         tool_used = tool
     res = _enrich(tool, res)
     crypto_res = None
@@ -4488,7 +4536,7 @@ def _invest_tools():
     """The investment guidance tools (app/invest.py) and the plan tool (app/plans.py), or [] when a module is not
     there."""
     out = []
-    for mod in ("invest", "plans"):
+    for mod in ("invest", "plans", "goalplan"):
         try:
             m = __import__("app." + mod, fromlist=[mod])
             out.extend(list(m.TOOLS))
@@ -4499,7 +4547,7 @@ def _invest_tools():
 
 def call_tool(name, args, ctx):
     """Run one tool for the model: the investment tools live in app/invest.py, everything else in app/tools.py."""
-    for mod in ("invest", "plans"):
+    for mod in ("invest", "plans", "goalplan"):
         try:
             m = __import__("app." + mod, fromlist=[mod])
             if name in m.TOOL_NAMES:
@@ -5489,7 +5537,7 @@ def _chat(message, history, ctx):
 
     plans = [c for c in calls if c[0] == "plan_goal_by_date"]
     for name, args, res in calls:      # a goal plan anywhere in the turn can be saved with "yes" next turn
-        if name in ("plan_goal_by_date", "propose_plan"):
+        if name in ("plan_goal_by_date", "propose_plan", "make_savings_plan"):
             _remember(ctx, name, args, {}, _enrich(name, res) if isinstance(res, dict) else res)
     data_calls = [c for c in calls if c[0] not in HELPER_TOOLS]
     if data_calls:

@@ -298,7 +298,8 @@ class ChatWave3Tests(Http3Case):
         for msg in ("save for a car by June 2027", "I need 3000 for a trip next summer"):
             with self.subTest(msg):
                 r = self.chat(c, msg)
-                self.assertIn("plan_goal_by_date", r["tools_used"], r["tools_used"])
+                # with no price the whole personal plan is made at once (make_savings_plan)
+                self.assertTrue({"plan_goal_by_date", "make_savings_plan"} & set(r["tools_used"]), r["tools_used"])
                 self.assertIsNone(c.get("/api/goal").json["goal"])
 
     def test_W15_a_pending_goal_belongs_to_its_session_only(self):

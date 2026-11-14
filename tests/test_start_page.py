@@ -50,7 +50,8 @@ class StartPageTests(unittest.TestCase):
 
     def test_examples_cover_the_briefs_core_questions(self):
         low = self.block.lower()
-        for bit in ("spend this week", "spender", "save more", "afford"):
+        # Safe-to-spend left the front page (owner, 14 Nov): "where did my money go" took its place.
+        for bit in ("where did my money go", "spender", "save more", "afford"):
             self.assertIn(bit, low)
 
     def test_every_question_a_chip_sends_is_understood_without_a_model(self):
@@ -89,13 +90,14 @@ class StartPageTests(unittest.TestCase):
         self.assertRegex(fu, r"paljonko\|mitä")
         self.assertIn(".slice(0, 2)", fu)
 
-    def test_account_card_shows_balance_and_safe_to_spend_only(self):
+    def test_account_card_shows_balances_without_safe_to_spend(self):
         card = self.js[self.js.index("function accountCard(a)"):]
         card = card[:card.index("function openAccount(")]
         self.assertNotIn("cur.number", card)
         self.assertNotIn("Demo account", card)
         self.assertIn("num(sav.balance) > 0 ?", card)
-        self.assertIn("acct-safe", card)
+        self.assertNotIn("acct-safe", card)
+        self.assertNotIn("safe_to_spend", card)
 
     def test_new_only_inside_a_conversation(self):
         self.assertIn("document.getElementById('new-btn').hidden = screen !== 'conv';", self.js)
@@ -114,8 +116,8 @@ class StartPageTests(unittest.TestCase):
         self.assertIn("thingsBox.hidden = !things.length", self.home)
         self.assertNotIn("STARTERS", self.js)
 
-    def test_order_account_question_box_examples_month_then_for_you(self):
-        order = re.search(r"h\('div', \{ class: 'greet' \}.*?\),\s*acctBox, comp\.el, widgetBox,\s*suggest, monthBox, forYou, convBox, thingsBox\)\)",
+    def test_order_month_first_then_account_question_box_examples_for_you(self):
+        order = re.search(r"h\('div', \{ class: 'greet' \}.*?\),\s*monthBox, acctBox, comp\.el, widgetBox,\s*suggest, forYou, convBox, thingsBox\)\)",
                           self.home, re.S)
         self.assertIsNotNone(order)
 
