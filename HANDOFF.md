@@ -37,7 +37,7 @@ The GUI is agent-c's). Detail, figures and what was not solved: `.devloop/WAVE5.
 - **The new tools have no card in the web app.** Their figures are in the answer text.
 - **The question bank is in the repo** (`.devloop/coach-bank/`): 180 conversations, the judging rubric and a
   runner. A live run makes about 240 paid model turns.
-- Tests: `Ran 868 tests ... OK`.
+- Tests: `Ran 872 tests ... OK`.
 
 Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no key, tests and a headless browser on the test data only):
 
