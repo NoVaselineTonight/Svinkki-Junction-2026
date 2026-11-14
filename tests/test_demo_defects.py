@@ -172,6 +172,21 @@ class Bitcoin(Base):
         self.assertRegex(r["reply"], r"riskisijoitus")
         self.assertNotIn("englanniksi", r["reply"])
 
+    def test_which_fund_should_i_buy(self):
+        for q in ("Which fund should I buy?", "What's the best fund to invest in?"):
+            with self.subTest(q=q):
+                r = self.ask(q)
+                self.assertEqual(r["tools_used"], ["get_invest_education"], r["reply"])
+                self.assertNotRegex(r["reply"].lower(), r"how much does|tell me the price")
+                self.assertIn("index fund", r["reply"])
+                self.assertIn("not investment advice", r["reply"])
+        r = self.ask("Mihin rahastoon minun pitäisi sijoittaa?")
+        self.assertEqual(r["tools_used"], ["get_invest_education"], r["reply"])
+        self.assertIn("indeksirahasto", r["reply"])
+        # a move into a fund is still a move, and a price-less purchase still gets the price question
+        self.assertEqual(self.ask("Move 50 euros to the index fund")["tools_used"], ["propose_money_move"])
+        self.assertRegex(self.ask("Can I afford a new phone?")["reply"], r"^How much does the phone cost")
+
     def test_a_priced_bitcoin_purchase_still_gets_caution(self):
         r = self.ask("Can I afford 500 euros of bitcoin?")
         self.assertEqual(r["tools_used"], ["can_i_afford"], r["reply"])
