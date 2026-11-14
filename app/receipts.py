@@ -914,13 +914,24 @@ def _months_between(frm, to, first, nominal=None):
     return max(((b - a).days + 1) / _DAYS_PER_MONTH, 0.25)
 
 
-def _span(conn, today, period):
-    """The period, how many months of data it holds, and the equal period just before it (or None)."""
+def _span(conn, today, period, whole_months=False):
+    """The period, how many months of data it holds, and the equal period just before it (or None).
+    With `whole_months`, "last N months" means the N last FULL calendar months, as trends.category_story counts."""
     t = ins._d(today)
     first = _first_day(conn)
     key = _key(period)
+    whole_when = None
     m = re.fullmatch(r"last_(\d{1,2})_months", key)
-    if m and int(m.group(1)) >= 1:
+    if m and int(m.group(1)) >= 1 and whole_months:
+        n = int(m.group(1))
+        end = ins._month_end(t)
+        to = t if t == end else ins._month_start(t) - timedelta(days=1)
+        frm = ins._add_months(ins._month_start(to), -(n - 1))
+        p_to = frm - timedelta(days=1)
+        p_frm = ins._add_months(frm, -n)
+        nominal = n
+        whole_when = "over the last %d full months (%s to %s)" % (n, frm.strftime("%b %Y"), to.strftime("%b %Y"))
+    elif m and int(m.group(1)) >= 1:
         n = int(m.group(1))
         frm = ins._add_months(t, -n) + timedelta(days=1)
         to = t
@@ -939,7 +950,8 @@ def _span(conn, today, period):
     return {"frm": frm.isoformat(), "to": to.isoformat(), "months": months,
             "prev": ({"frm": p_frm.isoformat(), "to": p_to.isoformat(), "months": p_months}
                      if p_months > 0 else None),
-            "when": _phrase(period, frm.isoformat(), to.isoformat(), today)}
+            "when": (whole_when if whole_months and m and int(m.group(1)) >= 1
+                     else _phrase(period, frm.isoformat(), to.isoformat(), today))}
 
 
 def _rate(x):
@@ -1103,7 +1115,7 @@ def _full_months(frm, to, first):
 
 def basket_profile(conn, today, period="last_12_months", habit_seed=None):
     """How and when the customer shops, from the grocery PAYMENTS themselves (no simulated lines)."""
-    sp = _span(conn, today, period)
+    sp = _span(conn, today, period, whole_months=True)
     frm, to, months, when = sp["frm"], sp["to"], sp["months"], sp["when"]
     pay = _grocery_payments(conn, frm, to)
     base = {"period": {"from": frm, "to": to, "label": when, "months": round(months, 2)},

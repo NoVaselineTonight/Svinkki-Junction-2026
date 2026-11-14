@@ -4,7 +4,7 @@
 
 Svinkki is a prototype for the S-Pankki challenge at Junction 2026. It lets a bank customer talk with their own money: ask "How much did I spend on taxis last month?" or "What kind of spender am I?" and get a number worked out from their own transactions, with the transactions shown under the answer. It sorts spending into the brief's three baskets (regular essentials, unexpected necessities, everyday spending), shows what is safe to spend until payday, simulates what-if changes and compares the customer with people of the same age using group statistics and Statistics Finland open data. It works like an AI assistant app: a front page with a "New conversation" button, the customer's earlier conversations, and "Your things" (a savings goal, a challenge, answers the customer chose to keep), which appear once they have been created in a conversation. A "What can I ask?" button lists everything the coach can do. It is a web app with a phone-width layout and no build step, so it can be embedded in a mobile app such as S-mobiili.
 
-Python 3.13, standard library only. Nothing is installed. Money moves only inside S-mobiili (your own savings account or an S-Bank fund) and only after you approve that exact move.
+A public demo runs at https://svinkki.onrender.com (see `docs/DEPLOY.md`; the free plan sleeps when idle). Python 3.13, standard library only. Nothing is installed. Money moves only inside S-mobiili (your own savings account or an S-Bank fund) and only after you approve that exact move.
 
 ## Run it
 
@@ -49,7 +49,7 @@ Never commit a key: `claude_api_key.txt` and `.env` are git-ignored. With a key,
 
 Core from the brief:
 
-- Chat with your own money, with the transactions behind each answer under it ("From 2 transactions"), and two short follow-up questions under the latest answer.
+- Chat with your own money, with the transactions behind each answer under it ("From 2 transactions"), and short follow-up questions under the latest answer.
 - Three baskets, with context-aware labels: a kebab or taxi in the middle of a night out counts as "Night out", not food or transport.
 - Safe to spend this week and until payday, with the working shown and a day-by-day balance forecast.
 - What-if: "What if I cut dining out by 20%?", in chat and with sliders.
@@ -61,9 +61,9 @@ Core from the brief:
 Added by the team:
 
 - Consent switches (analyse, AI model, comparison, suggestions) and the customer's own choice of how often check-ins, suggestions, the quiz and challenges arrive.
-- Weekly quiz ("Guess how much you spent on X this week") with an awareness score over time.
+- Daily quiz: a personal round of six questions about your money and money skills, picked and worded by the AI, with the right answers computed and sourced.
 - A simulated S-Bank account at the top of the start page: current account balance and what is safe to spend until payday (savings only when there are some); tap it for the latest transactions and "Move money" (`GET /api/account`).
-- The start page is kept short (owner's criteria, 14 Nov: useful, clear what you can do, approachable). Under the question box are four example questions the way a customer would ask them ("What can I spend this week?", "What kind of spender am I?", "Can I afford it?", "How can I save more?") and one link, "Goals, receipts, contracts and more", to every topic. Below is last month in the three baskets, each with one line on what goes in it; tap a basket for its transactions. The monthly check-in, this week's quiz and "Worth a look" are closed rows of one list. An empty conversation shows the same examples; after each answer two follow-up questions are offered, chosen by the answer's card (none for Finnish questions).
+- The start page is kept short (owner's criteria, 14 Nov: useful, clear what you can do, approachable). Under the question box are four example questions the way a customer would ask them ("What can I spend this week?", "What kind of spender am I?", "Can I afford it?", "How can I save more?") and one link, "Goals, receipts, contracts and more", to every topic. Below is last month in the three baskets, each with one line on what goes in it; tap a basket for its transactions. The monthly check-in, the daily quiz and "Worth a look" are closed rows of one list. An empty conversation shows the same examples; after each answer follow-up questions are offered (the live model returned three, in Finnish too).
 - Notes: say "Remember that my rent goes up in January" (or "Muista, että ...") and the app keeps it in your own words. It shows under "Your things", the coach is given it with every question as information (never as instructions), and "Forget this" removes it (`state.add_note`, `GET /api/notes`, `POST /api/notes/remove`).
 - A coach that knows the customer: with the AI model on, every turn carries a short, checked picture of the customer (last month, usual month, biggest categories, balance and payday, saving opportunities, goal), so answers are personal and end with one concrete next step when the data gives one. Aggregates only, no ids, merchants or other people; the exact lines are shown under "What the AI saw". Without a model, answers add one sentence about the customer's own previous or usual month (`coach.customer_snapshot`, `coach._personal_note`).
 - Save and invest inside S-mobiili: the coach or a check-in suggestion offers a move to your own S-Bank savings account or an S-Bank fund; an approval card shows the amount, from, to and the balance after, and nothing moves until you tap "Approve". A move never takes money needed for bills before payday, and nothing can go outside S-mobiili (`app/money.py`).
@@ -74,7 +74,7 @@ Added by the team:
 - Finance-text explainer for pasted loan or fund text, and a mortgage readiness check (a check, not a credit decision).
 - Receipts from S Group stores as material: "What do I buy most?", "How much do I spend on energy drinks?", "Show my receipts", or paste the text of a receipt and have it read. The challenge data has payment amounts only, so the receipt lines are simulated from each grocery and fuel payment (they add up to the payment to the cent) and the answer says so. Groceries come from Prisma, S-market, Alepa and Sale, fuel from ABC stations. `python -m app.receipts` (also run at the end of `app.ingest`) writes the receipts of the six demo customers to `data/receipts/` as one JSON file and one CSV per customer, and the app reads them from there.
 - "Try as a random customer" login, for demonstrating on data nobody picked.
-- "Reset demo" in Settings: forgets every demo customer's choices, goals, conversations and kept answers and returns to the login screen. The AI key and model are kept.
+- "Reset demo" in Settings (local copy only; the public copy has no reset, each visitor gets a private copy of the persona and logging out and in starts fresh): forgets every demo customer's choices, goals, conversations and kept answers and returns to the login screen. The AI key and model are kept.
 
 ## How it is built
 
@@ -122,14 +122,14 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 761 tests in 49.1s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
+The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 
 - The data is synthetic.
 - Login is a demo picker, not bank authentication.
-- The Claude path was checked live on 13 Nov 2026 with Claude Haiku 5.5 on a handful of questions. The automated tests use a fake HTTP layer. Gemini has not been tried live.
-- The coach prompt was rewritten on 14 Nov (personal answers, the customer picture, medium effort, Opus 5.5 unless another model is chosen in Settings). That version has NOT been run against the live model yet: only the fake HTTP layer has seen it. Ask five questions with a key before a demo.
+- The Claude path was checked live on 14 Nov 2026 with Claude Opus 5.5, the default model, in an audit of about 230 live answers; every figure taken from a tool matched SQL. Live answers run from 2 to 11 sentences and take about 3 to 15 seconds. The automated tests use a fake HTTP layer. Gemini has not been tried live.
+- Cost: the default Opus 5.5 costs about $0.06 a turn at list price (Haiku 5.5 about $0.0015); see `submission/SLIDES.md`.
 - Receipt lines are simulated: the dataset has merchants and amounts, not basket contents. A real version would read the customer's S Group purchase data with consent.
 - The S-Pankki name and logo are used with S-Pankki's permission for this demo and pitch only.
 - Repeating charges and investment withdrawals are rare in the synthetic data, so subscription detection and the savings-leakage alert often have nothing to show.

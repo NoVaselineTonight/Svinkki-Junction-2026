@@ -156,8 +156,10 @@ def ratio_words(value, base):
         r = float(value) / float(base)
     except (TypeError, ValueError, ZeroDivisionError):
         return "above"
-    if r < 2.0:
+    if r < 1.75:
         return "%d%% above" % round((r - 1) * 100)
+    if r < 2.0:
+        return "almost double"
     if r < 2.15:
         return "about double"
     if r < 3.0:
@@ -874,7 +876,7 @@ def _expected_events(conn, t, where, months, win_end):
     return events
 
 
-def safe_to_spend(conn, today, monthly_saving_target=0):
+def safe_to_spend(conn, today, monthly_saving_target=0, _late=None):
     t = _d(today)
     balance = _balance(conn)
     pay = _usual_payday(conn, t)
@@ -884,8 +886,8 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
         days_left = 30
     else:
         nxt = _next_payday(t, pay, conn)
-        win_end = nxt
-        days_left = max(1, (nxt - t).days)
+        win_end = _late or nxt
+        days_left = max(1, (win_end - t).days)
     m3 = _month_list(conn, t, 3)
     bills = []
     for lab, typ in (("Housing", "housing_payment"), ("Utilities", "utilities_payment")):
@@ -909,7 +911,7 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
 
     safe_total = balance - bills_total - buffer - planned
     per_day = safe_total / days_left
-    per_week = per_day * 7
+    per_week = per_day * min(7, days_left)
     if safe_total < 0:
         status = "over"
     elif per_day < 10:
@@ -944,7 +946,17 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
                    _eur(balance), _eur(bills_total),
                    " on %s" % human_range(nxt, None, today) if nxt else " (no payday seen, assuming 30 days)",
                    _eur0(buffer), plan_part, result_part, days_left))
+    late_case = None
+    late_day = _payday_latest(nxt, pay) if (nxt is not None and not _late) else None
+    if late_day is not None:
+        lc = safe_to_spend(conn, today, monthly_saving_target, _late=late_day)
+        late_when = human_range(late_day, None, today)
+        late_case = {"until": late_when, "days": lc["days_left"], "safe_total": lc["safe_total"],
+                     "per_day": lc["per_day"], "bills_total": lc["bills_total"],
+                     "note": "If payday comes late (as late as %s), these figures use that date: more days and the "
+                             "bills due by then." % late_when}
     return {
+        "late_case": late_case,
         "balance": _r(balance), "next_payday": nxt.isoformat() if nxt else None, "days_left": days_left,
         "upcoming_bills": bills, "bills_total": _r(bills_total), "unexpected_buffer": _r(buffer),
         "planned_savings": _r(planned), "safe_total": _r(safe_total), "per_day": _r(per_day),
@@ -1160,6 +1172,10 @@ def save_more(conn, today):
     top = [(k, v) for k, v in sorted(lab_every.items(), key=lambda kv: -kv[1])
            if k not in ("Housing", "Utilities", "Groceries", "Night out", "Restaurant", "Fast food", "Other",
                         "Transfer out", "Doctor", "Dentist", "Pharmacy", "Other health", "Public transport")]
+    # a habit needs repeats: a label with fewer than 4 payments in the window is one-off bookings, not a monthly cost
+    top = [(k, v) for k, v in top if (conn.execute(
+        "SELECT COUNT(*) FROM tx WHERE basket='everyday' AND amount<0 AND d>=? AND d<=? AND %s=?" % _DISP_SQL,
+        (frm, to, k)).fetchone()[0] or 0) >= 4]
     if top and top[0][1] >= 20:
         k, v = top[0]
         s = v * 0.15
@@ -1492,6 +1508,11 @@ def _checkin_period(today, frequency):
     return a, b, "last month"
 
 
+def _in_word(word):
+    """'last month' stays as is; 'August' or 'the last two weeks' take 'in'."""
+    return word if str(word).startswith("last ") else "in " + str(word)
+
+
 def _surplus_when(frequency, frm, to, today=None):
     if frequency == "monthly":
         return "in %s" % human_month(str(frm)[:7], today)
@@ -1555,8 +1576,9 @@ def checkin(conn, today, frequency="monthly"):
             tail = ", leaving %s" % _eur0(f["surplus"]) if f["surplus"] > 0.005 else ", leaving nothing"
         else:
             tail = ", which is %s more than came in" % _eur0(f["surplus"])
-        headline = ("Your %s check-in (%s): you earned %s and spent %s%s." % (
-            adj, _when(frm, to, today), _eur0(f["income"]), _eur0(f["spent"]), tail))
+        saved_part = (" and put %s into savings" % _eur0(f["saved"])) if f.get("saved", 0) > 0.5 else ""
+        headline = ("Your %s check-in (%s): you earned %s and spent %s%s%s." % (
+            adj, _when(frm, to, today), _eur0(f["income"]), _eur0(f["spent"]), saved_part, tail))
     if not _scalar(conn, "SELECT COUNT(*) FROM tx WHERE d>=? AND d<=?", (frm, to), default=0):
         headline = "Your %s check-in (%s): there were no transactions in this period." % (
             adj, _when(frm, to, today))
@@ -1571,14 +1593,14 @@ def checkin(conn, today, frequency="monthly"):
                                 "to look at what drove it?" % (low[1], "" if low[1] == 1 else "s", _eur(low[0]))),
                      "amount": _r(abs(low[0])), "action_label": "Show me"})
     # save surplus
-    if f["surplus"] >= 20:
+    if f["surplus"] >= 20 and frequency == "monthly":
         amt = float(round(f["surplus"]))
         sugg.append({"id": "save_surplus:%s" % frm, "kind": "save_surplus",
                      "title": "You had a %s surplus %s. Would you like to set it aside?" % (
                          _eur0(amt), _surplus_when(frequency, frm, to, today)),
-                     "detail": ("You had %s left over after spending and saving in %s. You could set it aside "
+                     "detail": ("You had %s left over after spending and saving %s. You could set it aside "
                                 "as a buffer or put it toward investing: your choice. This only records your "
-                                "intention; nothing moves automatically." % (_eur0(amt), word)),
+                                "intention; nothing moves automatically." % (_eur0(amt), _in_word(word))),
                      "amount": _r(amt), "action_label": "Set aside %s" % _eur0(amt)})
     # trim category
     ms = _month_list(conn, t, 6)
@@ -1597,9 +1619,9 @@ def checkin(conn, today, frequency="monthly"):
         if best:
             sugg.append({"id": "trim_category:%s:%s" % (best[0], frm), "kind": "trim_category",
                          "title": "Aim for your usual %s level?" % best[0].lower(),
-                         "detail": ("%s came to %s in %s, about %s more than you usually spend. Would you "
+                         "detail": ("%s came to %s %s, about %s more than you usually spend. Would you "
                                     "like to aim for your usual level next time?" % (
-                                        best[0], _eur0(best[2]), word, _eur0(best[1]))),
+                                        best[0], _eur0(best[2]), _in_word(word), _eur0(best[1]))),
                          "amount": _r(best[1]), "action_label": "Aim for %s" % _eur0(best[3])})
     # buffer
     bal, essentials, bmonths = _buffer_info(conn, t)

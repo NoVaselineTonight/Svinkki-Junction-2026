@@ -35,14 +35,17 @@ class _Base(unittest.TestCase):
 def _hooked():
     """True once app/coach.py uses app/voice.py (the hookup lands in its own pull request)."""
     import app.coach as coach
-    return "Your voice: a warm, human coach" in coach.SYSTEM_PROMPT
+    import app.voice as voice
+    return voice.VOICE in coach.SYSTEM_PROMPT
 
 
 class VoiceTests(_Base):
     def test_the_voice_asks_for_a_warm_concrete_coach(self):
         p = self.voice.VOICE
-        for bit in ("Your voice: a warm, human coach", "Meet them first", "Make every suggestion tangible",
-                    "€10 a month is €120 in a year and €240 in two", "Start small", "One step with a moment",
+        # The character replaced the old first line, and the euro example was dropped on purpose: the model copied
+        # it verbatim (reports/C3 D3); examples now carry no euro digits.
+        for bit in ("Who you are: Svinkki", "Meet them first", "Make a suggestion tangible, once",
+                    "Start small", "One step with a moment",
                     "Leave the choice with them", "Takuusäätiö", "never work them out in your head",
                     "docs/MONEY_PSYCHOLOGY.md"):
             self.assertIn(bit, p)

@@ -181,30 +181,39 @@ def money_story(conn, today, months=12):
     now = bal[-1][1] if bal else 0.0
     year_ago = _balance_on(bal, ref) if first_day and first_day <= ref else None
     inwin = [(d, b) for d, b in bal if d >= frm] or bal
-    hi = min((x for x in inwin if x[1] == max(b for _, b in inwin)), key=lambda x: x[0])
-    lo = min((x for x in inwin if x[1] == min(b for _, b in inwin)), key=lambda x: x[0])
+    hi_b = max(b for _, b in inwin)
+    lo_b = min(b for _, b in inwin)
+    hi = min((x for x in inwin if x[1] == hi_b), key=lambda x: x[0])
+    lo = min((x for x in inwin if x[1] == lo_b), key=lambda x: x[0])
     at_low = sum(1 for _, b in inwin if b <= lo[1] + 0.5) if lo[1] < 0 else 0
     res["balance"] = {
         "now": _r(now), "year_ago": None if year_ago is None else _r(year_ago),
         "change": None if year_ago is None else _r(now - year_ago),
         "highest": {"amount": _r(hi[1]), "d": hi[0]}, "lowest": {"amount": _r(lo[1]), "d": lo[0]},
+        "basis": "end-of-day balances: the highest and lowest are the closing balance of a day",
         "times_at_lowest": at_low}
 
     # per-month figures, this window against the one before
     avg_now, avg_bef = _avgs(lm, win), _avgs(lm, before)
     inc_now = sum(mo.get(m, {}).get("income", 0.0) for m in win) / len(win)
-    spent_now = sum(avg_now.values())
+    spent_now = sum(mo.get(m, {}).get("spent", 0.0) for m in win) / len(win)
     res["per_month"] = {"spent": _r(spent_now), "income": _r(inc_now)}
     if before:
-        res["per_month"]["spent_before"] = _r(sum(avg_bef.values()))
+        res["per_month"]["spent_before"] = _r(sum(mo.get(m, {}).get("spent", 0.0) for m in before) / len(before))
         res["per_month"]["income_before"] = _r(sum(mo.get(m, {}).get("income", 0.0) for m in before) / len(before))
     more_out = [m for m in win if mo.get(m, {}).get("spent", 0.0) + mo.get(m, {}).get("saved", 0.0)
                 > mo.get(m, {}).get("income", 0.0)]
     res["months_more_out"] = len(more_out)
-    kept = {"this_window": _r(sum(mo.get(m, {}).get("income", 0.0) - mo.get(m, {}).get("spent", 0.0) for m in win))}
+    def _kept(ms):
+        return sum(mo.get(m, {}).get("income", 0.0) - mo.get(m, {}).get("spent", 0.0) for m in ms)
+    kept = {"this_window": _r(_kept(win)), "months_this_window": len(win), "per_month_this_window": _r(_kept(win) / len(win))}
     if before:
-        kept["window_before"] = _r(sum(mo.get(m, {}).get("income", 0.0) - mo.get(m, {}).get("spent", 0.0)
-                                       for m in before))
+        kept["months_window_before"] = len(before)
+        kept["per_month_window_before"] = _r(_kept(before) / len(before))
+        if len(before) == len(win):
+            kept["window_before"] = _r(_kept(before))
+        kept["note"] = ("Compare the per-month figures: the earlier window holds %d months, this one %d."
+                        % (len(before), len(win)))
     res["kept"] = kept
     res["saved_in_window"] = _r(sum(mo.get(m, {}).get("saved", 0.0) for m in win))
 
@@ -280,6 +289,9 @@ def money_story(conn, today, months=12):
     if len(hl) < 5 and fallers and not (len(hl) > 2 and "fell" in hl[2]):
         f0 = fallers[0]
         hl.append("%s went down, to about %s a month from %s." % (ins.label_title(f0["label"]), _e(f0["now"]), _e(f0["before"])))
+    if res["saved_in_window"] >= 1:
+        hl.insert(1, "Of the money kept over these %d months, %s went into savings and investments." % (
+            n, _e(res["saved_in_window"])))
     explain = ("Balance from the account rows (end of day); the last %d full months against the %s before them. "
                "Fixed bills use the median of the months they appear in." % (n, "months" if before else "(no earlier months)"))
     return _finish(res, hl[:5], explain, _spend_evidence(frm, to, "last %d months" % n))
@@ -320,10 +332,24 @@ def season_outlook(conn, today, months_ahead=5):
     # which label is highest in these months compared with the rest of that year
     rest = [m for m in (_shift_ym(last[0], i) for i in range(12)) if m in full and m not in last]
     season_vs_rest, best = None, 0.0
-    if len(rest) >= 2:
+    # a season only counts when the same months also stood out the year before (else it is a one-year trend)
+    rest_b = [_shift_ym(m, -12) for m in rest]
+    two_years = all(m in full for m in before) and len([m for m in rest_b if m in full]) >= 2
+    rest_b = [m for m in rest_b if m in full]
+    if len(rest) >= 2 and two_years:
         for lab, pm in lm.items():
             s_avg = _label_avg(lab, pm, last)
             r_avg = _label_avg(lab, pm, rest)
+            sb_avg = _label_avg(lab, pm, before)
+            rb_avg = _label_avg(lab, pm, rest_b)
+            if not (rb_avg > 0 and sb_avg - rb_avg >= 10 and sb_avg / rb_avg > 1.2):
+                continue
+            # a cost that simply stopped part-way (paid in three of five months) is not a season either: it must
+            # have been paid in nearly every one of these months, in both years
+            need = max(1, len(last) - 1)
+            if (sum(1 for m in last if pm.get(m, (0.0, 0))[0] > 0) < need
+                    or sum(1 for m in before if pm.get(m, (0.0, 0))[0] > 0) < need):
+                continue
             if r_avg > 0 and s_avg - r_avg >= 20 and s_avg / r_avg > 1.3 and s_avg - r_avg > best:
                 best = s_avg - r_avg
                 season_vs_rest = {"label": lab, "season_monthly": _r(s_avg), "rest_monthly": _r(r_avg)}
@@ -340,8 +366,8 @@ def season_outlook(conn, today, months_ahead=5):
     hl = []
     sv = " and put %s aside" % _e(ly["saved"]) if ly["saved"] >= 1 else ""
     if ly["gap"] > 0:
-        s = "Last %s you spent %s%s against %s of income: %s more than came in" % (
-            span, _e(ly["spent"]), sv, _e(ly["income"]), _e(ly["gap"]))
+        s = "Last %s you spent %s%s,%s %s more than the %s of income that came in" % (
+            span, _e(ly["spent"]), sv, " together" if sv else "", _e(ly["gap"]), _e(ly["income"]))
         s += ", and groceries alone came to %s." % _e(ly["groceries"]) if ly["groceries"] >= 100 else "."
     else:
         s = "Last %s you spent %s%s against %s of income, so you kept %s." % (
@@ -364,7 +390,7 @@ def season_outlook(conn, today, months_ahead=5):
     if res["lowest_seen"] < 0:
         hl.append("The lowest your account has been is %s." % _bal(res["lowest_seen"]))
     if season_vs_rest:
-        hl.append("In these months %s run at about %s a month, against %s the rest of the year." % (
+        hl.append("In these months your %s spending runs at about %s a month, against %s the rest of the year." % (
             ins.label_words(season_vs_rest["label"]), _e(season_vs_rest["season_monthly"]),
             _e(season_vs_rest["rest_monthly"])))
     explain = ("The same calendar months a year earlier (and two years earlier when there is data), with today's "

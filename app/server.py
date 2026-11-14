@@ -5,6 +5,7 @@ Python standard library only.
 """
 import argparse
 import datetime
+import gzip
 import hashlib
 import hmac
 import http.server
@@ -33,6 +34,8 @@ MAX_MESSAGE = 2000
 SESSION_IDLE_SECONDS = 2 * 60 * 60
 HISTORY_TURNS = 20
 RATE_CHAT = 60
+TRUST_FORWARDED_FOR = False   # public host: anonymous rate buckets are per client behind the proxy
+PER_VISITOR_STATE = False   # public host: every login gets a private copy of the persona (deploy/serve.py)
 RATE_OTHER = 300
 RATE_WINDOW = 60.0
 SUGGESTION_LIMITS = {"off": 0, "few": 1, "normal": 3}
@@ -50,6 +53,8 @@ def csp():
     """frame-ancestors is an allow-list (SVINKKI_FRAME_ANCESTORS; default: this app and the local
     S-mobiili host demo), so only the host app can embed Svinkki."""
     return CSP_BASE + embed.frame_ancestors()
+
+_GZ_CACHE = {}
 
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -72,8 +77,8 @@ CONTENT_TYPES = {
 
 NO_MONEY_MESSAGES = {
     "accept": "Noted. I saved your choice.",
-    "dismiss": "Okay, I will not suggest this again. No money was moved.",
-    "snooze": "Okay, I will remind you later. No money was moved.",
+    "dismiss": "Okay, I won't suggest this again. No money was moved.",
+    "snooze": "Okay, I'll remind you later. No money was moved.",
 }
 
 # Endpoints that work without analysis consent (everything else is a data endpoint).
@@ -115,9 +120,11 @@ class Sessions:
         sid = secrets.token_urlsafe(32)
         now = time.time()
         with self._lock:
-            self._purge(now)
+            gone = self._purge(now)
             self._s[sid] = {"cid": cid, "name": name, "last": now, "history": [],
+                            "skey": cid if not PER_VISITOR_STATE else cid + "~" + secrets.token_urlsafe(9),
                             "ai_payload": None, "memory": {}, "hits": {"chat": deque(), "other": deque()}}
+        _erase_private(gone)
         return sid
 
     def get(self, sid):
@@ -130,13 +137,17 @@ class Sessions:
                 return None
             if now - s["last"] > SESSION_IDLE_SECONDS:
                 del self._s[sid]
-                return None
-            s["last"] = now
-            return s
+                gone = [s]
+            else:
+                s["last"] = now
+                return s
+        _erase_private(gone)
+        return None
 
     def delete(self, sid):
         with self._lock:
-            self._s.pop(sid, None)
+            s = self._s.pop(sid, None)
+        _erase_private([s] if s else [])
 
     def clear(self):
         """Drop every session (the demo reset)."""
@@ -144,8 +155,20 @@ class Sessions:
             self._s.clear()
 
     def _purge(self, now):
+        gone = []
         for k in [k for k, v in self._s.items() if now - v["last"] > SESSION_IDLE_SECONDS]:
-            del self._s[k]
+            gone.append(self._s.pop(k))
+        return gone
+
+
+def _erase_private(sessions):
+    """Forget the private state copy of ended sessions (only when the key is not the plain customer id)."""
+    for s in sessions:
+        if s.get("skey") and s["skey"] != s["cid"]:
+            try:
+                state.erase(s["skey"])
+            except Exception:
+                pass
 
 
 class RateLimiter:
@@ -449,8 +472,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._sid = sid if session else None
 
         # rate limit (per session; per client address for anonymous calls)
-        hits = session["hits"] if session else srv.limiter.anon_hits(self.client_address[0])
-        bucket = "chat" if path in ("/api/chat", "/api/explain", "/api/demo/ai/test") else "other"
+        hits = session["hits"] if session else srv.limiter.anon_hits(self._anon_key())
+        bucket = "chat" if (path in ("/api/chat", "/api/explain", "/api/demo/ai/test")
+                            or (path == "/api/quiz/round" and "new" in urllib.parse.parse_qs(query))) else "other"
         if not srv.limiter.allow(hits, bucket):
             self._drain_body()   # so the client sees our reply instead of a reset connection
             raise ApiError(429, "rate_limited")
@@ -468,15 +492,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
         try:
             if session is not None and path not in NO_CONSENT_PATHS:
                 req.cid = session["cid"]
-                req.consent = state.get_consent(req.cid)
+                req.skey = session["skey"]
+                req.consent = state.get_consent(req.skey)
                 if not req.consent.get("analysis"):
                     raise ApiError(403, "consent_required")
-                req.settings = state.get_settings(req.cid)
+                req.settings = state.get_settings(req.skey)
                 req.today = config.today()
-                req.conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid),
-                                      state.list_moves(req.cid))  # SR-2
+                req.conn = db.sandbox(req.cid, req.today, state.list_overrides(req.skey),
+                                      state.list_moves(req.skey))  # SR-2
             elif session is not None:
                 req.cid = session["cid"]
+                req.skey = session["skey"]
             result = fn(req)
         except ValueError:
             raise ApiError(400, "invalid_request")
@@ -528,6 +554,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         ctype = CONTENT_TYPES.get(ext) or mimetypes.types_map.get(ext) or "application/octet-stream"
         with open(full, "rb") as f:
             data = f.read()
+        st = os.stat(full)
+        etag = '"%x-%x"' % (st.st_mtime_ns, st.st_size)
+        self._extra_headers.append(("ETag", etag))
+        if self.headers.get("If-None-Match") == etag:
+            return self._send_bytes(304, ctype, b"")
+        if ext in (".js", ".css", ".html", ".svg", ".json") and "gzip" in (self.headers.get("Accept-Encoding") or "").lower():
+            key = (full, st.st_mtime_ns, st.st_size)
+            gz = _GZ_CACHE.get(key)
+            if gz is None:
+                if len(_GZ_CACHE) > 64:
+                    _GZ_CACHE.clear()
+                gz = _GZ_CACHE[key] = gzip.compress(data, 6)   # once per file version, not per request
+            self._extra_headers += [("Content-Encoding", "gzip"), ("Vary", "Accept-Encoding")]
+            data = gz
         self._send_bytes(200, ctype, data)
 
     # helpers used by endpoint functions
@@ -551,6 +591,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self._secure_context():
             self._extra_headers.append(("Set-Cookie", "%s=%s; HttpOnly; SameSite=None; Secure; Partitioned; "
                                         "Path=/" % (XCOOKIE, sid)))
+
+    def _anon_key(self):
+        """Who an anonymous call counts against: the peer address, or on a public host (behind its proxy)
+        the first hop of X-Forwarded-For."""
+        if TRUST_FORWARDED_FOR:
+            first = (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+            if first and len(first) <= 64:
+                return first
+        return self.client_address[0]
 
     def clear_cookie(self):
         self._extra_headers.append(("Set-Cookie", "%s=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" % COOKIE))
@@ -670,8 +719,9 @@ def ep_me(req):
         age_band = None
     return {"name": req.session["name"], "age_band": age_band, "today": config.today(),
             "is_random": str(req.session["name"]).startswith("Customer "),
-            "consent": state.get_consent(cid), "settings": state.get_settings(cid),
-            "ai_available": bool(config.ai_provider())}
+            "consent": state.get_consent(req.session["skey"]), "settings": state.get_settings(req.session["skey"]),
+            "ai_available": bool(config.ai_provider()),
+            "demo": {"reset": "/api/demo/reset" in ROUTES, "ai_setup": _is_local(req.handler)}}
 
 
 # -- demo setup of the AI model -------------------------------------------------------------
@@ -752,7 +802,7 @@ def ep_ai_test(req):
 
 def ep_consent(req):
     try:
-        consent = state.set_consent(req.session["cid"], req.body)
+        consent = state.set_consent(req.session["skey"], req.body)
     except ValueError:
         raise ApiError(400, "invalid_consent")
     return {"consent": consent}
@@ -760,7 +810,7 @@ def ep_consent(req):
 
 def ep_settings(req):
     try:
-        settings = state.set_settings(req.session["cid"], req.body)
+        settings = state.set_settings(req.session["skey"], req.body)
     except ValueError:
         raise ApiError(400, "invalid_settings")
     return {"settings": settings}
@@ -838,7 +888,7 @@ def ep_quiz(req):
         raise ApiError(404, "quiz_off")
     ins = _insights()
     if req.query.get("another") in ("1", "true", "yes"):
-        history = state.quiz_history(req.cid)
+        history = state.quiz_history(req.skey)
         last = history[-1].get("label") if history else None
         result = ins.quiz(req.conn, req.today, seed=1)
         for seed in range(2, 14):
@@ -847,7 +897,7 @@ def ep_quiz(req):
             result = ins.quiz(req.conn, req.today, seed=seed)
     else:
         result = ins.quiz(req.conn, req.today)
-    state.save_quiz(req.cid, str(result["quiz_id"]), result)
+    state.save_quiz(req.skey, str(result["quiz_id"]), result)
     return result
 
 
@@ -856,14 +906,14 @@ def ep_quiz_answer(req):
     if not isinstance(quiz_id, str) or not quiz_id or len(quiz_id) > 200:
         raise ApiError(400, "invalid_quiz_id")
     guess = _num(req.body.get("guess"), "guess", 0, 1e9)
-    if state.load_quiz(req.cid, quiz_id) is None:
+    if state.load_quiz(req.skey, quiz_id) is None:
         raise ApiError(404, "unknown_quiz")
     try:
         res = _insights().quiz_answer(req.conn, req.today, quiz_id, guess)   # no unasked comparison
     except ValueError:
         raise ApiError(400, "invalid_quiz_id")
     try:
-        state.add_quiz_result(req.cid, {
+        state.add_quiz_result(req.skey, {
             "at": datetime.datetime.now().replace(microsecond=0).isoformat(),
             "label": str(res.get("label_or_context") or "")[:80],
             "guess": guess, "actual": res.get("actual", 0)})
@@ -886,19 +936,19 @@ def ep_quiz_round(req):
         raise ApiError(404, "quiz_off")
     from . import quiz
     today = str(req.today)
-    ptr = state.load_quiz(req.cid, "round:latest") or {}
+    ptr = state.load_quiz(req.skey, "round:latest") or {}
     same_day = ptr.get("date") == today
     if same_day and ptr.get("id") and req.query.get("new") not in ("1", "true", "yes"):
-        rnd = state.load_quiz(req.cid, ptr["id"])
+        rnd = state.load_quiz(req.skey, ptr["id"])
         if isinstance(rnd, dict) and rnd.get("questions"):
             return quiz.public(rnd)
     k = int(ptr.get("k") or 0) + 1 if same_day else 1
     recent = [str(x) for x in (ptr.get("recent") or [])][-quiz.RECENT_KEEP:]
     rnd, payload = quiz.build(req.conn, req.today, req.cid, db.profile(req.cid), k=k, recent=recent,
                               ai=_quiz_ai(req))
-    state.save_quiz(req.cid, rnd["id"], rnd)
+    state.save_quiz(req.skey, rnd["id"], rnd)
     recent = (recent + [q["id"] for q in rnd["questions"]])[-quiz.RECENT_KEEP:]
-    state.save_quiz(req.cid, "round:latest", {"id": rnd["id"], "date": today, "k": k, "recent": recent})
+    state.save_quiz(req.skey, "round:latest", {"id": rnd["id"], "date": today, "k": k, "recent": recent})
     if payload:
         req.session["ai_payload"] = payload
     return quiz.public(rnd)
@@ -912,7 +962,7 @@ def ep_quiz_round_answer(req):
             raise ApiError(400, "invalid_" + name)
     if rid == "round:latest":
         raise ApiError(404, "unknown_quiz")
-    rnd = state.load_quiz(req.cid, rid)
+    rnd = state.load_quiz(req.skey, rid)
     if not isinstance(rnd, dict) or not rnd.get("questions"):
         raise ApiError(404, "unknown_quiz")
     first = qid not in (rnd.get("answers") or {})
@@ -922,11 +972,11 @@ def ep_quiz_round_answer(req):
         raise ApiError(404, "unknown_question")
     except ValueError:
         raise ApiError(400, "invalid_answer")
-    state.save_quiz(req.cid, rid, rnd)
+    state.save_quiz(req.skey, rid, rnd)
     q = next(x for x in rnd["questions"] if x["id"] == qid)
     if first and q["kind"] == "guess" and q.get("unit") == "eur":
         try:      # spending guesses feed the awareness score, as the single question did
-            state.add_quiz_result(req.cid, {"at": datetime.datetime.now().replace(microsecond=0).isoformat(),
+            state.add_quiz_result(req.skey, {"at": datetime.datetime.now().replace(microsecond=0).isoformat(),
                                             "label": str(q.get("label") or q["topic"])[:80],
                                             "guess": res.get("guess", 0), "actual": res.get("actual", 0)})
         except ValueError:
@@ -944,7 +994,7 @@ def ep_checkin(req):
     if not req.consent.get("suggestions") or limit == 0:
         suggestions = []
     else:
-        done = state.get_intents(req.cid)
+        done = state.get_intents(req.skey)
         suggestions = [s for s in suggestions
                        if done.get(s.get("id")) not in ("accept", "dismiss")][:limit]
     checkin["suggestions"] = _money_suggestions(req, suggestions)
@@ -972,7 +1022,7 @@ def _money_suggestions(req, suggestions):
             s.update({"amount": amt, "dest": "savings",
                       "title": "Move %s to your S-Bank savings account?" % _money_text(amt),
                       "detail": ("%s. You can move up to %s now without touching money needed for bills before "
-                                 "payday. I will show you the move and ask you to approve it first; the money "
+                                 "payday. I'll show you the move and ask you to approve it first; the money "
                                  "stays in S-mobiili." % (first, _money_text(int(cap)))),
                       "action_label": "Move %s to %s" % (_money_text(amt), word)})
         out.append(s)
@@ -995,13 +1045,13 @@ def ep_suggestion_action(req):
         if sug is None:
             return {"ok": False, "message": "This suggestion is no longer available."}
         try:
-            prop = money.propose(req.conn, req.today, req.cid, "savings", sug["amount"],
+            prop = money.propose(req.conn, req.today, req.skey, "savings", sug["amount"],
                                  sug.get("title", ""), "checkin:" + sid)
         except money.MoneyError as e:
             return {"ok": False, "message": str(e)}
         return {"ok": True, "proposal": prop,
                 "message": "Here is the move. Nothing happens until you approve it."}
-    state.record_intent(req.cid, sid, action)
+    state.record_intent(req.skey, sid, action)
     return {"ok": True, "message": NO_MONEY_MESSAGES[action]}
 
 
@@ -1017,7 +1067,7 @@ def ep_account(req):
     row = req.conn.execute("SELECT COALESCE(-SUM(CASE WHEN type='investment_deposit' THEN amount END), 0), "
                            "COALESCE(SUM(CASE WHEN type='investment_withdrawal' THEN amount END), 0) FROM tx").fetchone()
     saved_total = max(0.0, float(row[0] or 0) - float(row[1] or 0))
-    held = money.holdings(req.cid)
+    held = money.holdings(req.skey)
     in_app = sum(h["amount"] for h in held)
     digits = int(hashlib.sha256(("acct:" + req.cid).encode()).hexdigest()[:8], 16) % 10000
     parts = [{"name": h["name"], "amount": h["amount"], "kind": h["kind"]} for h in held]
@@ -1037,7 +1087,7 @@ def ep_account(req):
 
 def ep_money(req):
     cap, s = money.available(req.conn, req.today)
-    return {"holdings": money.holdings(req.cid), "destinations": money.destinations(),
+    return {"holdings": money.holdings(req.skey), "destinations": money.destinations(),
             "available": round(cap, 2), "balance": s.get("balance"), "next_payday": s.get("next_payday")}
 
 
@@ -1052,7 +1102,7 @@ def ep_money_propose(req):
     reason = b.get("reason")
     reason = reason[:200] if isinstance(reason, str) else ""
     try:
-        prop = money.propose(req.conn, req.today, req.cid, dest, amount, reason, "app")
+        prop = money.propose(req.conn, req.today, req.skey, dest, amount, reason, "app")
     except money.MoneyError as e:
         return {"ok": False, "message": str(e)}
     return {"ok": True, "proposal": prop}
@@ -1064,14 +1114,14 @@ def ep_money_confirm(req):
     pid, approve = b.get("proposal_id"), b.get("approve")
     if not isinstance(pid, str) or not isinstance(approve, bool):
         raise ApiError(400, "invalid_request")
-    got = state.get_proposal(req.cid, pid) if 0 < len(pid) <= 64 else None
+    got = state.get_proposal(req.skey, pid) if 0 < len(pid) <= 64 else None
     try:
-        res = money.confirm(req.conn, req.today, req.cid, pid, approve, b.get("amount"), b.get("dest"))
+        res = money.confirm(req.conn, req.today, req.skey, pid, approve, b.get("amount"), b.get("dest"))
     except money.MoneyError as e:
         return {"ok": False, "moved": False, "message": str(e)}
     src = str(((got or {}).get("data") or {}).get("source") or "")
     if res.get("moved") and src.startswith("checkin:"):
-        state.record_intent(req.cid, src[len("checkin:"):], "accept")
+        state.record_intent(req.skey, src[len("checkin:"):], "accept")
     return res
 
 
@@ -1164,7 +1214,7 @@ def _apply_override(req, conn, tx_id, label, context, apply_to_merchant):
     rec = {"scope": "merchant" if apply_to_merchant else "tx", "tx_id": tx_id,
            "merchant": merchant, "label": label, "context": context}
     try:
-        ov = state.add_override(req.cid, rec)
+        ov = state.add_override(req.skey, rec)
     except ValueError as e:
         if "too many" in str(e):
             raise ApiError(400, "too_many_overrides")
@@ -1216,7 +1266,7 @@ def ep_chat(req):
     changed = {"v": False}
     # the conversation lives in the state store: an unknown or foreign id starts a new one
     conv_id = req.body.get("conversation_id")
-    history = state.conversation_history(req.cid, conv_id) if isinstance(conv_id, str) else None
+    history = state.conversation_history(req.skey, conv_id) if isinstance(conv_id, str) else None
     if history is None:
         conv_id, history = None, []
     mems = session.setdefault("conv_memory", {})
@@ -1238,32 +1288,32 @@ def ep_chat(req):
 
     def propose_money(dest, amount, reason=""):
         """The coach can only create a proposal; the customer approves it in the app (POST /api/money/confirm)."""
-        return money.propose(req.conn, req.today, req.cid, dest, amount, reason, "chat")
+        return money.propose(req.conn, req.today, req.skey, dest, amount, reason, "chat")
 
     def save_goal(name, target, deadline=None, monthly_needed=None):
         """'Yes, save it' after a goal plan in the chat: the same validation as POST /api/goal."""
-        return state.set_goal(req.cid, {"name": name, "target": target, "saved": 0, "deadline": deadline,
+        return state.set_goal(req.skey, {"name": name, "target": target, "saved": 0, "deadline": deadline,
                                         "monthly_needed": monthly_needed})
 
     def save_note(text):
         """'Remember that ...' in the chat: kept in the customer's own words, shown under Your things."""
-        return state.add_note(req.cid, text)
+        return state.add_note(req.skey, text)
 
     ctx = SimpleNamespace(cid=req.cid,   # only the seed of the simulated receipts; no tool returns it
                           conn=req.conn, today=req.today, profile=db.profile(req.cid),
                           consent=dict(req.consent), settings=dict(req.settings),
-                          bench_lookup=db.bench, goal=state.get_goal(req.cid),
-                          quiz_history=state.quiz_history(req.cid),
-                          challenge=state.get_challenge(req.cid),
+                          bench_lookup=db.bench, goal=state.get_goal(req.skey),
+                          quiz_history=state.quiz_history(req.skey),
+                          challenge=state.get_challenge(req.skey),
                           area_lookup=area_lookup, remember=remember,
                           explain=explain, save_goal=save_goal, memory=memory,
-                          propose_money=propose_money, holdings=money.holdings(req.cid),
-                          save_note=save_note, notes=[n["text"] for n in state.list_notes(req.cid)])
+                          propose_money=propose_money, holdings=money.holdings(req.skey),
+                          save_note=save_note, notes=[n["text"] for n in state.list_notes(req.skey)])
     result = coach.chat(msg, history, ctx)
     session["ai_payload"] = result.pop("ai_payload", None)
     conn = req.conn
     if changed["v"]:   # a remembered category changes what the answer's rows look like
-        conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid), state.list_moves(req.cid))
+        conn = db.sandbox(req.cid, req.today, state.list_overrides(req.skey), state.list_moves(req.skey))
     try:
         result["used"] = _used_groups(conn, req.today, result.get("evidence"))
     finally:
@@ -1274,7 +1324,7 @@ def ep_chat(req):
     turn = {"user": msg, "reply": str(result.get("reply", "")), "cards": result.get("cards") or [],
             "used": result.get("used") or [], "mode": result.get("mode"), "notice": result.get("notice"),
             "h": shown}
-    new_id = state.add_turn(req.cid, conv_id, turn, shown)
+    new_id = state.add_turn(req.skey, conv_id, turn, shown)
     if new_id not in mems:   # a new conversation takes over the memory built during this turn
         mems[new_id] = memory
         while len(mems) > state.MAX_CONVERSATIONS:
@@ -1296,12 +1346,15 @@ def _by_month(deadline):
 
 
 def ep_home(req):
-    cid = req.cid
+    cid = req.skey
     things = []
     goal = state.get_goal(cid)
     if goal:
+        # money approved into the S-Bank savings account counts toward the goal
+        in_savings = sum(hd["amount"] for hd in money.holdings(cid) if hd["kind"] == "savings")
         things.append({"id": "goal", "kind": "goal", "title": goal["name"],
-                       "summary": "%s of %s saved%s" % (_money_text(goal["saved"]), _money_text(goal["target"]),
+                       "summary": "%s of %s saved%s" % (_money_text(max(goal["saved"], in_savings)),
+                                                        _money_text(goal["target"]),
                                                         _by_month(goal.get("deadline"))),
                        "updated": state.iso_time(state.goal_updated(cid))})
     stored = state.get_challenge(cid)
@@ -1333,7 +1386,7 @@ def ep_home(req):
                        "summary": "You asked me to remember this", "updated": n["created"]})
     for p in state.list_pins(cid):
         things.append({"id": p["id"], "kind": "pin", "title": p["title"],
-                       "summary": "Kept " + state.human_date(p["created_ts"]),
+                       "summary": "Saved " + state.human_date(p["created_ts"]),
                        "card_type": p["card_type"], "updated": p["created"]})
     return {"name": req.session.get("name", ""), "things": things,
             "conversations": state.list_conversations(cid)}
@@ -1346,14 +1399,14 @@ def _money_text(v):
 
 
 def ep_conversation(req):
-    conv = state.get_conversation(req.cid, req.query.get("id"))
+    conv = state.get_conversation(req.skey, req.query.get("id"))
     if conv is None:
         raise ApiError(404, "not_found")
     return conv
 
 
 # Tool cards the customer can open in a conversation without typing: name -> the conversation's title.
-CONVERSATION_TOOLS = {"quiz": "Weekly quiz", "checkin": "My check-in", "afford": "Can I afford it?",
+CONVERSATION_TOOLS = {"quiz": "Daily quiz", "checkin": "My check-in", "afford": "Can I afford it?",
                       "whatif": "What if I spent less?", "typical": "Compare with others",
                       "challenge": "My challenge", "alerts": "Worth a look"}
 
@@ -1366,7 +1419,7 @@ def ep_conversation_tool(req):
         raise ApiError(400, "invalid_tool")
     conv_id = req.body.get("conversation_id")
     turn = {"user": "", "reply": "", "cards": [], "used": [], "mode": None, "notice": None, "tool": tool}
-    new_id = state.add_turn(req.cid, conv_id if isinstance(conv_id, str) else None, turn, CONVERSATION_TOOLS[tool])
+    new_id = state.add_turn(req.skey, conv_id if isinstance(conv_id, str) else None, turn, CONVERSATION_TOOLS[tool])
     return {"conversation_id": new_id}
 
 
@@ -1374,7 +1427,7 @@ def ep_conversation_delete(req):
     conv_id = req.body.get("id")
     if not isinstance(conv_id, str) or not conv_id:
         raise ApiError(400, "invalid_id")
-    if not state.delete_conversation(req.cid, conv_id):
+    if not state.delete_conversation(req.skey, conv_id):
         raise ApiError(404, "not_found")
     req.session.get("conv_memory", {}).pop(conv_id, None)
     return {"ok": True}
@@ -1382,13 +1435,13 @@ def ep_conversation_delete(req):
 
 def ep_pins(req):
     try:
-        return state.add_pin(req.cid, req.body.get("title"), req.body.get("card"))
+        return state.add_pin(req.skey, req.body.get("title"), req.body.get("card"))
     except ValueError:
         raise ApiError(400, "invalid_pin")
 
 
 def ep_pin(req):
-    pin = state.get_pin(req.cid, req.query.get("id"))
+    pin = state.get_pin(req.skey, req.query.get("id"))
     if pin is None:
         raise ApiError(404, "not_found")
     return pin
@@ -1396,14 +1449,14 @@ def ep_pin(req):
 
 def ep_notes(req):
     """The notes the customer asked the coach to remember (their own words)."""
-    return {"notes": [{"id": n["id"], "text": n["text"], "created": n["created"]} for n in state.list_notes(req.cid)]}
+    return {"notes": [{"id": n["id"], "text": n["text"], "created": n["created"]} for n in state.list_notes(req.skey)]}
 
 
 def ep_notes_remove(req):
     nid = req.body.get("id")
     if not isinstance(nid, str) or not nid:
         raise ApiError(400, "invalid_id")
-    if not state.remove_note(req.cid, nid):
+    if not state.remove_note(req.skey, nid):
         raise ApiError(404, "not_found")
     return {"ok": True}
 
@@ -1412,7 +1465,7 @@ def ep_pins_remove(req):
     pid = req.body.get("id")
     if not isinstance(pid, str) or not pid:
         raise ApiError(400, "invalid_id")
-    if not state.remove_pin(req.cid, pid):
+    if not state.remove_pin(req.skey, pid):
         raise ApiError(404, "not_found")
     return {"ok": True}
 
@@ -1436,7 +1489,7 @@ def ep_explain(req):
     text = text.strip()
     if not EXPLAIN_MIN <= len(text) <= EXPLAIN_MAX:
         raise ApiError(400, "invalid_text")
-    return _run_explain(text, state.get_consent(req.session["cid"]))   # the text is never logged
+    return _run_explain(text, state.get_consent(req.session["skey"]))   # the text is never logged
 
 
 def ep_ai_payload(req):
@@ -1444,7 +1497,7 @@ def ep_ai_payload(req):
 
 
 def ep_erase(req):
-    state.erase(req.session["cid"])
+    state.erase(req.session["skey"])
     req.session["history"] = []
     req.session["ai_payload"] = None
     req.session.setdefault("memory", {}).clear()
@@ -1472,26 +1525,26 @@ def ep_afford(req):
     if not 0 < price <= MAX_PRICE:
         raise ApiError(400, "invalid_price")
     return _features().afford(req.conn, req.today, item.strip(), price,
-                              goal=state.get_goal(req.cid),
+                              goal=state.get_goal(req.skey),
                               monthly_saving_target=_saving_target(req))
 
 
 def ep_goal(req):
     if req.handler.command != "POST":
-        return {"goal": state.get_goal(req.cid)}
+        return {"goal": state.get_goal(req.skey)}
     if req.body.get("clear") is True:
-        return {"goal": state.set_goal(req.cid, None)}
+        return {"goal": state.set_goal(req.skey, None)}
     d = {k: req.body.get(k) for k in ("name", "target", "saved")}
     if d["saved"] is None:
         d["saved"] = 0
     # Editing the name or the amounts keeps the date the goal was planned with, unless a new one is sent.
-    before = state.get_goal(req.cid) or {}
+    before = state.get_goal(req.skey) or {}
     for k in ("deadline", "monthly_needed"):
         d[k] = req.body.get(k) if k in req.body else before.get(k)
     if "monthly_needed" not in req.body and (d["target"] != before.get("target") or d["saved"] != before.get("saved")):
         d["monthly_needed"] = None     # the old monthly amount no longer fits the new figures
     try:
-        return {"goal": state.set_goal(req.cid, d)}
+        return {"goal": state.set_goal(req.skey, d)}
     except ValueError:
         raise ApiError(400, "invalid_goal")
 
@@ -1530,7 +1583,7 @@ def ep_goal_plan(req):
     elif not isinstance(deadline, str) or not re.fullmatch(r"\d{4}(-(0[1-9]|1[0-2])(-\d{2})?)?", deadline):
         raise ApiError(400, "invalid_deadline")
     saved = 0.0
-    goal = state.get_goal(req.cid)
+    goal = state.get_goal(req.skey)
     if isinstance(goal, dict) and str(goal.get("name") or "").strip().lower() == name.lower():
         try:
             saved = max(0.0, float(goal.get("saved") or 0))
@@ -1576,17 +1629,17 @@ def ep_forecast(req):
 
 
 def ep_payday_plan(req):
-    return _features().payday_plan(req.conn, req.today, goal=state.get_goal(req.cid),
+    return _features().payday_plan(req.conn, req.today, goal=state.get_goal(req.skey),
                                    monthly_saving_target=_saving_target(req))
 
 
 def ep_overrides(req):
     if req.handler.command != "POST":
-        return {"overrides": [_override_public(req.conn, o) for o in state.list_overrides(req.cid)]}
+        return {"overrides": [_override_public(req.conn, o) for o in state.list_overrides(req.skey)]}
     b = req.body   # any merchant or customer id sent by the client is ignored
     ov, affected = _apply_override(req, req.conn, b.get("tx_id"), b.get("label"), b.get("context"),
                                    b.get("apply_to_merchant") is True)
-    conn = db.sandbox(req.cid, req.today, state.list_overrides(req.cid), state.list_moves(req.cid))
+    conn = db.sandbox(req.cid, req.today, state.list_overrides(req.skey), state.list_moves(req.skey))
     try:
         return {"override": _override_public(conn, ov), "affected": affected}
     finally:
@@ -1597,7 +1650,7 @@ def ep_overrides_remove(req):
     oid = req.body.get("id")
     if isinstance(oid, bool) or not isinstance(oid, int):
         raise ApiError(400, "invalid_id")
-    state.remove_override(req.cid, oid)
+    state.remove_override(req.skey, oid)
     return {"ok": True}
 
 
@@ -1613,13 +1666,13 @@ def _challenge_view(req, stored):
 def ep_challenge(req):
     enabled = req.settings.get("challenges") == "on"
     if req.handler.command != "POST":
-        active = _challenge_view(req, state.get_challenge(req.cid))
+        active = _challenge_view(req, state.get_challenge(req.skey))
         options = []
         if enabled:
             options = list(_features().challenge_options(req.conn, req.today).get("options") or [])
         return {"enabled": enabled, "active": active, "options": options}
     if req.body.get("stop") is True:
-        state.set_challenge(req.cid, None)
+        state.set_challenge(req.skey, None)
         return {"active": None}
     if not enabled:
         raise ApiError(403, "challenges_off")
@@ -1632,12 +1685,12 @@ def ep_challenge(req):
         raise ApiError(400, "unknown_challenge")
     stored = dict(chosen)
     stored["accepted_at"] = datetime.datetime.now().replace(microsecond=0).isoformat()
-    state.set_challenge(req.cid, stored)
+    state.set_challenge(req.skey, stored)
     return {"active": _challenge_view(req, stored)}
 
 
 def ep_quiz_stats(req):
-    return _features().quiz_stats(state.quiz_history(req.cid))
+    return _features().quiz_stats(state.quiz_history(req.skey))
 
 
 def ep_area(req):

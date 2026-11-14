@@ -95,7 +95,7 @@ def propose(conn, today, cid, dest, amount, reason="", source="chat"):
     if amount != amount or amount < MIN_AMOUNT:
         raise MoneyError("The smallest amount I can move is %s." % _eur(MIN_AMOUNT))
     if amount > MAX_AMOUNT:
-        raise MoneyError("That is more than this demo can move at once.")
+        raise MoneyError("That is more than can be moved in one go here.")
     cap, s = available(conn, today)
     if amount > cap + 0.004:
         if cap < MIN_AMOUNT:
@@ -122,15 +122,15 @@ def confirm(conn, today, cid, pid, approve, amount=None, dest=None):
     """The customer's answer to one proposal. Only an explicit approval of the same amount and destination
     moves money, once."""
     if not isinstance(pid, str) or not pid or len(pid) > 64:
-        raise MoneyError("That approval is not valid.")
+        raise MoneyError("I couldn't match that approval, so nothing was moved. Ask me again and I'll make a new offer.")
     got = state.get_proposal(cid, pid)
     if got is None:
-        raise MoneyError("That approval is not valid.")
+        raise MoneyError("I couldn't match that approval, so nothing was moved. Ask me again and I'll make a new offer.")
     prop = got["data"]
     if got["status"] != "pending":
         raise MoneyError({"done": "This move was already made.", "cancelled": "This move was cancelled.",
                           "expired": "This offer has expired. Ask again and I will make a new one."}
-                         .get(got["status"], "That approval is not valid."))
+                         .get(got["status"], "I couldn't match that approval, so nothing was moved. Ask me again and I'll make a new offer."))
     if approve is not True:
         state.take_proposal(cid, pid, "cancelled")
         return {"ok": True, "moved": False, "message": "Okay, nothing was moved."}
@@ -139,7 +139,7 @@ def confirm(conn, today, cid, pid, approve, amount=None, dest=None):
     except (TypeError, ValueError):
         same_amount = False
     if not same_amount or dest != prop["dest"]:
-        raise MoneyError("The approval does not match the offer, so nothing was moved.")
+        raise MoneyError("That doesn't match the offer I made, so nothing was moved. Ask me again and I'll make a new one.")
     cap, _ = available(conn, today)
     if float(prop["amount"]) > cap + 0.004:
         state.take_proposal(cid, pid, "cancelled")

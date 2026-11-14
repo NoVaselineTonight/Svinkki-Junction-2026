@@ -233,6 +233,7 @@ def afford(conn, today, item, price, goal=None, monthly_saving_target=0.0):
         room = ("about %s a day would be left %s" % (_eur0(max(0.0, per_day_after)), until)) if after >= 0 else \
             ("that is %s more than the %s you can safely spend %s" % (_eur0(-after), _eur0(max(0.0, safe_total)), until))
         if risk == "loan":
+            item = re.sub(r"\s+(of|for)$", "", item.strip(), flags=re.I) or item
             text = ("A %s is borrowing, not a purchase: you pay it back with interest and fees, often much more than "
                     "you borrowed. I would not take it. If money is short before payday, let's look at what is "
                     "safe to spend instead." % item)
@@ -261,19 +262,26 @@ def afford(conn, today, item, price, goal=None, monthly_saving_target=0.0):
         else:
             goal_effect = {"name": str(goal["name"]), "monthly_saving": _r(ms), "delay_days": None,
                            "delay_text": "your %s has no regular saving yet, so this does not move it" % gname}
+    if risk == "loan":      # borrowing is not spending: no "left a day" figures, no goal effect
+        goal_effect, after_out, per_day_out = None, None, None
+    else:
+        after_out, per_day_out = _r(after), _r(per_day_after)
     alternatives = []
     if verdict != "yes" and price > 0:
         if nxt:
             alternatives.append("Wait until payday on %s and decide then." % ins.human_range(nxt, None, today))
-        alternatives.append("Split it over two months: about %s now and %s next month." % (
-            _eur0(price / 2), _eur0(price / 2)))
+        if float(avg.get("kept") or 0.0) >= price / 2:      # only when a usual month really leaves room for it
+            alternatives.append("Split it over two months: about %s now and %s next month." % (
+                _eur0(price / 2), _eur0(price / 2)))
     alternatives = alternatives[:2]
     ev = list(s.get("evidence") or [])
     return {
         "item": item, "price": _r(price), "safe_total": _r(safe_total), "days_left": days_left,
-        "next_payday": nxt, "after": _r(after), "per_day_after": _r(per_day_after), "verdict": verdict,
+        "next_payday": nxt, "after": after_out, "per_day_after": per_day_out, "verdict": verdict,
         "verdict_text": text, "share_of_safe": None if share is None else round(share, 3),
         "typical_month_share": None if typical is None else round(typical, 3),
+        "typical_month_share_means": "the price as a share of your usual month of EVERYDAY spending (small "
+                                     "on-the-go purchases), not of what a usual month leaves you",
         "goal_effect": goal_effect, "alternatives": alternatives if not risk else [], "risk": risk,
         "explain": "Safe-to-spend is your balance minus bills before payday, a buffer for unexpected costs and "
                    "planned savings (%s); the price is taken off it." % _eur0(safe_total),
@@ -343,7 +351,7 @@ def leaks(conn, today, months=3):
         pd_i = max(range(7), key=lambda i: wd[i][0])
         ph = max(range(24), key=lambda i: hr[i][0])
         peak = {"day": _WEEKDAYS[pd_i], "hour_range": "%02d:00-%02d:00" % (ph, (ph + 1) % 24),
-                "text": "Most of your everyday spending happens on %ss (%s of it), and the busiest hour is %02d:00 to %02d:00." % (
+                "text": "%s is your biggest day for everyday spending (%s of it), and the busiest hour is %02d:00 to %02d:00." % (
                     _WEEKDAYS_FULL[pd_i], ins._pct_text(wd[pd_i][0] / total_all), ph, (ph + 1) % 24)}
     # payday week
     pay_from = (frm_d - timedelta(days=7)).isoformat()
@@ -912,7 +920,7 @@ def quiz_stats(history):
         diff = last3 - prev
         trend = "improving" if diff > 5 else "slipping" if diff < -5 else "steady"
     best = max(pts, key=lambda p: (p["accuracy"], p["at"]))
-    text = "Your awareness score is %d out of 100, from your last %d answer%s." % (
+    text = "Your guesses score %d out of 100 for accuracy, from your last %d answer%s." % (
         score, min(5, n), "" if min(5, n) == 1 else "s")
     if trend == "improving":
         text += " Your guesses are getting closer."
@@ -1388,7 +1396,9 @@ def patterns(conn, today, weeks=12):
         post_days.update(span)
     if len(paydays_used) >= 2 and daily_avg > 0:
         post_avg = sum(daily.get(d, 0.0) for d in post_days) / len(post_days)
-        if post_avg >= 1.4 * daily_avg and post_avg - daily_avg >= 5:
+        post_amounts = [a for dt, sd, part, a, lab in items if dt.date() in post_days]
+        one_purchase = bool(post_amounts) and max(post_amounts) > 0.5 * sum(post_amounts)   # not a pattern
+        if post_avg >= 1.4 * daily_avg and post_avg - daily_avg >= 5 and not one_purchase:
             uplift = int(round((post_avg / daily_avg - 1) * 100))
             above = sum(1 for p in paydays_used
                         if sum(daily.get(p + timedelta(days=k), 0.0) for k in (1, 2, 3)) / 3.0 > daily_avg)

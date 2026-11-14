@@ -29,6 +29,13 @@ def _from_of(months):
     return (_add_months(t, -months) + timedelta(days=1)).isoformat()
 
 
+def _whole_window(months):
+    """basket_profile counts "last N months" as the N last FULL calendar months (as trends.category_story does)."""
+    t = date.fromisoformat(TODAY)
+    to = t.replace(day=1) - timedelta(days=1)
+    return _add_months(to.replace(day=1), -(months - 1)).isoformat(), to.isoformat()
+
+
 def _fake(i, d, lines):
     """A grocery receipt from (group, name, qty, line_total) tuples."""
     ls = [{"name": n, "group": g, "qty": q, "unit": "kpl", "unit_price": round(t / q, 2),
@@ -176,7 +183,7 @@ class ReceiptTrendsTests(_Base):
 class BasketProfileTests(_Base):
     def test_counts_match_the_known_shops(self):
         res = self.r.basket_profile(self.conn, TODAY, "last_12_months", habit_seed=A)
-        pays = _grocery_oracle(_from_of(12))
+        pays = _grocery_oracle(*_whole_window(12))
         amounts = [-p["amount"] for p in pays]
         n = len(amounts)
         self.assertEqual(res["trips"], n)
@@ -191,7 +198,7 @@ class BasketProfileTests(_Base):
 
     def test_most_expensive_weekday_and_time(self):
         res = self.r.basket_profile(self.conn, TODAY, "last_12_months", habit_seed=A)
-        pays = _grocery_oracle(_from_of(12))
+        pays = _grocery_oracle(*_whole_window(12))
         top = max(pays, key=lambda p: (-p["amount"], p["d"]))
         self.assertEqual(res["most_expensive"]["amount"], round(-top["amount"], 2))
         self.assertEqual(res["most_expensive"]["d"], top["d"])

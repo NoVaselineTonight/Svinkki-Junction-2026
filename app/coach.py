@@ -3,6 +3,7 @@
 chat(message, history, ctx) -> {"reply", "cards", "evidence", "tools_used", "mode", "ai_payload", ["notice"]}
 Numbers always come from tool results (SR-10). Guardrails run in code before any model call.
 """
+import hashlib
 import json
 import os
 import re
@@ -96,6 +97,10 @@ Rules you must always follow:
 
 # How the coach talks (money psychology, docs/MONEY_PSYCHOLOGY.md) goes in front of the house style.
 SYSTEM_PROMPT = SYSTEM_PROMPT.replace("House style:", voice.VOICE + "House style:", 1)
+# Wording changes to the rules above that belong to the coach's character live in app/voice.py as (old, new) pairs.
+for _old, _new in getattr(voice, "PROMPT_EDITS", ()):
+    SYSTEM_PROMPT = SYSTEM_PROMPT.replace(_old, _new, 1)
+SYSTEM_PROMPT += getattr(voice, "PROMPT_EXTRA", "")
 
 SYSTEM_SUMMARY = ("Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; "
                   "no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves "
@@ -114,12 +119,12 @@ HELP_TEXT = ("I didn't catch that. Ask about your spending, what's safe to spend
              "Tap \"What can I ask?\" for ideas.")
 HELP_TEXT_FI = ("En ymmärtänyt kysymystä. Kysy esimerkiksi: \"Paljonko voin käyttää tällä viikolla?\" "
                 "tai napauta \"Mitä voin kysyä?\".")
-GREETING_EN = "Hi! What would you like to know about your money?"
-GREETING_FI = "Hei! Mitä haluaisit tietää rahoistasi?"
-THANKS_EN = "You're welcome."
-THANKS_FI = "Ole hyvä."
-ACK_EN = "Okay. Ask me anything else about your money."
-ACK_FI = "Selvä. Kysy vain lisää rahoistasi."
+GREETING_EN = "Hi, I'm Svinkki, your money coach. What's on your mind, money-wise?"
+GREETING_FI = "Hei, olen Svinkki, rahavalmentajasi. Mikä raha-asia on mielessä?"
+THANKS_EN = "Anytime! That's what I'm here for."
+THANKS_FI = "Eipä kestä! Sitä varten olen täällä."
+ACK_EN = "Got it. I'm here whenever something else comes to mind."
+ACK_FI = "Selvä! Olen täällä, kun jokin muu tulee mieleen."
 GIBBERISH_EN = "Sorry, I didn't catch that. Try \"What's safe to spend this week?\""
 GIBBERISH_FI = "Anteeksi, en saanut selvää. Kokeile: \"Paljonko voin käyttää tällä viikolla?\""
 MARKUP_REPLY = "I'm Svinkki. Ask me about your spending, what's safe to spend, saving, or a goal."
@@ -140,7 +145,7 @@ REFUSAL_PROMPT_FI = "Pidän ohjeeni ja työkaluni omana tietonani. Kysy minulta 
 # ------------------------------------------------------------------ guardrails
 _OTHER_RE = re.compile(
     r"cust\s*-?\s*\d+|\banother (customer|person|user|client|account holder)\b|\bother (customers?|users?|clients?)['’]?s?\s+"
-    r"(data|transactions?|account|spending|balance|salary|id)|\bsomeone else['’]?s?\b|\bsomebody else['’]?s?\b|"
+    r"(data|transactions?|account|spending|balance|salary|id)|\b(?:someone|somebody) else['’]s\s+(?:data|transactions?|account|spending|balance|salary|money)\b|"
     r"\b(my )?(neighbou?r|colleague|boss|ex|friend|husband|wife|partner|girlfriend|boyfriend)['’]s (account|transactions?|spending|balance|salary)",
     re.I)
 _PERSON = (r"(?:neighbou?rs?|colleagues?|co-?workers?|bosse?s?|ex|friends?|husband|wife|partner|girlfriend|boyfriend|"
@@ -170,10 +175,12 @@ _EXTERNAL_RE = re.compile(r"\b(pay|paying|wire|send|withdraw|top up|payment|rent
                           r"\bvuokra\w*|\bkaveri\w*", re.I)
 _QUESTION_START = re.compile(r"^\s*(how|what|which|where|when|why|did|do i|have i|was|were|am i|is|could i see)\b", re.I)
 _PROMPT_RE = re.compile(
-    r"system prompt|your (prompt|instructions|rules|configuration|tools?|functions?)\b|tool (definitions?|list|schema)|"
+    r"system prompt|your (system )?(prompt|instructions|configuration|functions?|tool (list|definitions?|schema))\b|"
+    r"your (rules|tools)\b(?! of thumb)(?!\s+(?:for|about|on)\b)|tool (definitions?|list|schema)|"
     r"(list|show|reveal|print|repeat|tell me) (me )?(all )?(your|the) (tools|functions|instructions|prompt|rules)|"
-    r"what tools|ignore (all |your |the |any )?(previous|prior|above|earlier)|developer (message|mode)|jailbreak|"
-    r"reveal.*(prompt|instructions)|repeat (everything|all|the text|what is|what's) (above|before)|\bverbatim\b", re.I)
+    r"what tools (?:do|can|did) you\b|ignore (all |your |the |any )?(previous|prior|above|earlier)|developer (message|mode)|jailbreak|"
+    r"(?:translate|summari[sz]e|paraphrase|print|quote|output|write out)\b[^?.!]{0,40}\b(?:above|before) (?:this|the) "
+    r"(?:conversation|chat|message)|\b(?:everything|text) (?:written )?above\b|reveal.*(prompt|instructions)|repeat (everything|all|the text|what is|what's) (above|before)|\bverbatim\b", re.I)
 
 
 def markup_only(message):
@@ -198,8 +205,64 @@ _ORDER_START_RE = re.compile(
 _AMOUNT_RE = re.compile(r"\d|€|\beur(?:os?)?\b|\beuro\w*", re.I)
 
 
+# ------------------------------------------------------------------ distress (self-harm, debt, gambling, emergency)
+# Fixed kind replies: used without an AI model and when the model path fails. The only phone number written is 112.
+_DISTRESS_RES = [
+    ("self", re.compile(r"\b(?:kill myself|end (?:it all|my life)|suicid\w*|(?:don'?t|do not) (?:see|want) (?:the|any) point "
+                        r"(?:of|in) (?:going on|living)|better off without me|not (?:be )?here anymore|want to die|"
+                        r"itsemurha\w*|tappaa itseni|en jaksa enää|en halua elää)\b", re.I)),
+    ("medical", re.compile(r"\b(?:chest pain|can'?t breathe|cannot breathe|overdos\w*|rintakipu\w*|sydänkohtau\w*)\b", re.I)),
+    # Only signs of a gambling PROBLEM: "can I afford a casino night" is an ordinary question with its own answer.
+    ("gambling", re.compile(r"\b(?:win it back|can'?t stop (?:gambling|betting)|gambling (?:problem|addict\w*|debts?)|"
+                            r"addicted to (?:gambling|betting)|lost [^.?!]{0,30}(?:gambling|betting|casino)|"
+                            r"which bets|best odds|pelaan liikaa|peliriippuvu\w*|peliongelma\w*|rahapeliongelma\w*)\b",
+                            re.I)),
+    ("debt", re.compile(r"\b(?:(?:can'?t|cannot|can not|unable to|struggl\w+ to)\s+(?:pay|afford)\s+(?:my |the |our )?"
+                        r"(?:bills?|rent|debts?|loans?|invoices?|mortgage)|debt collect\w*|drowning in debt|"
+                        r"perintä\w*|ulosot\w*|en pysty maksamaan|en pysty maksaa|maksuvaikeu\w*)\b", re.I)),
+]
+DISTRESS_EN = {
+    "self": ("I'm really sorry you're feeling this way, and I'm glad you told me. If you are in immediate danger, "
+             "please call 112. MIELI's crisis helpline (mieli.fi) answers day and night, and you don't have to "
+             "carry this alone."),
+    "debt": ("That sounds really stressful, and you are not alone with it. Takuusäätiö gives free, confidential debt "
+             "advice (takuusaatio.fi). If you like, I can look at what is due before your next payday so we know "
+             "what you are facing."),
+    "gambling": ("I'm glad you're thinking about this, and it can feel heavy. Peluuri (peluuri.fi) offers free, "
+                 "confidential help with gambling. I can also show you how much has gone on it, if that helps."),
+    "medical": ("That sounds serious. Please call 112 now. I'm a money coach, so I can't help with this, but "
+                "I'm here when you are safe."),
+}
+DISTRESS_FI = {
+    "self": ("Otan osaa, että sinulla on tällainen olo, ja hyvä että kerroit. Jos olet välittömässä vaarassa, soita "
+             "112. MIELI ry:n kriisipuhelin (mieli.fi) vastaa yöt päivät, eikä sinun tarvitse jaksaa yksin."),
+    "debt": ("Tuo kuulostaa todella raskaalta, etkä ole tämän kanssa yksin. Takuusäätiö neuvoo velka-asioissa "
+             "maksutta ja luottamuksellisesti (takuusaatio.fi). Jos haluat, katson mitä maksettavaa on ennen "
+             "seuraavaa palkkapäivää."),
+    "gambling": ("Hyvä että mietit tätä, se voi tuntua raskaalta. Peluuri (peluuri.fi) auttaa pelaamiseen liittyvissä "
+                 "huolissa maksutta ja luottamuksellisesti. Voin myös näyttää, paljonko pelaamiseen on mennyt."),
+    "medical": ("Tuo kuulostaa vakavalta. Soita heti 112. Olen rahavalmentaja, joten en voi auttaa tässä, mutta "
+                "olen täällä kun olet turvassa."),
+}
+
+
+def distress_intent(message):
+    """The kind of distress a message shows ("self", "medical", "gambling", "debt") or None."""
+    for kind, rx in _DISTRESS_RES:
+        if rx.search(message or ""):
+            return kind
+    return None
+
+
+def _distress_reply(kind, message):
+    return (DISTRESS_FI if is_finnish(message) else DISTRESS_EN)[kind]
+
+
 def _money_order(message):
     """True when the message asks the coach to pay or move money out of S-mobiili."""
+    if re.search(r"\b(?:can'?t|cannot|can not|unable to|struggl\w+ to|afford to)\s+(?:pay|send|transfer)\b|en (?:pysty|voi) maksa",
+                 message, re.I):
+        return False
     if bool(_INAPP_RE.search(message)) and not _EXTERNAL_RE.search(message):
         return False
     if _MOVE_RE.search(_SELF_PAY_RE.sub(" ", message)) and not _QUESTION_START.match(message):
@@ -346,7 +409,14 @@ def anonymise(obj, _areas=()):
 def anonymise_text(text):
     """The customer's own words as the model gets them: anonymise, then listed first names become [name]
     (tools.mask_names). Used for the message and the history, in both model paths."""
-    return tools.mask_names(anonymise(str(text or "")))[0]
+    out = str(text or "")
+    try:
+        from app import explain
+        for rx in (explain._EMAIL, explain._IBAN, explain._HETU, explain._CARD):
+            out = rx.sub("[removed]", out)
+    except Exception:
+        pass
+    return tools.mask_names(anonymise(out))[0]
 
 
 MODEL_RECEIPTS = 5       # receipts, and lines per receipt, the model sees; the card for the web keeps everything
@@ -979,7 +1049,20 @@ _DOC_PREFIX = re.compile(
     r"what does (this|that|it) mean|selit[äa] t[äa]m[äa]( teksti)?|mit[äa] t[äa]m[äa] tarkoittaa)\b[\s:;,.\-–—]*",
     re.I)
 ASK_TEXT_REPLY = "Paste the text after \"Explain this:\" and I'll put it in plain words."
-AI_OFFLINE_NOTICE = "AI is offline, so this is a simpler answer."
+AI_OFFLINE_NOTICE = "The AI is not available right now, so my built-in rules answered this one."
+NOTICES = {
+    "offline": (AI_OFFLINE_NOTICE, "Tekoäly ei ole nyt käytettävissä, joten vastasin omilla säännöilläni."),
+    "cap": ("Today's AI allowance for this public demo is used up, so my built-in rules answered.",
+            "Tämän julkisen demon päivän tekoälykiintiö on käytetty, joten vastasin omilla säännöilläni."),
+    "removed": ("I left out a detail from the AI's wording because I couldn't check its figure.",
+                "Jätin tekoälyn sanamuodosta pois yksityiskohdan, jonka lukua en voinut tarkistaa."),
+    "replaced": ("The AI's wording had a figure I couldn't check, so I gave you the checked answer instead.",
+                 "Tekoälyn vastauksessa oli luku, jota en voinut tarkistaa, joten annoin tarkistetun vastauksen."),
+}
+
+
+def _notice(kind, fi):
+    return NOTICES[kind][1 if fi else 0]
 
 
 def doc_intent(message):
@@ -990,6 +1073,9 @@ def doc_intent(message):
     if len(message) > DOC_MIN_CHARS:
         if _ORDER_START_RE.match(message) and _money_order(_first_sentence(message)):
             return None         # "Please transfer 500 euros to ..." with a long reason: the guardrail answers it
+        first_person = len(re.findall(r"\b(?:I|I'm|my|me|minä|minun|mun|olen)\b", message))
+        if message.rstrip().endswith("?") or first_person >= 3:
+            return None         # a long question or story to the coach, not a document
         return message.strip()
     return None
 
@@ -1173,7 +1259,7 @@ def _restore_pending_goal(history, ctx):
     """In AI mode the model may ask for the price itself without calling plan_goal_by_date, so no pending goal is
     kept in ctx.memory. Rebuild it from the last exchange: the customer's goal wish and the coach's question."""
     mem = _memory(ctx)
-    if mem is None or mem.get("pending_goal") or not history or len(history) < 2:
+    if mem is None or mem.get("pending_goal") or mem.get("goal_offer") or not history or len(history) < 2:
         return
     last, prev = history[-1], history[-2]
     if not (isinstance(last, dict) and isinstance(prev, dict)) or last.get("role") == "user" or prev.get("role") != "user":
@@ -1493,6 +1579,9 @@ def note_intent(message):
     if not m:
         return None
     text = " ".join(m.group("t").split()).rstrip(" .!")
+    if re.match(r"(?:you|sinun|sinä)\b.{0,40}\b(?:must|should|always|never|have to|need to|pitää|täytyy|aina)\b", text, re.I) \
+            or re.search(r"\b(?:ignore|instructions?|system prompt)\b", text, re.I):
+        return None         # an instruction to the coach is not something about the customer
     if len(text) < 3 or len(text) > 200 or text.endswith("?") or re.match(r"(?:to|me to)\b", text, re.I):
         return None
     if parse_correction(text) or parse_correction(message):
@@ -1907,7 +1996,7 @@ _FI_HINT = re.compile(
     r"viikolla|säästä\w*|sijoit\w*|asuntolain\w*|varaa|palkkapäiv\w*|vuota\w*|kori\w*|koria|kolme|euroa|euron|"
     r"turvallisesti|ravintol\w*|ruoka\w*|apua|kuluttaja|eilen|tänään|viime|mitä|kuinka|riitt\w*|kuitti\w*|"
     r"analysoi\w*|eniten|ostan|ostin|tienaan|ansaitsen|saldo\w*|olenko|entä\w*|tallenna\w*|kiitos|miksi|"
-    r"tilillä|haaste\w*|jakaisin|palkkani|säästän|minulle|kuukautta|kuukauden|kuukaudet)\b|"
+    r"tilillä|haaste\w*|jakaisin|palkkani|säästän|minulle|kuukautta|kuukauden|kuukaudet|joo|juu|jep|moi|moikka)\b|"
     # "Anna minulle vinkki" is Finnish; "Did Anna pay me back?" is not: anna counts only as the first word,
     # and not when an English verb follows the name
     r"^\W*anna\b(?!\s+(?:pa(?:y|ys|id)|owes?|sen[dt]|gave|give|has|had|have|is|was|did|does|will|and|said|still|"
@@ -1916,6 +2005,38 @@ _FI_HINT = re.compile(
 
 def is_finnish(message):
     return bool(_FI_HINT.search(message or ""))
+
+
+def _track_lang(message, ctx):
+    """Remember in the conversation memory whether it is Finnish: a bare "ok" or "joo" after Finnish turns stays
+    Finnish."""
+    mem = _memory(ctx)
+    if mem is None:
+        return
+    if is_finnish(message):
+        mem["_lang"] = "fi"
+    elif len(re.findall(r"[A-Za-z]{2,}", message or "")) >= 3:
+        mem["_lang"] = "en"
+
+
+def _conv_fi(message, ctx):
+    """True when the message is Finnish, or is a short reply in a conversation that is Finnish."""
+    if is_finnish(message):
+        return True
+    mem = _memory(ctx)
+    return bool(mem is not None and mem.get("_lang") == "fi" and len(re.findall(r"\w+", message or "")) <= 3
+                and not re.search(r"\b(?:what|how|why|show|my|the|spent|spend|thanks|please)\b", message or "", re.I))
+
+
+_FI_MON_ILL = ["", "tammikuuhun", "helmikuuhun", "maaliskuuhun", "huhtikuuhun", "toukokuuhun", "kesäkuuhun",
+               "heinäkuuhun", "elokuuhun", "syyskuuhun", "lokakuuhun", "marraskuuhun", "joulukuuhun"]
+
+
+def _goal_date_fi(d):
+    d = str(d or "")
+    if re.match(r"\d{4}-\d{2}", d):
+        return "%s %s mennessä" % (_FI_MON_ILL[int(d[5:7])], d[:4])
+    return d
 
 
 _FI_NUM = {"kaksi": "2", "kahden": "2", "kolme": "3", "kolmen": "3", "neljä": "4", "viisi": "5", "kuusi": "6",
@@ -2196,11 +2317,20 @@ def _period_fi(args):
 
 _FI_BASKETS = {"regular": "perusmenot", "unexpected": "odottamattomat menot", "everyday": "arkikulutus",
                "savings": "säästöt"}
-_FI_TYPES = {"Stretched": "venyttäjä", "Saver": "säästäjä", "Social spender": "seurallinen kuluttaja",
-             "Explorer": "seikkailija", "Home-maker": "kodinrakentaja", "Balanced": "tasapainoinen kuluttaja"}
+_FI_TYPES = {"Stretched": "tiukoilla elävä kuluttaja", "Saver": "säästäjä", "Social spender": "seurallinen kuluttaja",
+             "Explorer": "seikkailija", "Home-maker": "kodin laittaja", "Balanced": "tasapainoinen kuluttaja"}
 _FI_PRODUCTS = {"energiajuoma": "energiajuomia", "energy drinks": "energiajuomia", "karkit": "karkkeja",
                 "olut": "olutta", "kahvi": "kahvia", "coffee": "kahvia", "maito": "maitoa",
                 "virvoitusjuoma": "virvoitusjuomia"}
+
+
+def _moved_to_savings(res):
+    """The part of the month's income that went into savings: what income, spending and the surplus leave open."""
+    try:
+        m = round(float(res.get("income")) - float(res.get("spent")) - float(res.get("surplus")), 2)
+    except (TypeError, ValueError):
+        return 0
+    return m if m >= 1 else 0
 
 
 def _pct_fi(x):
@@ -2277,9 +2407,16 @@ def fi_lead(tool, res, args, hints):
         mon = _FI_MON_INE[int(str(res.get("month"))[5:7])] if re.fullmatch(r"\d{4}-\d{2}", str(res.get("month"))) else "Kuussa"
         mon = mon[:1].upper() + mon[1:]
         sur = float(res.get("surplus") or 0)
+        moved = _moved_to_savings(res)
         if sur < 0:
+            if moved:
+                return "%s käytit %s ja siirsit %s säästöön, yhteensä %s enemmän kuin tilille tuli (%s)." % (
+                    mon, _eur_fi(res.get("spent")), _eur_fi(moved), _eur_fi(abs(sur)), _eur_fi(res.get("income")))
             return "%s käytit %s, eli %s enemmän kuin tilille tuli (%s)." % (
                 mon, _eur_fi(res.get("spent")), _eur_fi(abs(sur)), _eur_fi(res.get("income")))
+        if moved:
+            return "%s tienasit %s, käytit %s ja siirsit %s säästöön, joten jäi %s." % (
+                mon, _eur_fi(res.get("income")), _eur_fi(res.get("spent")), _eur_fi(moved), _eur_fi(sur))
         return "%s tienasit %s ja käytit %s, joten jäi %s." % (
             mon, _eur_fi(res.get("income")), _eur_fi(res.get("spent")), _eur_fi(sur))
     if tool == "get_baskets":
@@ -2297,7 +2434,7 @@ def fi_lead(tool, res, args, hints):
         spent = _g(res.get("shares"), "spent")
         if not t or spent is None:
             return "Tietoja ei ole vielä tarpeeksi kulutustyypin päättelyyn."
-        return "Olet %s: viimeisen %s kuukauden aikana käytit %s tuloistasi." % (t, res.get("months"), _pct_fi(spent))
+        return "Olet %s: viimeisen %s kuukauden aikana käytit %s tuloistasi." % (t, res.get("months"), "%d %%" % round(float(spent) * 100))
     if tool == "get_save_more":
         ideas = [x for x in (res.get("ideas") or [])[:2] if isinstance(x, dict)]
         if not ideas:
@@ -2921,13 +3058,18 @@ def _render(tool, res, args=None, hints=None):
         mon = "in " + _month(res.get("month"))
         sur = float(res.get("surplus") or 0)
         names = [("regular", "essentials"), ("unexpected", "unexpected costs"), ("everyday", "everyday spending")]
+        moved = _moved_to_savings(res)
         if sur < 0:
             big = max(names, key=lambda kv: float(b.get(kv[0]) or 0))
-            return "%s you spent %s, %s more than came in (%s). Most went on %s (%s)." % (
-                _cap1(mon), _eur(res.get("spent")), _eur(abs(sur)), _eur(res.get("income")),
-                "regular essentials" if big[0] == "regular" else big[1], _eur(b.get(big[0])))
-        first = ("%s you earned %s and spent %s, so %s was left." % (
-            _cap1(mon), _eur(res.get("income")), _eur(res.get("spent")), _eur(sur))) if sur >= 1 else (
+            lead = ("%s you spent %s and moved %s to savings, together %s more than came in (%s)." % (
+                _cap1(mon), _eur(res.get("spent")), _eur(moved), _eur(abs(sur)), _eur(res.get("income")))
+                if moved else "%s you spent %s, %s more than came in (%s)." % (
+                _cap1(mon), _eur(res.get("spent")), _eur(abs(sur)), _eur(res.get("income"))))
+            return "%s Most of the spending went on %s (%s)." % (
+                lead, "regular essentials" if big[0] == "regular" else big[1], _eur(b.get(big[0])))
+        first = ("%s you earned %s, spent %s%s, so %s was left." % (
+            _cap1(mon), _eur(res.get("income")), _eur(res.get("spent")),
+            (" and moved %s to savings" % _eur(moved)) if moved else "", _eur(sur))) if sur >= 1 else (
             "%s you earned %s and spent about all of it." % (_cap1(mon), _eur(res.get("income"))))
         parts = [(_eur(b.get(k)), w) for k, w in names if float(b.get(k) or 0) > 0]
         if not parts:
@@ -3639,10 +3781,48 @@ def canned_reply(message):
     return None
 
 
+_IDENTITY_RE = re.compile(
+    r"^\W*(?:(?:hey|hi|hello|moi)[,! ]+)?(?:who are you|what are you|are you (?:a )?(?:human|real|person|bot|ai|robot)\b.*|"
+    r"which (?:model|ai)\b.*|what model\b.*|who (?:made|built|created) you|what(?:'s| is) your name|"
+    r"kuka olet|mikä olet|oletko (?:ihminen|robotti|bot|tekoäly)\b.*|kuka sinut teki)\W*$", re.I)
+_HOWAREYOU_RE = re.compile(r"^\W*(?:(?:hey|hi|hello|moi)[,! ]+)?(?:how are you|how'?s it going|what'?s up|mitä kuuluu|"
+                           r"miten menee)\W*$", re.I)
+_REALDATA_RE = re.compile(r"\b(?:is this|are these|is that) (?:real|fake|true)\b|\breal data\b|\boikeaa dataa\b|"
+                          r"\bonko tämä oikeaa\b", re.I)
+IDENTITY_EN = ("I'm Svinkki, an AI money coach inside S-mobiili. I'm not a person. I look at your own transactions "
+               "and work out every figure with code, so you can ask me where your money goes, what is safe to spend, "
+               "or how to reach a goal.")
+IDENTITY_FI = ("Olen Svinkki, tekoälyrahavalmentaja S-mobiilissa. En ole ihminen. Katson omia tapahtumiasi ja "
+               "lasken jokaisen luvun koodilla, joten voit kysyä minulta mihin rahasi menevät, paljonko voit "
+               "käyttää tai miten pääset tavoitteeseen.")
+HOWAREYOU_EN = "I'm doing well, thank you for asking! What would you like to know about your money?"
+HOWAREYOU_FI = "Hyvin menee, kiitos kysymästä! Mitä haluaisit tietää rahoistasi?"
+REALDATA_EN = ("This is a demo with a synthetic customer: the transactions are made up, not a real person's. "
+               "Every figure I give is still worked out by code from those transactions.")
+REALDATA_FI = ("Tämä on demo, jossa asiakas on synteettinen: tapahtumat on keksitty, eivät oikean ihmisen. "
+               "Jokainen antamani luku lasketaan silti koodilla näistä tapahtumista.")
+
+
+def identity_reply(message):
+    """Canned answer for who/what are you, how are you, is this real data: or None."""
+    m = (message or "").strip()
+    fi = is_finnish(m)
+    if _IDENTITY_RE.match(m):
+        return IDENTITY_FI if fi else IDENTITY_EN
+    if _HOWAREYOU_RE.match(m):
+        return HOWAREYOU_FI if fi else HOWAREYOU_EN
+    if _REALDATA_RE.search(m) and len(m) < 60:
+        return REALDATA_FI if fi else REALDATA_EN
+    return None
+
+
 def fallback_reply(message):
     """The reply when nothing routes: out of scope, gibberish, or the short help text."""
     s = (message or "").lower()
     fi = is_finnish(message)
+    ident = identity_reply(message)
+    if ident:
+        return ident
     if fi or re.search(_OUT_OF_SCOPE_FI, s):
         if re.search(_OUT_OF_SCOPE_FI, s):
             return "Tiedän vain sinun omista rahoistasi. Kysy esimerkiksi: \"Mihin rahani menivät?\""
@@ -3748,20 +3928,60 @@ def _why_reply(mem, fi):
     return "Laskin sen omista tapahtumistasi." if fi else "I worked it out from your own transactions."
 
 
-def _save_goal(offer, ctx):
+def _pick_goal_offer(ctx, plans, text, message):
+    """A turn that held several goal plans: "yes" saves the plan the reply offered (the deadline named in its last
+    question, or the one the customer's own message gave); when that is not clear, nothing is saved by the app."""
+    mem = _memory(ctx)
+    if mem is None:
+        return
+    tail = str(text or "").strip()
+    qs = [x for x in re.split(r"(?<=[.!?])\s+", tail) if "?" in x]
+    tail = qs[-1] if qs else tail[-200:]
+    own, _sp = parse_deadline(message, _ctx_get(ctx, "today", "2026-09-24"))
+
+    def named(dl, where):
+        if not re.match(r"\d{4}-\d{2}", str(dl or "")):
+            return False
+        y, mo = str(dl)[:4], int(str(dl)[5:7])
+        low = where.lower()
+        return y in where and (_MONTH_NAMES[mo].lower() in low or _FI_MON_ILL[mo][:-3] in low
+                               or _FI_MON_ILL[mo][:-5] in low)
+    hits = [c for c in plans if named((c[2] or {}).get("deadline") if isinstance(c[2], dict) else None, tail)]
+    if not hits and own:
+        hits = [c for c in plans if isinstance(c[2], dict) and str(c[2].get("deadline") or "")[:7] == own[:7]]
+    uniq = {str((c[2] or {}).get("deadline")) for c in hits}
+    if len(uniq) == 1:
+        _remember(ctx, hits[-1][0], hits[-1][1], {}, _enrich(hits[-1][0], hits[-1][2]))
+    else:
+        mem.pop("goal_offer", None)
+
+
+def _save_goal(offer, ctx, fi=False):
     """(reply, card or None) for 'yes, save it' after a goal plan."""
     fn = getattr(ctx, "save_goal", None)
     if not callable(fn):
-        return "I can't save goals from here yet.", None
+        return ("En voi vielä tallentaa tavoitteita tästä." if fi else "I can't save goals from here yet."), None
     try:
         fn(name=offer.get("name"), target=offer.get("target"), deadline=offer.get("deadline"),
            monthly_needed=offer.get("monthly_needed"))
     except (ValueError, TypeError):
-        return "I couldn't save that goal. Try telling me the amount and the date again.", None
+        return (("En saanut tallennettua tavoitetta. Kerro summa ja päivämäärä uudestaan." if fi else
+                 "I couldn't save that goal. Try telling me the amount and the date again.")), None
     data = {"name": offer.get("name"), "target": offer.get("target"), "monthly_needed": offer.get("monthly_needed"),
             "deadline": offer.get("deadline")}
-    reply = "Saved: %s, %s by %s. You'll find it under Your things." % (
-        offer.get("name"), _eur(offer.get("target")), _date_words(offer.get("deadline")))
+    mn = offer.get("monthly_needed")
+    if fi:
+        reply = "Tallensin sen: %s, %s %s" % (offer.get("name"), _eur_fi(offer.get("target")),
+                                              _goal_date_fi(offer.get("deadline")))
+        if mn:
+            reply += ", noin %s kuukaudessa" % _eur_fi(mn)
+        reply += ". Löydät sen kohdasta Omat asiasi."
+    else:
+        reply = "Done, %s is saved: %s by %s" % (offer.get("name"), _eur(offer.get("target")),
+                                                 _date_words(offer.get("deadline")))
+        if mn:
+            reply += ", about %s a month" % _eur(mn)
+        reply += ". You'll find it under Your things."
     return reply, {"type": "goal_saved", "data": data}
 
 
@@ -3871,12 +4091,15 @@ def _with_note(reply, note, today, fi=False):
 
 def _run_offline(message, ctx, history=None):
     today = _ctx_get(ctx, "today", "2026-09-24")
-    fin = is_finnish(message) and not markup_only(message)
+    fin = _conv_fi(message, ctx) and not markup_only(message)
     canned = canned_reply(message)
     if canned:
         return {"reply": canned, "results": [], "tools_used": []}
     routed = route(message, ctx)
     if routed is None:
+        if help_intent(message):
+            ht = help_turn(message)
+            return {"reply": ht["reply"], "results": [], "tools_used": [], "extra_cards": ht.get("cards") or []}
         return {"reply": fallback_reply(message) if not markup_only(message) else MARKUP_REPLY,
                 "results": [], "tools_used": []}
     tool, args, hints = routed
@@ -3897,7 +4120,7 @@ def _run_offline(message, ctx, history=None):
         reply = ((NOTE_SAVED_FI if fin else NOTE_SAVED_EN) % shown) if ok else (NOTE_FAILED_FI if fin else NOTE_FAILED_EN)
         return {"reply": reply, "results": [], "tools_used": []}
     if tool == "_save_goal":
-        reply, card = _save_goal(args, ctx)
+        reply, card = _save_goal(args, ctx, fin)
         _remember(ctx, tool, args, hints, None)
         return {"reply": _finish(reply, today), "results": [], "tools_used": [], "extra_cards": [card] if card else []}
     if hints.get("ask_price"):
@@ -4058,7 +4281,8 @@ def _declared_tools(ctx):
     """Tool declarations the model may see; the comparison tools only with benchmark consent and only when the
     customer asked for a comparison in this message."""
     bench_ok = bool((_ctx_get(ctx, "consent", {}) or {}).get("benchmarks")) and bool(_ctx_get(ctx, "compare_requested", False))
-    blocked = ("propose_money_move",) if _ctx_get(ctx, "guard") == "money" else ()   # no offer on a refused payment
+    blocked = ("propose_money_move",) if (_ctx_get(ctx, "guard") == "money" or _ctx_get(ctx, "no_offer")) else ()
+    # (no offer on a refused payment, nor on a bare "ok" that answers no question of the coach's)
     extra = _invest_tools()
     replaced = ("get_invest_education",) if extra else ()
     return [{"name": t["name"], "description": t["description"], "parameters": t["parameters"]}
@@ -4195,6 +4419,14 @@ def customer_snapshot(ctx):
         line = "In %s: income %s, spending %s" % (month, _snap_money(ov["income"]), _snap_money(ov["spent"]))
         if ov.get("surplus") is not None:
             sur = float(ov["surplus"])
+            try:
+                moved = round(float(ov["income"]) - float(ov["spent"]) - sur, 2)
+            except (TypeError, ValueError):
+                moved = 0
+            if moved >= 1:
+                # the surplus counts the part put into savings: say so, so the sum adds up
+                data["month_split"] = {"moved_to_savings": moved}
+                line += " and %s moved to savings" % _snap_money(moved)
             line += (", left over %s" % _snap_money(sur)) if sur >= 0 else \
                     (", so %s more went out than came in" % _snap_money(-sur))
         lines.append(line + ".")
@@ -4251,6 +4483,14 @@ def customer_snapshot(ctx):
             line += ", bills of %s expected before then" % _snap_money(safe["bills_total"])
         if safe.get("safe_total") is not None:
             st = float(safe["safe_total"])
+            try:
+                buf = round(bal - float(safe.get("bills_total") or 0) - st, 2)
+            except (TypeError, ValueError):
+                buf = 0
+            if buf >= 1 and st >= 0:
+                # the rest of the sum: what is kept back, so "balance minus bills" is not read as the safe figure
+                data["safe_buffer"] = {"buffer": buf}
+                line += ", %s kept back as a buffer for surprises and planned savings" % _snap_money(buf)
             line += (", %s safe to spend until payday" % _snap_money(st)) if st >= 0 else \
                     (", short by %s until payday" % _snap_money(-st))
         late = safe.get("payday_may_be_late_days")
@@ -4301,6 +4541,13 @@ def customer_snapshot(ctx):
     goal = _ctx_get(ctx, "goal")
     if isinstance(goal, dict) and goal.get("name") and goal.get("target"):
         g = {"name": str(goal["name"])[:60], "target": goal.get("target"), "saved": goal.get("saved") or 0}
+        try:
+            in_savings = sum(float(h.get("amount") or 0) for h in (_ctx_get(ctx, "holdings") or [])
+                             if isinstance(h, dict) and re.search(r"savings|säästö", str(h.get("name") or ""), re.I))
+            if in_savings > float(g["saved"] or 0):
+                g["saved"] = round(in_savings, 2)       # money moved to the S-Bank savings account counts
+        except (TypeError, ValueError):
+            pass
         if goal.get("deadline"):
             g["deadline"] = str(goal["deadline"])[:10]
         data["goal"] = g
@@ -4384,6 +4631,15 @@ def _long_view(ctx):
     return {k: v.get(k) for k in ("window", "balance", "per_month", "months_more_out", "kept") if v.get(k) is not None}
 
 
+def _data_fingerprint(conn):
+    """A short fingerprint of the sandbox rows: it changes after a money move or a remembered category."""
+    try:
+        rows = conn.execute("SELECT id, amount, balance, label, basket, context FROM tx ORDER BY id").fetchall()
+        return hashlib.sha1(repr([tuple(r) for r in rows]).encode("utf-8")).hexdigest()[:16]
+    except Exception:
+        return None
+
+
 def _ranked_findings(ctx):
     """The findings pool for this customer, ranked, with those already told in this conversation marked.
     The pool is worked out once per conversation and kept in its memory."""
@@ -4394,7 +4650,9 @@ def _ranked_findings(ctx):
     except ImportError:
         return []
     pool = None
-    if mem is not None and isinstance(mem.get("_pool"), dict) and mem["_pool"].get("today") == today:
+    ver = _data_fingerprint(_ctx_get(ctx, "conn"))
+    if (mem is not None and isinstance(mem.get("_pool"), dict) and mem["_pool"].get("today") == today
+            and ver is not None and mem["_pool"].get("ver") == ver):
         pool = mem["_pool"].get("items")
     if pool is None:
         try:
@@ -4403,7 +4661,7 @@ def _ranked_findings(ctx):
         except Exception:
             pool = []
         if mem is not None:
-            mem["_pool"] = {"today": today, "items": pool}
+            mem["_pool"] = {"today": today, "ver": ver, "items": pool}
     try:
         return findings.rank(pool, (mem or {}).get("said") or [])
     except Exception:
@@ -4751,6 +5009,12 @@ def tidy_model_text(text, message=""):
     not touched; the number check runs on the result."""
     out = []
     for line in str(text or "").replace("\r", "").split("\n"):
+        if re.match(r"^\s*\|.*\|\s*$", line):
+            # a markdown table does not render in the chat: a row becomes "first cell: the others"
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if all(re.fullmatch(r":?-{2,}:?|", c) for c in cells):
+                continue
+            line = (cells[0] + ": " + ", ".join(c for c in cells[1:] if c)) if len(cells) > 1 else cells[0]
         line = _EMOJI_RE.sub("", line)
         line = re.sub(r"^\s{0,3}#{1,6}\s+", "", line)                     # "## Next step" -> "Next step"
         line = _LABEL_RE.sub("", line)
@@ -4761,6 +5025,20 @@ def tidy_model_text(text, message=""):
         line = re.sub(r" +([.,!?;:])", r"\1", line)
         out.append(line)
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    if text and len(text.split()) > 130 and "\n\n" in text and not _DETAIL_RE.search(message or ""):
+        # backstop: cut at paragraph boundaries to about 110 words, keeping a closing question
+        paras = [p for p in text.split("\n\n") if p.strip()]
+        tail = paras[-1] if len(paras) > 2 and paras[-1].rstrip().endswith("?") else None
+        body = paras[:-1] if tail else paras
+        kept, n = [], 0
+        for p in body:
+            w = len(p.split())
+            if kept and n + w > 110 - (len(tail.split()) if tail else 0):
+                break
+            kept.append(p)
+            n += w
+        if len(kept) < len(body) or tail:
+            text = "\n\n".join(kept + ([tail] if tail and tail not in kept else []))
     if text and len(text.split()) > COACH_MAX_WORDS and not _DETAIL_RE.search(message or ""):
         kept, n = [], 0
         for sent in _SENT_SPLIT.split(text):
@@ -4839,27 +5117,59 @@ def fi_money_format(text):
     return _FI_MONEY_SRC.sub(one, str(text or ""))
 
 
+_FI_COMMON_RE = re.compile(r"\b(?:ja|on|ei|se|että|mutta|koska|sinun|sinulla|olet|noin|euroa|kuussa|kuukaudessa|voit|"
+                           r"voin|joten|myös|kun|tai|ole|oli|sinä|minä|tämä|siitä|sitä|niin|vain|jos|nyt)\b", re.I)
+_EN_COMMON_RE = re.compile(r"\b(?:the|you|your|and|is|are|of|to|that|this|with|for|it|in|was|can|have|not)\b", re.I)
+
+
 def chat(message, history, ctx):
+    """The coach's answer to one message. The result carries "lang" ("fi" or "en"): the language of the answer."""
+    out = _chat(message, history, ctx)
+    if isinstance(out, dict):
+        text = str(out.get("reply") or "")
+        msg = message if isinstance(message, str) else ""
+        # The language of the ANSWER: an English answer may quote "Pörssisäätiö", and a Finnish conversation can
+        # get an English built-in answer, so count ordinary words of each language instead of looking for ä/ö.
+        fi_n = len(_FI_COMMON_RE.findall(text))
+        en_n = len(_EN_COMMON_RE.findall(text))
+        if fi_n + en_n >= 2:
+            fi = fi_n > en_n
+        else:
+            fi = _conv_fi(msg, ctx) or bool(_FI_REPLY_RE.search(text))
+        out["lang"] = "fi" if fi else "en"
+        if fi and text and not out.get("figures"):
+            out["reply"] = fi_money_format(text)
+    return out
+
+
+def _chat(message, history, ctx):
     message = (message if isinstance(message, str) else "").strip()[:MAX_MESSAGE]
     if not message:
         return _package(EMPTY_REPLY, [], "offline")
     _set_compare(ctx, message, history)
+    _track_lang(message, ctx)
     mem = _memory(ctx)
     if mem is not None:
         mem["_turn"] = int(mem.get("_turn", 0)) + 1
     provider = _provider(ctx)
     mode = provider or "offline"
 
+    distress = distress_intent(message)
+    if distress and not provider:
+        return _package(_distress_reply(distress, message), [], mode)
+
     # Pasted documents and answers to the coach's own last question are handled by the built-in rules in
     # both modes: the raw text never goes to the chat model (the explainer redacts it first), and a document is
     # data, never instructions, so the guardrail for prompts and transfers does not apply to it.
-    if receipt_paste(message) is not None:
+    if distress:
+        pass        # a person in distress is answered by the model, never by a document or payment rule
+    elif receipt_paste(message) is not None:
         return _special_turn(message, ctx, history_text="[pasted receipt, %d characters]" % len(message))
-    doc = doc_intent(message)
+    doc = None if distress else doc_intent(message)
     if doc is not None:
         return _special_turn(message, ctx, history_text="[pasted text, %d characters]" % len(message))
     _restore_pending_goal(history, ctx)
-    if followup_route(message, ctx, ai=bool(provider)):
+    if not distress and followup_route(message, ctx, ai=bool(provider)):
         return _special_turn(message, ctx)
 
     canned = canned_reply(message) if not provider else None    # with the AI model on, it answers small talk
@@ -4867,7 +5177,7 @@ def chat(message, history, ctx):
         return _package(canned, [], mode)
     if markup_only(message):
         return _package(MARKUP_REPLY, [], mode)
-    refusal = guardrail(message)
+    refusal = None if distress else guardrail(message)
     guard = None
     note_out = None
     if note_intent(message) and refusal in (None, REFUSAL_MONEY):
@@ -4890,6 +5200,12 @@ def chat(message, history, ctx):
     elif provider and refusal == REFUSAL_OTHER and not _OTHER_RE.search(message):
         guard, refusal = "other", None
     _set_guard(ctx, guard)
+    try:
+        last = next((h for h in reversed(history or []) if isinstance(h, dict) and h.get("role") != "user"), None)
+        asked = bool(last) and str(last.get("text") or last.get("content") or "").rstrip().endswith("?")
+        setattr(ctx, "no_offer", bool(_ACK_RE.match(message)) and not asked)
+    except Exception:
+        pass
     if refusal:
         if is_finnish(message):
             refusal = {REFUSAL_OTHER: REFUSAL_OTHER_FI, REFUSAL_MONEY: REFUSAL_MONEY_FI,
@@ -4913,10 +5229,18 @@ def chat(message, history, ctx):
         _log_fallback(e, provider)
         if note_out is not None:
             return note_out          # the note was saved; the app's own confirmation stands
+        if distress:
+            return _package(_distress_reply(distress, message), [], mode)
+        if "declined" in str(e).lower() and re.search(
+                r"\b(?:above|verbatim|instructions?|prompt|line by line|everything written|rules)\b", message, re.I):
+            # The model refused the request (for example an attempt to get the instructions): the plain refusal.
+            return _package(REFUSAL_PROMPT_FI if is_finnish(message) else REFUSAL_PROMPT, [], mode)
         # ClaudeError, GeminiError or anything unexpected in the model path: answer with the built-in rules
         # and say so in the reply itself, not only in a badge.
-        return _offline_turn(message, ctx, notice=AI_OFFLINE_NOTICE)
+        cap = "daily ai budget" in str(e).lower()
+        return _offline_turn(message, ctx, notice=_notice("cap" if cap else "offline", _conv_fi(message, ctx)))
 
+    plans = [c for c in calls if c[0] == "plan_goal_by_date"]
     for name, args, res in calls:      # a goal plan anywhere in the turn can be saved with "yes" next turn
         if name == "plan_goal_by_date":
             _remember(ctx, name, args, {}, _enrich(name, res) if isinstance(res, dict) else res)
@@ -4925,7 +5249,15 @@ def chat(message, history, ctx):
         name, args, res = data_calls[-1]
         _remember(ctx, name, args, {}, _enrich(name, res) if isinstance(res, dict) else res)
     text, follow = split_followups(text)
+    if len(plans) > 1:
+        _pick_goal_offer(ctx, plans, text, message)
     follow = [anonymise(q) for q in follow if not guardrail(q)]
+    if not str(text or "").strip():
+        # The model sent only a "NEXT:" line: that is no answer, so the built-in rules answer instead.
+        _log_fallback(ValueError("empty model answer"), provider)
+        if distress:
+            return _package(_distress_reply(distress, message), [], mode)
+        return _offline_turn(message, ctx, notice=_notice("offline", _conv_fi(message, ctx)))
 
     def done(res):
         if follow:
@@ -4942,16 +5274,24 @@ def chat(message, history, ctx):
     # SR-10: every figure is filled in from the table ({{fN}} slots) or matched to a figure of the table that
     # fits its sentence; a sentence with any other figure is removed.
     g = grounding.render(text, table, lang)
+    if "{{" in g["text"] or "}}" in g["text"]:
+        # A slot the table could not fill: drop the sentences that hold it; with nothing left, no AI answer.
+        kept = [x for x in re.split(r"(?<=[.!?])\s+", g["text"]) if "{{" not in x and "}}" not in x]
+        g = dict(g, text=" ".join(kept).strip())
+        if len(g["text"]) < 12:
+            if distress:
+                return _package(_distress_reply(distress, message), [], mode)
+            return _offline_turn(message, ctx, notice=_notice("offline", lang == "fi"))
     follow = [grounding.render(q, table, lang)["text"] if grounding.slots(q) else q for q in follow]
     follow = [q for q in follow if q and "{{" not in q]
     if snapshot:
         mark_said(ctx, g["text"] or text, snapshot)
     if g["violations"] and g["ok"]:
         return done(_package(g["text"], calls, provider, payload, extra_cards=help_cards, figures=g["figures"],
-                             notice="One sentence with a figure I couldn't verify was removed from the AI's answer."))
+                             notice=_notice("removed", lang == "fi")))
     if g["violations"]:
         # What is left would not answer the question: the checked answer of the tool that answered it.
-        replaced = "The AI's wording contained a figure I couldn't verify, so I replaced it with a checked answer."
+        replaced = _notice("replaced", lang == "fi")
         if calls:
             i = grounding.answering_call(calls, grounding.used_figures(text, table), HELPER_TOOLS)
             if i is not None:
@@ -4962,6 +5302,6 @@ def chat(message, history, ctx):
                         and c[2].get("text")), None)
             if est:
                 return done(_package(str(est["text"]), calls, provider, payload,
-                                     notice="A sentence with a figure I couldn't verify was removed from the AI's answer."))
+                                     notice=_notice("removed", lang == "fi")))
         return _offline_turn(message, ctx, notice=replaced)
     return done(_package(g["text"], calls, provider, payload, extra_cards=help_cards, figures=g["figures"]))

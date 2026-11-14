@@ -97,7 +97,7 @@ class CappedCoachTests(unittest.TestCase):
         self.assertEqual(first["mode"], "claude")
         self.assertEqual(fake.calls, 1)                       # the second question never reached the model
         self.assertEqual(second["mode"], "offline")
-        self.assertEqual(second.get("notice"), self.coach.AI_OFFLINE_NOTICE)
+        self.assertEqual(second.get("notice"), self.coach.NOTICES["cap"][0])
         self.assertTrue(fx.text_has_amount(second["reply"], 62.10), second["reply"])
 
     def test_the_request_backstop_stops_other_model_calls_too(self):
@@ -116,6 +116,12 @@ class CappedCoachTests(unittest.TestCase):
     def test_public_mode_removes_the_reset_endpoint_and_nothing_else(self):
         self.assertIn("/api/demo/reset", self.server.ROUTES)
         before = set(self.server.ROUTES)
+        # public mode also changes three module settings: put them back, or later tests run in public mode
+        srv = self.server
+        old = (srv.RATE_CHAT, srv.TRUST_FORWARDED_FOR, srv.PER_VISITOR_STATE)
+        self.addCleanup(lambda: setattr(srv, "RATE_CHAT", old[0]))
+        self.addCleanup(lambda: setattr(srv, "TRUST_FORWARDED_FOR", old[1]))
+        self.addCleanup(lambda: setattr(srv, "PER_VISITOR_STATE", old[2]))
         self.assertEqual(self.serve.make_public(), ["/api/demo/reset"])
         self.assertEqual(before - set(self.server.ROUTES), {"/api/demo/reset"})
         self.assertEqual(self.serve.make_public(), [])

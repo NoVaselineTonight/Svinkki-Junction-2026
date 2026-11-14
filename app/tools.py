@@ -114,7 +114,12 @@ TOOLS = [
     {
         "name": "get_benchmarks",
         "description": "Compare the customer with anonymous peers of a similar age (groups of at least 20). "
-                       "Needs the customer's peer-comparison consent.",
+                       "Also returns `open_data`: Statistics Finland's household budget survey (national average "
+                       "monthly spending per consumption unit by age group, for groceries, restaurants and hotels, "
+                       "housing, transport, clothing and health) next to the customer's own monthly figures, with "
+                       "its source and year. Use it whenever they ask how they compare with Finland, Finns or "
+                       "households nationally: never say a national figure is not available. Needs the "
+                       "customer's peer-comparison consent.",
         "parameters": {"type": "object", "properties": {}},
     },
     {
@@ -700,6 +705,10 @@ def _t_get_spend(args, ctx, ins):
         res = ins.spend(ctx.conn, ctx.today, period=period, context="night_out", basket=basket)
     else:
         res = ins.spend(ctx.conn, ctx.today, period=period, label=lab, basket=basket)
+    if isinstance(res, dict) and isinstance(period, str) and re.fullmatch(r"last_\d+_months", period):
+        res["window_note"] = ("This total covers the rolling %s up to today. Monthly figures in other results use "
+                              "whole calendar months, so name the window if you divide this total by months."
+                              % period.replace("_", " "))
     return _with_peer(res, lab, basket, ctx, ins), "spend"
 
 
@@ -726,7 +735,11 @@ def _t_what_if(args, ctx, ins):
     if not isinstance(ch, list):
         raise ValueError("changes must be a list")
     months = int(_num(args.get("months", 12), 1, 60, "months"))
-    return ins.what_if(ctx.conn, ctx.today, _expand_targets(ch), months=months), "what_if"
+    res = ins.what_if(ctx.conn, ctx.today, _expand_targets(ch), months=months)
+    if isinstance(res, dict):
+        res["window_note"] = ("Usual monthly amounts here are the average of the last 6 full months. Say that window "
+                              "when you quote one; a longer history can give a different figure.")
+    return res, "what_if"
 
 
 SIX_MONTH_NOTE = ("The averages in this result cover the last 6 full months. The usual month in the customer section "
@@ -1511,9 +1524,15 @@ def _t_project_savings(args, ctx, ins):
         return v
 
     end, plain = grow(r, months), start + monthly * months
+    yearly = monthly == 0 and rate > 0 and start > 0
+    if yearly:      # a lump sum with no deposits: compound once a year, as school arithmetic does
+        end = start * (1 + rate / 100.0) ** years
     res = {"monthly": _r2(monthly), "years": years, "months": months, "annual_return_pct": rate, "start": _r2(start),
            "paid_in": _r2(plain), "value_at_end": _r2(end), "growth": _r2(end - plain),
            "without_return": _r2(plain), "no_card": True}
+    if yearly:
+        res["compounding"] = "once a year"
+        res["without_compounding"] = _r2(start * (1 + rate / 100.0 * years))
     if target is not None:
         v, n = start, 0
         while v < target and n < 1200 and (monthly > 0 or r > 0):

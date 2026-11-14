@@ -235,7 +235,7 @@ class PinTests(HomeBase):
         pins = [t for t in self.a.get("/api/home").json["things"] if t["kind"] == "pin"]
         self.assertEqual(pins[0]["id"], pin["id"])
         self.assertEqual(pins[0]["card_type"], "spend_summary")
-        self.assertRegex(pins[0]["summary"], r"^Kept \d{1,2} [A-Z][a-z]{2} \d{4}$")
+        self.assertRegex(pins[0]["summary"], r"^Saved \d{1,2} [A-Z][a-z]{2} \d{4}$")
         # another customer sees nothing and cannot touch it
         self.assertEqual(self.b.get("/api/pin?id=" + pin["id"]).status, 404)
         self.assertEqual(self.b.post("/api/pins/remove", {"id": pin["id"]}).status, 404)

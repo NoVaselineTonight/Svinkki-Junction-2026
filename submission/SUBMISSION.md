@@ -43,9 +43,11 @@ taxi in the middle of a night out counts as "Night out", not food or transport.
 **Built for financial literacy:**
 - Safe to spend this week and until payday, with the working shown and a day-by-day forecast.
 - What-if simulations in chat and with sliders.
-- A weekly quiz: "Guess how much you spent on X this week", then the real figure and a tip.
-- A monthly check-in with opt-in suggestions ("You had €307 left over. Set it aside?"). Accepting
-  records the intent; no money moves.
+- A daily quiz: a personal round of six questions about your money and money skills, picked and
+  worded by the AI, with the right answers computed by code.
+- A monthly check-in with opt-in suggestions ("You had €307 left over. Set it aside?"). "Approve and
+  move" moves the money inside the simulated S-mobiili account, only after the customer approves that
+  exact move; nothing can leave S-mobiili.
 - Benchmarks against similar customers (groups of at least 20) and Statistics Finland open data.
 - A plain-language explainer for pasted loan or fund text, and a mortgage readiness check (a check,
   not a credit decision).
@@ -66,21 +68,23 @@ sit in a WebView. Python standard library only on the server.
 | Financial literacy | Three baskets on every purchase, quiz, check-in, what-if, plain-language explainer |
 | Originality of AI integration | The model plans and explains, code calculates, every figure is traceable to transactions, the customer sees what the model saw |
 | Mobile UX | Phone-width; a front page with conversations and "Your things", everything else asked in chat; "What can I ask?" page; consent and frequency in two screens |
-| Feasibility | Runs on the provided dataset today; checked live with Claude Haiku 5.5; TODO final test count; about 0.15 cents per answer on Haiku |
+| Feasibility | Runs on the provided dataset today; checked live with Claude Opus 5.5 (the default); about $0.06 per answer on Opus 5.5 and about 0.15 cents on Haiku 5.5 at list price; tests: `python -m unittest discover -s tests` |
 | S-mobiili integration | No build step, embeddable in a WebView, identity held server-side, ready for bank login |
 
 ## AI model and cost
 
 Claude through the Anthropic Messages API over plain HTTP (no dependencies), with the app's own
-read-only tools. Checked live on 13 Nov 2026: Claude Haiku 5.5 answered "How much did I spend on
-taxis last month?" with €92.85 and the two transactions, computed by the app's tool. Haiku costs
-about 0.15 cents (USD) per answered question at list price; Opus 5.5 is selectable in Settings for
-harder questions. Calculation in `submission/SLIDES.md`.
+read-only tools. The default model is Claude Opus 5.5, checked live on 14 Nov 2026 in an audit of
+about 230 answers: "How much did I spend on taxis last month?" gives €92.85 and the two
+transactions, computed by the app's tool. Opus 5.5 costs about $0.06 per answered question at list
+price; Haiku 5.5 costs about 0.15 cents and is selectable in Settings. Calculation in
+`submission/SLIDES.md`.
 
 ## Links
 
 - Source code: https://github.com/NoVaselineTonight/Svinkki-Junction-2026 (TODO: the repository is
   private; make it public or add the judges before submitting)
+- Live demo: https://svinkki.onrender.com (free plan: sleeps when idle; see `docs/DEPLOY.md`)
 - Demo video (public, at most 2 minutes): TODO
 - Pitch deck: TODO (share link from the deck's Share menu)
 

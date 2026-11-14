@@ -198,7 +198,8 @@ class WordingHelperTests(unittest.TestCase):
 
     def test_percentages_above_100_are_worded(self):
         r = self.ins.ratio_words
-        self.assertEqual(r(221, 118), "87% above")
+        self.assertEqual(r(221, 118), "almost double")           # 87% above is worded from 75% up (LEAD-L10)
+        self.assertEqual(r(150, 118), "27% above")
         self.assertEqual(r(236, 118), "about double")
         self.assertEqual(r(263, 118), "more than double")
         self.assertEqual(r(93, 17), "about 5 times")
