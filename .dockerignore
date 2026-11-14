@@ -1,0 +1,16 @@
+# Only app/, web/ and deploy/ go into the image. No data, no keys, no git history.
+*
+!app
+!app/**
+!web
+!web/**
+!deploy
+!deploy/**
+**/__pycache__
+**/*.pyc
+**/*.db
+**/*.csv
+**/.env
+**/.env.*
+**/*_api_key.txt
+**/*.key

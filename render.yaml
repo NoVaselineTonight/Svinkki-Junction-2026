@@ -1,0 +1,22 @@
+# Render Blueprint: one web service built from the Dockerfile in this repository.
+# In Render: New > Blueprint > pick this repository. It asks once for ANTHROPIC_API_KEY.
+# Every later push to main redeploys after the checks pass. See docs/DEPLOY.md.
+services:
+  - type: web
+    name: svinkki
+    runtime: docker
+    plan: free            # 0.1 CPU, 512 MB; sleeps after 15 idle minutes. Use a paid plan for the judging hours.
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: ANTHROPIC_API_KEY      # the secret: typed into Render, never stored in git
+        sync: false
+      - key: CLAUDE_MODEL           # claude-opus-5-5 (best), claude-sonnet-5-5 (faster), claude-haiku-5-5 (cheapest)
+        value: claude-opus-5-5
+      - key: SVINKKI_AI_DAILY_TURNS # customer questions a day the model may answer; then the built-in rules answer
+        value: "400"
+      - key: SVINKKI_PUBLIC
+        value: "1"
