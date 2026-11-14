@@ -678,14 +678,35 @@ def cmd_git_pre_push(args):
 
 # --------------------------------------------------------------------------- Claude Code hooks
 
+def _enter(path):
+    """Work from `path`. Claude Code starts hooks in the project folder, which for a session in a git
+    worktree is the main checkout: the agent name, the repo root and the claims would be the wrong ones."""
+    try:
+        if path and os.path.isdir(path):
+            os.chdir(path)
+    except OSError:
+        pass
+
+
+def _common_git_dir():
+    """The repository's shared .git folder: the same for the main checkout and every worktree of it."""
+    out = git("rev-parse", "--git-common-dir", check=False)
+    return os.path.normcase(os.path.realpath(os.path.join(os.getcwd(), out))) if out else None
+
+
 def hook_input():
     try:
-        return json.loads(sys.stdin.read() or "{}")
+        data = json.loads(sys.stdin.read() or "{}")
     except Exception:
-        return {}
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    _enter(data.get("cwd"))
+    return data
 
 
 def cmd_hook_session_start(args):
+    hook_input()
     me = agent_name(required=False)
     out = []
     if not me:
@@ -722,6 +743,17 @@ def edited_paths_from_hook(data):
 
 def cmd_hook_pre_edit(args):
     data = hook_input()
+    # The edited file decides which worktree (and so which agent) this is: go to its nearest existing folder,
+    # but only when that folder belongs to this same repository. Files elsewhere are not our business.
+    base, ours = os.getcwd(), _common_git_dir()
+    for p in edited_paths_from_hook(data):
+        d = os.path.dirname(p if os.path.isabs(p) else os.path.join(data.get("cwd") or base, p))
+        while d and not os.path.isdir(d) and os.path.dirname(d) != d:
+            d = os.path.dirname(d)
+        _enter(d)
+        if not ours or _common_git_dir() != ours:
+            _enter(base)
+        break
     me = agent_name(required=False)
     if not me:
         die("BLOCKED: no agent name set. Ask the human for your name, then run "
