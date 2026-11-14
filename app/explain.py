@@ -46,7 +46,7 @@ def redact(text: str) -> tuple[str, int]:
 
 # --------------------------------------------------------------------------- language
 
-_FI_WORDS = {"ja", "on", "ei", "että", "tai", "joka", "sekä", "lainan", "laina", "korko", "koron", "kuukausi",
+_FI_WORDS = {"ja", "ei", "että", "tai", "joka", "sekä", "lainan", "laina", "korko", "koron", "kuukausi",
              "kuukaudessa", "euroa", "vuosi", "maksu", "maksun", "lainanantaja", "lainanottaja", "sopimus",
              "sopimuksen", "rahasto", "rahaston", "sijoitus", "sijoittaja", "palkkio", "palkkion", "mukaan",
              "tulee", "voi", "ovat", "oli", "jos", "kun", "myös", "tämä", "niiden", "luotto", "luoton"}

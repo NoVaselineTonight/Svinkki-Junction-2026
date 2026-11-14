@@ -6,6 +6,33 @@ the dataset, the built database, and the API key.
 
 ## Where things stand
 
+Updated 14 Nov 2026 by agent-e, the demo-ready run (the app is public at https://svinkki.onrender.com):
+
+- **Audited:** 17 audits, about 230 live answers checked; every figure taken from a tool matched SQL.
+- What changed in this run (all checked by tests; the items marked * also checked live or in a browser):
+  - *The coach has a character (`app/voice.py`): introduces itself as an AI coach, shorter answers (40 to 70 words),
+    three figures at most, a win is celebrated and nothing else, a worry gets the short kind answer, no scheduled
+    or repeated-phrase closers. It says plainly that the demo data is synthetic.
+  - *Figures: calculated amounts keep their euro sign and house rounding; counts are no longer shown as euros;
+    a malformed slot can no longer reach the screen; 112 is never deleted (`app/grounding.py`).
+  - *Wrong or misleading figures fixed at the source: the investment projection counts only what goes into the
+    fund; "safe to spend this week" cannot exceed the total; groceries per month agree across tools (12 full
+    months); "the year before" compares equal windows; a season is only claimed when it shows in two years and
+    the cost was paid in nearly every one of those months.
+  - Distress: fixed kind replies without a model and as the fallback (MIELI, Takuusäätiö, Peluuri by website;
+    112 is the only phone number). A long question is no longer treated as a pasted document.
+  - *Goal: "ok set it" saves the plan that was offered, with its date, also in Finnish; money moved to the savings
+    account counts toward the goal.
+  - *Web: each figure in a model answer can be tapped to see where it comes from (`web/extras.js`); warmer look
+    (answer bubble, stacked approve buttons, tap targets); the approval card says "Moved" afterwards; stored
+    proposals have no live buttons; Finnish answers get Finnish money and dates in their cards.
+  - Public copy (`deploy/serve.py`, `app/server.py`): every visitor gets a private copy of the persona;
+    "Reset demo" and the key setup are hidden; an hourly slice of the daily AI cap; gzip and ETag for static files.
+  - Not done: the built-in rules still miss some spoken Finnish and the "did I pay 12 for a ticket" question;
+    card titles stay English under Finnish answers; the Dockerfile still ships without bytecode (slow wake-up).
+- The demo script (`DEMO.md`) was rewritten to match the app after this run; steps marked "verify before presenting" depend on changes made in the same run.
+- Older entries below are history. Where one says a prompt or the start page "has NOT been checked live", the audit above has since run the live model (Opus 5.5); where one says six tiles or a weekly quiz, the app now has four example questions, a link "Goals, receipts, contracts and more" and a "Daily quiz".
+
 Updated 14 Nov 2026, about 09:30 UTC, by agent-d (local session with the dataset and the key; the AI side.
 The GUI is agent-c's). Detail, figures and what was not solved: `.devloop/WAVE5.md`.
 

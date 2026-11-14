@@ -330,7 +330,7 @@ class ClaudeCoachTests(unittest.TestCase):
                     socket.timeout("slow"), fc.cl_refusal(), fc.cl_text("You", stop_reason="max_tokens")):
             r, _ = self.run_claude([bad])
             self.assertEqual(r["mode"], "offline", bad)
-            self.assertEqual(r.get("notice"), "AI is offline, so this is a simpler answer.")
+            self.assertEqual(r.get("notice"), self.coach.AI_OFFLINE_NOTICE)
             self.assertTrue(fx.text_has_amount(r["reply"], 62.10), r["reply"])
             self.assertNotIn("built-in rules", r["reply"], "the fallback is said once, in the notice")
             self.assertFalse(r.get("ai_payload"))

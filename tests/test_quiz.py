@@ -142,7 +142,7 @@ class ModelTests(_Base):
     def test_the_model_picks_and_words_the_round_and_the_app_checks_it(self):
         items, ctx = self.pool()
         by = {q["id"]: q for q in items}
-        pick = ["grocery_trips", "essentials", "income", "skill:deposit_guarantee", "skill:capital_tax", "weekday"]
+        pick = ["grocery_trips", "essentials", "income", "skill:deposit_guarantee", "skill:capital_tax", "top_area"]
         reply = {"title": "Your August, in six questions", "items": [
             {"id": "grocery_trips", "question": "Quick one: how many times did you pop to the grocery store in August?",
              "teach": "Fewer, bigger shops are often cheaper per meal."},
@@ -154,7 +154,7 @@ class ModelTests(_Base):
              "teach": "Your savings are safe up to that limit at each bank."},
             {"id": "skill:capital_tax", "question": "How much tax do fund gains pay in Finland?", "teach": ""},
             {"id": "not-in-pool", "question": "?", "teach": ""},
-            {"id": "weekday", "question": "Which day is your big spending day?", "teach": "Plan that day."},
+            {"id": "top_area", "question": "Which area is your big spending area?", "teach": "Plan that day."},
         ]}
         fake = fc.FakeClaude([fc.cl_text(json.dumps(reply))])
         with fc.patched_claude(fake):

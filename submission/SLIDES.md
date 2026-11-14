@@ -14,7 +14,7 @@ to move, F for full screen. The PDFs are the same slides, one per page.
 The answers on the two question slides come from the app's built-in rules (no AI key) for Veeti,
 Joonas and Helmi; with Claude on, the figures are the same and the wording is the model's.
 
-Facts on the slides to re-check before the pitch: the test count (765 on `main` on 14 Nov), the
+Facts on the slides to re-check before the pitch: the test count (run `python -m unittest discover -s tests` and quote what it prints), the
 cost figures below, and that the screenshots still match the app. To refresh a screenshot, replace the PNG in
 `submission/deck/img/` (390 px wide phone at 2x) and re-export the PDF with Chrome's print to PDF.
 
@@ -28,21 +28,19 @@ just before the pitch and do not round them up.
 
 **Works today**
 - A start page with the account card (balance, safe to spend until payday), four example
-  questions, last month in the three baskets, the check-in and the quiz; earlier conversations and
-  "Your things" (goal, challenge, notes, kept answers) when they exist. Two follow-up questions under
-  each answer; "Everything I can do" lists every topic.
+  questions, last month in the three baskets, the check-in and the daily quiz; earlier conversations and
+  "Your things" (goal, challenge, notes, kept answers) when they exist. Follow-up questions under
+  each answer; the link "Goals, receipts, contracts and more" opens "Everything I can do", which lists every topic.
 - Chat with your own money, three baskets, safe to spend, what-if, payday forecast, goals,
   benchmarks, quiz, check-in, consent, "What the AI saw".
 - Receipt-level questions ("How much do I spend on beer?") on simulated receipt lines.
 - Answers in Finnish as well as English.
 
 **Verified**
-- Live with Claude: on 13 Nov 2026, Claude Haiku 5.5 answered "How much did I spend on taxis last
-  month?" through the app's own tool: €92.85, two transactions shown, on the merged code.
-- [N] automated tests pass (765 on `main` on 14 Nov). Tests never see a real key.
-- Live with Claude on 14 Nov 2026 on the real dataset: personal answers with the numbers right, but
-  too long (up to 7 sentences); agent-d is shortening them.
-- Two independent evaluations; [N of 15] major findings fixed. [List any that remain open.]
+- Live with Claude Opus 5.5 (the default) on 14 Nov 2026 on the real dataset: about 230 answers
+  checked, every figure taken from a tool matched SQL. "How much did I spend on taxis last month?"
+  gives €92.85, two transactions shown. Live answers run from 2 to 11 sentences.
+- Automated tests: run `python -m unittest discover -s tests` and quote the result. Tests never see a real key.
 
 **Not yet**
 - Bank login (demo picker today).
@@ -71,8 +69,8 @@ tokens including the model's thinking.
 Scale example: if 10% of S-Bank's 3.5 million customers each ask 10 questions a month, that is
 3.5 million turns a month: about $5,000 on Haiku, $105,000 on Sonnet, $210,000 on Opus.
 
-Suggested line: "Haiku for everyday questions, about 0.15 cents a turn; the live demo runs on it.
-The fixed instructions and tool list repeat in every call, so prompt caching cuts the input cost
+Suggested line: "Haiku for everyday questions would cost about 0.15 cents a turn; the live demo runs on
+Opus 5.5, about 6 cents a turn at list price. The fixed instructions and tool list repeat in every call, so prompt caching cuts the input cost
 further. Code computes every number, so a cheaper model does not mean less accurate figures."
 
 [Before the pitch: replace the 1,000-token output assumption with the usage of a measured live

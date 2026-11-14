@@ -197,7 +197,7 @@ class GoalSaveTests(_Base):
         self.assertEqual(set(card[0]["data"]), {"name", "target", "monthly_needed", "deadline"})
         self.assertEqual(card[0]["data"]["target"], 3000.0)
         self.assertGreaterEqual(card[0]["data"]["monthly_needed"], plan["monthly_needed"])
-        self.assertRegex(o3["reply"], r"^Saved: Japan, €3,000 by June 2027\.")
+        self.assertRegex(o3["reply"], r"^Done, Japan is saved: €3,000 by June 2027, about €\d+ a month\.")
         self.assertEqual(len(sentences(o3["reply"])), 2)
 
     def test_yes_without_a_plan_or_with_no_saves_nothing(self):

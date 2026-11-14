@@ -218,6 +218,18 @@ def tokens(text):
     return out
 
 
+_SLOPPY_SLOT = re.compile(r"(\{{1,2})\s*[fF](\d+)(?:\s*(\}{1,2})(\*?))?")
+
+
+def normalize_slots(text):
+    """A slot the model wrote sloppily ("{{f219}", "{f219}}", "{{ F219 }", "{{f219}*") as the plain {{f219}}."""
+    def one(m):
+        if len(m.group(1)) == 2 and len(m.group(3) or "") == 2:
+            return m.group(0)
+        return "{{f%s}}" % m.group(2)
+    return _SLOPPY_SLOT.sub(one, str(text or ""))
+
+
 def slots(text):
     """[(figure id, (start, end))] for every slot written in text (with any currency sign or unit around it)."""
     return [("f" + m.group(1), m.span()) for m in SLOT_RE.finditer(text or "")]
@@ -232,6 +244,8 @@ def is_free(kind, val, text="", sp=None):
     if kind == "ordinal":
         return 1 <= val <= 5
     if kind == "number":
+        if val == 112:                             # the emergency number is never an unchecked figure
+            return True
         if val == int(val) and 0 <= val <= 12:
             return True
         if val == int(val) and 1900 <= val <= 2100:
@@ -372,13 +386,20 @@ def fmt_money(v, exact=False, lang="en", rough=False):
 
 def fmt_number(v, lang="en"):
     v = float(v)
-    s = "%d" % round(v) if abs(v - round(v)) < 1e-9 else ("%.1f" % v)
-    return s.replace(".", ",") if lang == "fi" else s
+    whole = abs(v - round(v)) < 1e-9
+    if whole and 1900 <= abs(v) <= 2100:
+        s = "%d" % round(v)                        # looks like a year: no grouping
+    else:
+        s = "{:,}".format(int(round(v))) if whole else "{:,.1f}".format(v)
+    return s.replace(",", "\u00a0").replace(".", ",") if lang == "fi" else s
 
 
 def fmt_percent(v, lang="en"):
     v = abs(float(v))
-    s = "%d" % round(v) if (v >= 10 or abs(v - round(v)) < 0.05) else ("%.1f" % v)
+    if 0 < v < 0.1:
+        s = "%.2f" % v                             # 0.01% stays 0.01%, not 0
+    else:
+        s = "%d" % round(v) if (v >= 10 or abs(v - round(v)) < 0.05) else ("%.1f" % v)
     if lang == "fi":
         return s.replace(".", ",") + "\u00a0%"
     return s + "%"
@@ -411,12 +432,15 @@ def close(known, a, whole_ok=True):
 
 
 # ------------------------------------------------------------------ what a field of a tool result is
-_PCT_KEY = re.compile(r"pct|percent|share|ratio|rate")
-_OTHER_KEY = re.compile(r"count|^n$|days|months|weeks|^years?$|_year$|^year_|_id$|^id$|rank|score|limit|affected|"
-                        r"turn|visits|rides|population|^age|index|number|^rows$|^month$|^dated?$|^tx$|streak|level|"
-                        r"receipts?$|lines$|times$|hour|qty|quantit|litre|liter|^kg$|weekday|grams|size")
-_COUNT_KEY = re.compile(r"count|^n$|visits|rides|receipts?$|lines$|times$|affected|^tx$")
-_SKIP_KEY = re.compile(r"_id$|^id$|rank|score|index|level|^age|hour|weekday")
+_PCT_KEY = re.compile(r"pct|percent|share|ratio|rate|tiers")
+_OTHER_KEY = re.compile(r"count|^n$|days|months|weeks|^years?$|(?:birth|tax|start|end)_year$|_id$|^id$|rank|score|limit|affected|"
+                        r"turn|visits|rides|trips|shops|topups|purchases|payments|population|^age|index|number|^rows$|^month$|^dated?$|^tx$|streak|level|"
+                        r"receipts?$|lines$|times(?:$|_)|hour|qty|quantit|litre|liter|^kg$|weekday|grams|size")
+_COUNT_KEY = re.compile(r"count|^n$|visits|rides|trips|shops|topups|purchases|payments|receipts?$|lines$|times(?:$|_)|affected|^tx$")
+# a key that is a weekday or month name takes its meaning from the dict it sits in (weekday_trips.Monday)
+_NAME_KEY = re.compile(r"^(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|"
+                       r"\d{1,2}|\d{4}-\d{2}|value)$", re.I)
+_SKIP_KEY = re.compile(r"_id$|^id$|rank|score|index|level|^age|hour|weekday|^tiers$")
 # keys whose value is the total of the result's period: only these take the period's length as their rate
 _TOTAL_KEY = re.compile(r"^(?:total|spent|spending|income|saved|surplus|sum|kept|regular|unexpected|everyday|savings)$")
 _SPEND_TOOLS = ("get_spend", "get_baskets", "list_transactions", "explore_my_data", "get_receipts")
@@ -511,6 +535,7 @@ class FigureTable:
         self.by_id = {}
         self.dates = set()                 # (month, day) the turn's data or the customer's message names
         self._calls = 0
+        self.shown = set()                 # ids of the figures whose slot was actually put in front of the model
         now = _ym(today)
         if now:
             try:
@@ -579,6 +604,7 @@ class FigureTable:
                             span=base.get("span") if not rate else None, month=month, said=said, dedupe=dedupe)
             if fid and tag:
                 out.append(text[pos:sp[1]] + " {{%s}}" % fid)
+                self.shown.add(fid)
                 pos = sp[1]
         out.append(text[pos:])
         return "".join(out)
@@ -587,12 +613,13 @@ class FigureTable:
         """The customer picture: returns the lines with every figure tagged with its slot. When the data the
         lines were written from is given, each figure's source points at the field it came from."""
         out = []
+        flat = _flatten(data) if isinstance(data, dict) else None      # one walk of the data for all figures
         for i, line in enumerate(lines or ()):
             src = {"kind": "snapshot", "tool": "customer_snapshot", "line": i}
             start = len(self.figs)
             tagged = self.tag_text(line, src, {"label": "customer picture"})
             for f in self.figs[start:]:
-                hit = _find_in(data, f["value"], f["unit"]) if isinstance(data, dict) else None
+                hit = _find_flat(flat, f["value"], f["unit"]) if flat is not None else None
                 if hit:
                     f["source"].update(hit)
             out.append(tagged)
@@ -634,10 +661,13 @@ class FigureTable:
         if tool == "calculate" and isinstance(view, dict) and isinstance(view.get("results"), list):
             state["calc_labels"] = {"results[%d]" % i: str(r.get("label") or "")
                                     for i, r in enumerate(view["results"]) if isinstance(r, dict)}
+            state["calc_exprs"] = {"results[%d]" % i: str(r.get("expression") or "")
+                                   for i, r in enumerate(view["results"]) if isinstance(r, dict)}
         tagged = self._walk(tool, args, view, (), base, None, call, evid, listing, state)
         if isinstance(tagged, dict) and listing:
             tagged = dict(tagged)
-            tagged["figures"] = listing
+            own = tagged.get("figures")
+            tagged["figures"] = dict(own, **listing) if isinstance(own, dict) else listing
         return tagged
 
     def _walk(self, tool, args, o, keys, ctx, unit, call, evid, listing, state):
@@ -647,6 +677,7 @@ class FigureTable:
             fid = self._leaf(tool, args, o, keys, ctx, unit, call, evid, state)
             if fid and len(listing) < MAX_LISTED:
                 listing[fid] = self._listing_label(self.by_id[fid])
+                self.shown.add(fid)
             return o
         if isinstance(o, str):
             if re.fullmatch(r"\d{4}-\d{2}-\d{2}", o.strip()):
@@ -682,7 +713,8 @@ class FigureTable:
             out = {}
             cols = o.get("columns")
             for k, v in o.items():
-                if k in ("card", "evidence", "figures"):
+                if k in ("card", "evidence") or (k == "figures" and not (
+                        isinstance(v, dict) and any(isinstance(x, dict) for x in v.values()))):
                     out[k] = v
                     continue
                 if k == "rows" and isinstance(cols, list) and isinstance(v, list) and v and isinstance(v[0], list):
@@ -715,6 +747,11 @@ class FigureTable:
         k = keys[-1].split("[")[0].lower()
         if _SKIP_KEY.search(k) or (k in ("year", "years") and 1900 <= abs(v) <= 2100):
             return None
+        parent = keys[-2].split("[")[0].lower() if len(keys) > 1 else ""
+        if k == "value" and parent:                  # a figure kept as {"value": ..., "label": ...}: its name decides
+            k = parent
+        elif parent and _NAME_KEY.match(k) and _COUNT_KEY.search(parent):
+            k = parent                               # weekday_trips.Monday counts trips
         u = str(unit or "").lower()
         exact = False
         if _PCT_KEY.search(k) or u in ("share", "ratio", "pct", "percent"):
@@ -725,19 +762,17 @@ class FigureTable:
             kind, val = "money", v
             exact = (tool not in _HELPERS and k in ("total", "amount", "balance", "price", "spent", "income", "sum")
                      and not re.search(r"avg|average|usual|typical|per_|monthly|estimate|mid", ".".join(keys)))
+            if exact and ctx.get("span") in ("multi", "year") and "[" not in ".".join(keys):
+                exact = False       # a yearly total beside rounded figures: whole euros, no stray cents
         group, rate, cats = None, None, set(ctx.get("categories") or ())
         if tool == "calculate":
             row_label = _calc_label(keys, state)
             group = None
             rate = rate_of(row_label)
             cats = categories(row_label)
-            if re.search(r"\bmonths?\b|\bweeks?\b|\bdays?\b|\byears?\b|\btimes\b|kuukau|viiko|päiv|vuo", row_label, re.I) \
-                    and not re.search(r"€|eur|per month|a month|kuukaudessa", row_label, re.I):
-                kind = "number"
-            elif re.search(r"%|percent|share|prosent|osuus", row_label, re.I):
-                kind = "percent"
             if keys[-1] in ("rounded", "rounded_up"):
                 return None
+            kind, exact = self._calc_unit(keys, row_label, state, v)
         elif kind == "money":
             group = _key_metric(tool, [x.split("[")[0] for x in keys])
             rate = _key_rate(keys) or ctx.get("rate")
@@ -750,6 +785,51 @@ class FigureTable:
                         month=month, dedupe=("call", call))
         state["n"] += 1
         return fid
+
+    def _calc_unit(self, keys, row_label, state, v):
+        """(unit, exact) of a calculate result. The operands decide first: every figure in the expression is a
+        table figure (resolved from its slot) or a typed constant. Money with constants, counts or percentages is
+        money; money divided by money is a ratio (a share with "* 100", else a plain number); a sum or difference
+        of exact amounts is exact. The label decides only for what the operands do not say (how many months,
+        times, a share)."""
+        expr = state.get("calc_exprs", {}).get(keys[0] if keys else "", "")
+        lits = [(m.group(0), m.start(), m.end()) for m in _LIT_RE.finditer(expr)]
+        cls = []
+        for text, a, b in lits:
+            x = float(text)
+            if "." not in text and "e" not in text.lower() and (x <= 12 or x in (52, 100, 365, 1000)):
+                cls.append(("const", None))
+                continue
+            hit = [f for f in self.figs if abs(abs(f["value"]) - abs(x)) < 1e-6 and f["source"].get("tool") != "calculate"]
+            money = [f for f in hit if f["unit"] == "money"]
+            cls.append(("money", money[0]) if money else (("other", hit[0]) if hit else ("const", None)))
+        has_money = any(c[0] == "money" for c in cls)
+        ratio = False
+        for (text, a, b), c in zip(lits, cls):
+            before = expr[:a].rstrip("( \t")
+            if before.endswith("/") and c[0] == "money":
+                ratio = True
+        count_label = (re.search(r"^\s*(?:number of|how many|count of|kuinka mon|montako)\b|\b(?:times|trips|visits|"
+                                 r"payments|purchases|rides|kertaa|käyntiä|ostosta)\b|\b(?:months?|weeks?|days?|years?|"
+                                 r"kuukautta|viikkoa|päivää|vuotta) (?:to|until|needed|left|it takes|of saving|"
+                                 r"tavoitteeseen)\b", row_label, re.I) and not re.search(r"€|eur", row_label, re.I))
+        share_label = (re.search(r"%|percent|share|prosent|osuus", row_label, re.I)
+                       and not re.search(r"\d\s?%\s*(?:of|less|more|off|cut)\b|\d\s?%:(?:sta|n)\b|€|eur", row_label, re.I))
+        if has_money:
+            if ratio:
+                if re.search(r"\*\s*100(?![\d.])|(?<![\d.])100\s*\*", expr):
+                    return "percent", False
+                return ("percent" if share_label else "number"), False
+            if count_label:
+                return "number", False
+            only_sum = bool(expr) and not re.search(r"[*/]", expr) and all(
+                c[0] == "money" and c[1].get("exact") for c in cls)
+            return "money", only_sum
+        if count_label:
+            return "number", False
+        if share_label:
+            return "percent", False
+        return "money", False
 
     def _listing_label(self, f):
         return "%s = %s" % (fmt(f), f["label"])
@@ -785,6 +865,9 @@ class FigureTable:
             if close(f["value"], val):
                 out.append(f)
         return out
+
+
+_LIT_RE = re.compile(r"\d+\.?\d*(?:[eE][+-]?\d+)?")
 
 
 def _calc_label(keys, state):
@@ -858,6 +941,36 @@ def _find_in(data, value, unit):
                              "evidence": ev or []})
     walk(data, (), [])
     return hits[0] if hits else None
+
+
+def _flatten(data):
+    """[(keys, evidence, number)] of the numbers of the snapshot data, in the order _find_in walks them."""
+    out = []
+
+    def walk(o, keys, ev):
+        if isinstance(o, dict):
+            e = o.get("evidence")
+            ev2 = [e] if isinstance(e, dict) else ([x for x in e if isinstance(x, dict)][:5] if isinstance(e, list) else ev)
+            for k, v in o.items():
+                if k not in ("evidence", "card") and not str(k).startswith("_"):
+                    walk(v, keys + (str(k),), ev2)
+        elif isinstance(o, list):
+            for i, v in enumerate(o[:MAX_LIST_ITEMS]):
+                walk(v, keys[:-1] + ((keys[-1] if keys else "") + "[%d]" % i,), ev)
+        elif isinstance(o, (int, float)) and not isinstance(o, bool) and o:
+            out.append((keys, ev, o))
+    walk(data, (), [])
+    return out
+
+
+def _find_flat(flat, value, unit):
+    """Same answer as _find_in, from the flattened list: the first number the figure equals."""
+    for keys, ev, o in flat:
+        v = o * 100 if unit == "percent" and abs(o) <= 1 else o
+        if close(v, value):
+            return {"tool": keys[0] if keys else "customer_snapshot", "path": ".".join(keys[1:]),
+                    "evidence": ev or []}
+    return None
 
 
 def _sentence_around(text, sp):
@@ -961,7 +1074,7 @@ def process_sentence(sentence, table, lang="en", adopt=True):
     swallow = {}        # index of a slot -> characters after it removed with it
     # a figure in digits right next to its own slot ("€92.85 {{f3}}", "{{f3}} (€92.85)") is dropped
     for i, (a, b, k, p) in enumerate(found):
-        if k != "slot" or table.get(p) is None:
+        if k != "slot" or table.get(p) is None or p not in getattr(table, "shown", (p,)):
             continue
         for j in (i - 1, i + 1):
             if 0 <= j < len(found) and found[j][2] in ("money", "percent", "number") and j not in drop:
@@ -989,6 +1102,8 @@ def process_sentence(sentence, table, lang="en", adopt=True):
             continue
         if k == "slot":
             fig = table.get(p)
+            if fig is not None and p not in getattr(table, "shown", (p,)):
+                fig = None          # an id that was never listed for the model: not one it could have meant
             if fig is None:
                 bad.append({"raw": raw, "reason": "unknown_slot", "detail": "%s is not in the figure list" % p})
                 continue
@@ -997,6 +1112,8 @@ def process_sentence(sentence, table, lang="en", adopt=True):
                 bad.append({"raw": raw, "id": p, "reason": "misfit", "detail": "%s %s" % (p, why)})
                 continue
             rep = fmt(fig, lang)
+            if fig["unit"] == "number" and fig["source"].get("tool") == "calculate" and re.search(r"€|eur", raw, re.I):
+                rep = fmt_money(fig["value"], fig.get("exact"), lang, fig.get("rough"))
         elif k == "bad":
             bad.append({"raw": raw, "reason": "unreadable", "detail": "%s cannot be read as a figure" % raw})
             continue
@@ -1073,6 +1190,7 @@ class Rendered(dict):
 def render(text, table, lang="en", adopt=True):
     """Fill the slots of a model answer and remove the sentences that fail. ok is False when what is left would
     not answer the question (see the module docstring); the caller then repairs or falls back."""
+    text = normalize_slots(text)
     sents = split_sentences(text)
     kept, figures, violations, dropped = [], [], [], []
     answer_idx = None
@@ -1082,6 +1200,8 @@ def render(text, table, lang="en", adopt=True):
                                            for k, v, _sp in tokens(s))
         if answer_idx is None and has_figure:
             answer_idx = i
+        if not bad and re.search(r"\{\{|\}\}", rendered):
+            bad = [{"raw": "{{", "reason": "unreadable", "detail": "a figure slot in it cannot be read"}]
         if bad:
             dropped.append(i)
             for b in bad:
@@ -1154,7 +1274,7 @@ def answering_call(calls, figures, helpers=_HELPERS):
 def used_figures(text, table):
     """The figure records a draft refers to, valid or not: for answering_call on a draft that failed."""
     out = []
-    for _pi, s in split_sentences(text):
+    for _pi, s in split_sentences(normalize_slots(text)):
         for fid, _sp in slots(s):
             f = table.get(fid)
             if f:

@@ -86,7 +86,7 @@ class SnapshotTests(_Base):
         ctx.cid = A                      # the server passes this as the seed of the simulated receipts
         lines, data = self.coach.customer_snapshot(ctx)
         text = "\n".join(lines)
-        self.assertRegex(text, r"Spending habits: Most of your everyday spending happens on \w+days")
+        self.assertRegex(text, r"Spending habits: \w+day is your biggest day for everyday spending")
         self.assertRegex(text, r"Charges that repeat every month: €\d+")
         rc = next(l for l in lines if l.startswith("From their grocery receipts"))
         self.assertIn("simulated for the demo; say so once", rc)
@@ -96,7 +96,7 @@ class SnapshotTests(_Base):
         self.assertLessEqual(len(data["receipt_insights"]["top_products"]), 3)
         self.assertNotIn("by_hour", data["find_leaks"])
         self.assertNotIn("merchant_ref", json.dumps(data), "never which merchant, not even as a reference")
-        self.assertLess(len(text), 2700, "the picture stays short (2,400 plus the small step, app/voice.py)")
+        self.assertLess(len(text), 2900, "the picture stays short (2,400 plus the small step and the named buffer and savings parts)")
 
     def test_receipt_figures_from_the_picture_pass_the_number_check(self):
         ctx = self.ctx()

@@ -89,7 +89,9 @@ class StoryTests(unittest.TestCase):
         r = self.res
         self.assertEqual(r["months_more_out"], 5)                       # Oct 2025 to Feb 2026: 1,720 out, 1,400 in
         self.assertAlmostEqual(r["kept"]["this_window"], 12 * 1400 - (1180 * 7 + 1720 * 5), 2)   # -60
-        self.assertAlmostEqual(r["kept"]["window_before"], 11 * 280, 2)  # 3,080
+        self.assertNotIn("window_before", r["kept"])          # 11 months against 12: only per-month figures compare
+        self.assertAlmostEqual(r["kept"]["per_month_window_before"], 280.0, 2)
+        self.assertEqual(r["kept"]["months_window_before"], 11)
         self.assertAlmostEqual(r["per_month"]["income"], 1400.0, 2)
         self.assertAlmostEqual(r["per_month"]["spent"], 16860 / 12, 2)
         self.assertAlmostEqual(r["per_month"]["spent_before"], 1120.0, 2)
@@ -139,7 +141,8 @@ class StoryTests(unittest.TestCase):
         rows = [r for r in story_rows() if not (r[3] == "Housing" and r[0].startswith("2026-03"))]
         c = _conn(rows)
         r = self.tr.money_story(c, TODAY)
-        self.assertAlmostEqual(r["per_month"]["spent"], 16860 / 12, 2)  # rent stays 800 (median of months present)
+        # plain mean of what was spent (a missing rent month is a month without rent paid; C1-D4)
+        self.assertAlmostEqual(r["per_month"]["spent"], (16860 - 800) / 12, 2)
 
 
 class SeasonTests(unittest.TestCase):
@@ -167,20 +170,18 @@ class SeasonTests(unittest.TestCase):
         now = 3000.0 + sum(x[1] for x in self.rows)
         self.assertAlmostEqual(r["balance_now"], now, 2)
         self.assertAlmostEqual(r["if_repeated"], now - 1600.0, 2)
-        sv = r["season_vs_rest"]
-        self.assertEqual(sv["label"], "Groceries")
-        self.assertAlmostEqual(sv["season_monthly"], 840.0, 2)
-        self.assertAlmostEqual(sv["rest_monthly"], 300.0, 2)
+        # the year before had no winter bump, so the groceries rise is a one-year trend, not a season (C2-D1)
+        self.assertIsNone(r["season_vs_rest"])
         self.assertTrue(r["relevant"])
 
     def test_highlights(self):
         hl = self.res["highlights"]
         self.assertTrue(2 <= len(hl) <= 5)
-        self.assertIn("Last October to February you spent €8,600 against €7,000 of income: €1,600 more than came in",
+        self.assertIn("Last October to February you spent €8,600, €1,600 more than the €7,000 of income that came in",
                       hl[0])
         self.assertIn("€4,200", hl[0])
         self.assertIn("you kept €1,400", hl[1])
-        self.assertIn("€840", " ".join(hl))
+        self.assertNotIn("the rest of the year", " ".join(hl))
         self.assertEqual(self.res["text"], " ".join(hl[:2]))
 
     def test_flat_year_is_not_relevant(self):

@@ -84,6 +84,9 @@
 
   function num(n) { n = Number(n); return isFinite(n) ? n : 0; }
 
+  // The language of the answer whose cards are being drawn ('fi' writes money and dates the Finnish way).
+  var cardLang = 'en';
+  var FI_MONTHS = ['tammikuu', 'helmikuu', 'maaliskuu', 'huhtikuu', 'toukokuu', 'kesäkuu', 'heinäkuu', 'elokuu', 'syyskuu', 'lokakuu', 'marraskuu', 'joulukuu'];
   function money(n, opts) {
     opts = opts || {};
     n = Number(n);
@@ -92,10 +95,11 @@
     // House rule: whole euros from €20 up, cents only below. opts.exact keeps the cents (single payments).
     var dec = opts.exact ? 2 : (abs >= 20 || (opts.hero && abs >= 1000) ? 0 : 2);
     if (!opts.exact && dec === 2 && abs === 0) dec = 0;
-    var s = abs.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+    var fi = cardLang === 'fi';
+    var s = abs.toLocaleString(fi ? 'fi-FI' : 'en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
     var isZero = Number(abs.toFixed(dec)) === 0;
     var sign = (n < 0 && !isZero) ? '-' : (opts.plus && n > 0 ? '+' : '');
-    return sign + '€' + s;
+    return fi ? sign + s + ' €' : sign + '€' + s;
   }
   // A figure looked up as it is (a spend total, one payment, a balance, a receipt): the answer writes it with
   // cents, so the card does too ("€92.85", not "€93").
@@ -108,12 +112,13 @@
   function fmtDate(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
     if (!m) return s ? String(s) : '';
+    if (cardLang === 'fi') return Number(m[3]) + '.' + Number(m[2]) + '.' + yearPart(m[1]).trim();
     return Number(m[3]) + ' ' + MON[Number(m[2]) - 1] + yearPart(m[1]);
   }
   function fmtMonth(ym) {
     var m = /^(\d{4})-(\d{2})/.exec(String(ym || ''));
     if (!m) return String(ym || '');
-    return MONTHS[Number(m[2]) - 1] + yearPart(m[1]);
+    return (cardLang === 'fi' ? FI_MONTHS : MONTHS)[Number(m[2]) - 1] + yearPart(m[1]);
   }
   // Full calendar month: "August 2026". Same year: "1 Aug to 15 Sep 2026". Otherwise both years.
   function fmtRange(p) {
@@ -124,8 +129,9 @@
     var b = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(to));
     if (!a || !b) return fmtDate(p.from) + ' to ' + fmtDate(to);
     if (a[1] === b[1] && a[2] === b[2] && a[3] === '01' && String(to).slice(0, 10) === lastDayOfMonth(a[1] + '-' + a[2])) {
-      return MONTHS[Number(a[2]) - 1] + yearPart(a[1]);
+      return (cardLang === 'fi' ? FI_MONTHS : MONTHS)[Number(a[2]) - 1] + yearPart(a[1]);
     }
+    if (cardLang === 'fi') return fmtDate(p.from) + '–' + fmtDate(to);
     if (a[1] === b[1]) return Number(a[3]) + ' ' + MON[Number(a[2]) - 1] + ' to ' + fmtDate(to);
     return fmtDate(p.from) + ' to ' + fmtDate(to);
   }
@@ -180,15 +186,15 @@
   }
 
   function friendly(status, code) {
-    if (status === 0) return 'We could not reach the server. Check your connection and try again.';
-    if (status === 429) return 'You are going a bit fast. Wait a moment and try again.';
-    if (status >= 500) return 'Something went wrong on our side. Please try again in a moment.';
-    if (status === 403) return 'That needs a permission you have not given. You can change it in Settings.';
-    if (status === 404 && code === 'quiz_off') return 'The daily quiz is switched off.';
+    if (status === 0) return 'I can\'t get through right now. Check your connection and try again.';
+    if (status === 429) return 'Give me a moment to catch up, then try again.';
+    if (status >= 500) return 'Something went wrong on my side. Please try again in a moment.';
+    if (status === 403) return 'That\'s switched off in your choices. You can turn it on in Settings.';
+    if (status === 404 && code === 'quiz_off') return 'The daily quiz is off. You can turn it on in Settings.';
     if (status === 404) return 'That\'s no longer available.';
-    if (status === 413) return 'That message is too long.';
-    if (status === 400 || status === 422) return 'I couldn\'t handle that. Try asking in a different way.';
-    return 'Something went wrong. Please try again.';
+    if (status === 413) return 'That\'s a bit long for me. Could you shorten it?';
+    if (status === 400 || status === 422) return 'I didn\'t quite get that. Could you put it another way?';
+    return 'Something went wrong on my side. Please try again.';
   }
 
   // A model turn may take up to 60 s on the server (coach.TURN_SECONDS) with no streaming; the browser gives
@@ -219,7 +225,7 @@
         var code = data && typeof data.error === 'string' ? data.error : '';
         if (res.status === 401) {
           onUnauthorised();
-          throw new ApiError(401, code, 'Please sign in again.', true);
+          throw new ApiError(401, code, 'Please log in again.', true);
         }
         if (res.status === 403 && code === 'consent_required') {
           onConsentRequired();
@@ -230,7 +236,7 @@
     }, function (err) {
       done();
       if (err instanceof ApiError) throw err;
-      if (timedOut) throw new ApiError(0, 'timeout', 'The answer took too long. Please try again in a moment.', false);
+      if (timedOut) throw new ApiError(0, 'timeout', 'That took me too long, sorry. Please try again in a moment.', false);
       throw new ApiError(0, 'network', friendly(0, ''), false);
     });
   }
@@ -332,7 +338,7 @@
   }
 
   function errorNode(err, retry) {
-    var msg = (err && err.message) ? err.message : 'Something went wrong. Please try again.';
+    var msg = (err && err.message) ? err.message : 'Something went wrong on my side. Please try again.';
     var box = h('div', { class: 'notice err', role: 'alert' }, msg);
     if (retry) box.appendChild(h('button', { type: 'button', class: 'link-btn', onclick: retry }, 'Try again'));
     return box;
@@ -597,7 +603,8 @@
       var uid = 'cp-' + r.id + '-' + Math.random().toString(36).slice(2, 6);
       var sel = h('select', { class: 'input', id: uid + '-l' });
       labels.forEach(function (l) { sel.appendChild(h('option', { value: l }, l)); });
-      if (r.label && labels.indexOf(r.label) >= 0) sel.value = r.label;
+      if (opts && opts.suggest && labels.indexOf(opts.suggest) >= 0) sel.value = opts.suggest;
+      else if (r.label && labels.indexOf(r.label) >= 0) sel.value = r.label;
       var night = switchRow(uid + '-n', 'Part of a night out', '', r.context === 'night_out', function () {});
       var chk = h('input', { type: 'checkbox', id: uid + '-m' });
       var msg = h('div', { 'aria-live': 'polite' });
@@ -773,6 +780,7 @@
           api('/api/demo/login', { method: 'POST', body: { id: p.id } }).then(boot, function (e) {
             b.disabled = false;
             if (e.handled) return;
+            if (e.code === 'unknown_persona') { showLogin(); return; }
             list.insertBefore(errorNode(e), list.firstChild);
           });
         });
@@ -831,11 +839,11 @@
     var wrap = h('div', { class: 'switches' });
     function fire(key) { return function (v) { state[key] = v; onChange(key, state); }; }
     var rows = [
-      switchRow('sw-analysis', 'Analyse my transactions', 'Needed for every answer. Only your own rows.', state.analysis, fire('analysis'), { tag: 'needed' }),
-      switchRow('sw-ai', 'Let an AI help with the wording', 'It sees results only, never your name, account or raw transactions.'
-        + (me && me.ai_available === false ? ' No AI model is connected right now, so built-in rules answer either way.' : ''), state.ai, fire('ai')),
+      switchRow('sw-analysis', 'Analyse my transactions', 'I need this to answer anything. I only look at your own transactions.', state.analysis, fire('analysis'), { tag: 'needed' }),
+      switchRow('sw-ai', 'Let an AI help with the wording', 'It sees the figures behind your answer, never your name or account number.'
+        + (me && me.ai_available === false ? ' The AI isn\'t connected right now, so you get my built-in answers either way.' : ''), state.ai, fire('ai')),
       switchRow('sw-bench', 'Compare me with people like me', 'Compare your spending with groups of 20+ similar customers. Only group totals are used.', state.benchmarks, fire('benchmarks')),
-      switchRow('sw-sugg', 'Give me suggestions', 'Svinkki may suggest things, like putting leftover money aside. Nothing happens unless you say so.', state.suggestions, fire('suggestions'))
+      switchRow('sw-sugg', 'Give me suggestions', 'I may suggest things, like putting leftover money aside. Nothing happens unless you say yes.', state.suggestions, fire('suggestions'))
     ];
     rows.forEach(function (r) { wrap.appendChild(r.el); });
     return { el: wrap, get: function () { return Object.assign({}, state); } };
@@ -907,7 +915,7 @@
       h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'),
       h('p', null, 'I\'m Svinkki, your money coach. I read your own transactions to answer your questions. ' + (me && me.ai_available
         ? 'An AI helps with the wording; it never sees your name or account.'
-        : 'No AI model is connected right now, so built-in rules write every answer on this server.')),
+        : 'The AI isn\'t connected right now, so I\'ll answer with my built-in know-how. The figures are just as exact.')),
       h('p', { class: 'muted' }, 'Money only moves when you approve it, and only to your own S-Bank savings or funds. You can change these choices any time in Settings.'),
       go, hint, status, choose.el));
   }
@@ -1015,7 +1023,7 @@
 
   function quizCard(q) {
     var min = num(q.min), max = num(q.max) || 100, stepV = num(q.step) || 1;
-    var c = cardShell('Weekly quiz', q.period ? fmtRange(q.period) : '');
+    var c = cardShell('Daily quiz', q.period ? fmtRange(q.period) : '');
     c.appendChild(h('p', { class: 'quiz-q' }, q.question || 'Guess your spending this week.'));
     var mid = Math.round((min + max) / 2 / stepV) * stepV;
     var out = h('div', { class: 'quiz-guess', 'aria-live': 'polite' }, money(mid));
@@ -1077,7 +1085,7 @@
   // one at a time. Answers are checked by the server (POST /api/quiz/round/answer); a round resumes where it was.
   function quizRoundCard(rd) {
     var qs = (rd && rd.questions) || [];
-    var c = cardShell(rd.title || 'Your money quiz', rd.mode === 'claude' ? 'Picked for you by the AI coach' : 'Picked for you');
+    var c = cardShell(rd.title || 'Daily quiz', rd.mode === 'claude' ? 'Picked for you by the AI coach' : 'Picked for you');
     var body = h('div', { class: 'quiz-round' });
     c.appendChild(body);
     var right = 0;
@@ -1209,7 +1217,7 @@
     // A week without a payday has no "money in": show what was spent, not a shortfall against nothing.
     if (num(c.income) > 0) {
       keyFig(sec, money(c.surplus), num(c.surplus) >= 0 ? 'left over' : 'more out than in');
-      addRows(sec, [['Money in', money(c.income)], ['Spent', money(c.spent)]]);
+      addRows(sec, [['Money in', money(c.income)], ['Spent', money(c.spent)], num(c.saved) > 0 ? ['Saved', money(c.saved)] : null]);
     } else {
       keyFig(sec, money(c.spent), 'spent');
     }
@@ -1234,8 +1242,12 @@
       row.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
       api('/api/suggestions/action', { method: 'POST', body: { id: s.id, action: action } }).then(function (r) {
         row.hidden = true;
+        if (action === 'accept' && String(s.id || '').indexOf('review_overdraft') === 0 && !(r && r.proposal)) {
+          openConversation({ message: 'When was my balance below zero?' });
+          return;
+        }
         if (r && r.proposal) { msg.replaceChildren(moneyProposalCard(r.proposal)); return; }
-        msg.replaceChildren(h('p', { class: 'notice ' + (r && r.ok === false ? '' : 'ok') }, (r && r.message) ? ht(r.message) : (action === 'accept' ? 'Noted.' : 'Okay, we will leave it for now.')));
+        msg.replaceChildren(h('p', { class: 'notice ' + (r && r.ok === false ? '' : 'ok') }, (r && r.message) ? ht(r.message) : (action === 'accept' ? 'Noted.' : 'Okay, we\'ll leave it for now.')));
       }, function (e) {
         row.querySelectorAll('button').forEach(function (b) { b.disabled = false; });
         if (!e.handled) msg.replaceChildren(errorNode(e));
@@ -1287,14 +1299,27 @@
   }
 
   // --- Moving money inside S-mobiili: always an explicit approval of one exact move ---
+  var drawingStored = false;     // true while an earlier conversation is redrawn: old proposals get no buttons
   function moneyProposalCard(pr) {
+    if (drawingStored || (pr.status && pr.status !== 'pending')) {
+      var old = cardShell('Move money', 'Inside S-mobiili', 'money-card');
+      var line = pr.status === 'cancelled' ? 'This move was cancelled.'
+        : pr.status === 'expired' ? 'This offer has expired. Ask again and I will make a new one.'
+        : pr.status === 'done' ? 'Done: ' + money(pr.amount) + ' moved to your ' + (pr.to || 'savings') + '.'
+        : 'I offered to move ' + money(pr.amount) + ' to your ' + (pr.to || 'savings') + ' here. If you approved it, it is already done. Ask me again for a new offer.';
+      old.appendChild(h('p', { class: 'small' }, line));
+      return old;
+    }
     var c = cardShell('Approve this move?', 'Inside S-mobiili', 'money-card');
+    var titleEl = c.querySelector('.card-title');
+    var noteEl = null;
     keyFig(c, money(pr.amount), 'to your ' + (pr.to || 'savings'));
     c.appendChild(rowsNode([['From', pr.from || 'Your current account'], ['To', pr.to || ''],
       pr.balance_after != null ? ['Balance after', money(pr.balance_after)] : null].filter(Boolean)));
     if (pr.about) c.appendChild(h('p', { class: 'small' }, ht(pr.about)));
     if (pr.risk) c.appendChild(h('p', { class: 'notice' }, ht(pr.risk)));
-    c.appendChild(h('p', { class: 'tiny' }, ht(pr.note || 'Nothing moves until you approve.')));
+    noteEl = h('p', { class: 'tiny' }, ht(pr.note || 'Nothing moves until you approve.'));
+    c.appendChild(noteEl);
     var msg = h('div', { 'aria-live': 'polite' });
     var row = h('div', { class: 'btn-row' });
     var yes = h('button', { type: 'button', class: 'btn' }, 'Approve and move ' + money(pr.amount));
@@ -1305,6 +1330,8 @@
       api('/api/money/confirm', { method: 'POST', body: { proposal_id: pr.id, approve: approve, amount: pr.amount, dest: pr.dest } }).then(function (r) {
         row.hidden = true;
         var ok = r && r.ok !== false;
+        if (titleEl) titleEl.textContent = (ok && r.moved) ? 'Moved' : (approve ? 'Move not made' : 'Cancelled');
+        if (noteEl) noteEl.hidden = true;
         msg.replaceChildren(h('p', { class: 'notice ' + (ok && r.moved ? 'ok' : (ok ? '' : 'err')) }, ht((r && r.message) || (approve ? 'Done.' : 'Nothing was moved.'))));
         if (r && r.moved) thingsChanged();
       }, function (e) {
@@ -1352,7 +1379,7 @@
     c.appendChild(h('div', { class: 'verdict v-' + v }, VERDICT_WORDS[v]));
     if (v === 'caution' && d.verdict_text) c.appendChild(h('p', { class: 'small' }, ht(d.verdict_text)));
     addRows(c, [
-      d.per_day_after != null ? ['Left a day after it', money(d.per_day_after)] : null,
+      d.per_day_after != null && d.risk !== 'loan' ? ['Left a day after it', money(d.per_day_after)] : null,
       d.next_payday ? ['Until payday', fmtDate(d.next_payday)] : null
     ]);
     var ge = d.goal_effect;
@@ -1532,7 +1559,7 @@
       c.appendChild(h('p', { class: 'small muted' }, s && s.text ? ht(s.text) : 'Answer a quiz question and your score shows up here.'));
       return c;
     }
-    if (s.awareness_score != null) keyFig(c, Math.round(num(s.awareness_score)) + '/100', 'awareness score');
+    if (s.awareness_score != null) keyFig(c, Math.round(num(s.awareness_score)) + '/100', 'guessing accuracy');
     var pts = (s.points || []).map(function (p) { return p && p.accuracy; }).filter(function (v) { return v != null; });
     if (pts.length > 1) c.appendChild(sparkline(pts));
     addRows(c, [['Questions answered', String(num(s.count))]]);
@@ -1574,6 +1601,7 @@
       var open = body.hidden;
       body.hidden = !open;
       btn.setAttribute('aria-expanded', String(open));
+      if (open && body.scrollIntoView) body.scrollIntoView({ block: 'nearest' });
     });
     return { btn: btn, body: body };
   }
@@ -1630,10 +1658,10 @@
     }, function () {});
   }
 
-  // Where an answer came from: "On-device rules" for the built-in rules, else the model's name.
+  // Where an answer came from: "Built-in answer" for the built-in rules, else the model's name.
   function sourceLabel(res) {
     var mode = res && res.mode;
-    if (mode === 'offline') return 'On-device rules';
+    if (mode === 'offline') return 'Built-in answer';
     if (mode === 'claude') return res.model ? (aiModelNames[res.model] || String(res.model)) : (aiModelName || 'Claude');
     if (mode === 'gemini') return String(res.model || 'Gemini');
     return '';
@@ -1657,7 +1685,7 @@
     more(c, [
       kp.length ? [eyebrow('Key points'), h('ul', { class: 'plain-list' }, kp.map(function (x) { return h('li', null, x); }))] : null,
       wo.length ? h('div', { class: 'notice watch' }, h('b', null, 'Watch out for'), h('ul', { class: 'plain-list' }, wo.map(function (x) { return h('li', null, x); }))) : null,
-      h('p', { class: 'tiny' }, (isAiMode(d.mode) ? 'Explained by the AI model.' : 'Explained by built-in rules.') + (red > 0 ? ' ' + plural(red, 'personal detail was', 'personal details were') + ' removed first.' : '')),
+      h('p', { class: 'tiny' }, (isAiMode(d.mode) ? 'Explained with the AI.' : 'Explained without the AI.') + (red > 0 ? ' ' + plural(red, 'personal detail was', 'personal details were') + ' removed first.' : '')),
       d.notice ? h('p', { class: 'tiny' }, ht(d.notice)) : null,
       d.disclaimer ? h('p', { class: 'disclaimer' }, String(d.disclaimer)) : null
     ]);
@@ -1668,9 +1696,9 @@
     if (e.status === 400 || e.status === 422 || e.status === 413) {
       return 'Please paste between ' + EXPLAIN_MIN + ' and ' + EXPLAIN_MAX.toLocaleString('en-US') + ' characters of text.';
     }
-    if (e.status === 429) return 'You are going a bit fast. Wait a moment and try again.';
+    if (e.status === 429) return 'Give me a moment to catch up, then try again.';
     if (e.status === 404) return 'Explaining a text is not available right now.';
-    return e.message || 'Something went wrong. Please try again.';
+    return e.message || 'Something went wrong on my side. Please try again.';
   }
 
   // Opens the "Explain a text" sheet. onResult(text, data) lets the chat add the exchange to the thread.
@@ -2001,9 +2029,9 @@
       return c;
     },
     spend: function (d) {
-      var c = cardShell('Spending', d.period ? fmtRange(d.period) : '');
-      keyFig(c, money(d.total, EXACT), plural(num(d.count), 'payment', 'payments'));
       var labels = (d.by_label || []).filter(function (x) { return num(x.total) > 0; });
+      var c = cardShell(labels.length === 1 && labels[0].label ? cap(String(labels[0].label)) : 'Spending', d.period ? fmtRange(d.period) : '');
+      keyFig(c, money(d.total, EXACT), plural(num(d.count), 'payment', 'payments'));
       var np = d.night_out_part;
       more(c, [labels.length > 1 ? labelBars(labels.slice(0, 8), maxOf(labels), null, true) : null, peerBlock(d),
         np && num(np.total) > 0 ? h('p', { class: 'small' }, 'Of this, ' + money(np.total, EXACT) + ' was on nights out.') : null], d);
@@ -2012,7 +2040,7 @@
     overview: function (d) {
       var c = cardShell('Your month', d.month ? fmtMonth(d.month) : '');
       keyFig(c, money(d.surplus), num(d.surplus) >= 0 ? 'left over' : 'more out than in');
-      addRows(c, [['Money in', money(d.income)], ['Spent', money(d.spent)]]);
+      addRows(c, [['Money in', money(d.income)], ['Spent', money(d.spent)], num(d.saved) > 0 ? ['Saved', money(d.saved)] : null]);
       var b = d.baskets || {};
       var keys = ['regular', 'unexpected', 'everyday'];
       var bmx = Math.max.apply(null, keys.map(function (k) { return num(b[k]); }).concat([1]));
@@ -2095,7 +2123,7 @@
         d.months_to_equity != null ? h('p', { class: 'small' }, num(d.months_to_equity) > 120
           ? 'At ' + money(d.monthly_saving) + ' a month, saving the ' + euros(d.equity_needed) + ' would take over 10 years.'
           : 'At ' + money(d.monthly_saving) + ' a month, saving the ' + euros(d.equity_needed) + ' takes about ' + plural(Math.ceil(num(d.months_to_equity)), 'month', 'months') + '.') : null,
-        k ? h('p', { class: 'small' }, 'For a ' + euros(k.price) + ' home: loan ' + euros(k.loan) + ', loan-to-value ' + pct(num(k.ltv) <= 1 ? num(k.ltv) * 100 : k.ltv) + '. Income ' + (k.income_ok ? 'looks enough' : 'looks too low') + ', down payment ' + (k.equity_ok ? 'looks enough' : 'looks too low') + '.') : null,
+        k ? h('p', { class: 'small' }, 'For a ' + euros(k.price) + ' home: loan ' + euros(k.loan) + ', which is ' + pct(num(k.ltv) <= 1 ? num(k.ltv) * 100 : k.ltv) + '. Income ' + (k.income_ok ? 'looks enough' : 'looks too low') + ', down payment ' + (k.equity_ok ? 'looks enough' : 'looks too low') + '.') : null,
         para(d.rule, 'explain'),
         d.disclaimer ? h('p', { class: 'disclaimer' }, d.disclaimer) : null
       ], d);
@@ -2133,9 +2161,9 @@
     transactions: function (d) {
       var c = cardShell('Transactions', plural(num(d.count), 'found', 'found'));
       var rows = (d.rows || []).slice(0, 5);
-      c.appendChild(txList({ rows: rows }, { bare: true }));
+      c.appendChild(txList({ rows: rows }, { bare: true, suggest: d.suggest_label }));
       var rest = (d.rows || []).slice(5);
-      if (rest.length) more(c, [txList({ rows: rest }, { bare: true })]);
+      if (rest.length) more(c, [txList({ rows: rest }, { bare: true, suggest: d.suggest_label })]);
       return c;
     },
     table: function (d) {
@@ -2357,10 +2385,17 @@
         save.addEventListener('click', function () {
           save.disabled = true;
           msg.replaceChildren(loadingNode('Saving...'));
-          api('/api/goal', { method: 'POST', body: { name: g.name, target: num(g.target), saved: num(g.saved) } }).then(function (r) {
+          // The plan's date and monthly amount go with the goal, so "Your things" and the coach know them too.
+          var goalBody = { name: g.name, target: num(g.target), saved: num(g.saved) };
+          if (d.deadline) goalBody.deadline = String(d.deadline);
+          if (d.monthly_needed != null) goalBody.monthly_needed = Math.ceil(num(d.monthly_needed));
+          api('/api/goal', { method: 'POST', body: goalBody }).then(function (r) {
             var ng = (r && r.goal) || g;
             msg.replaceChildren();
             save.replaceWith(thingChip({ id: 'goal', kind: 'goal', title: ng.name || g.name }));
+            Array.prototype.forEach.call(document.querySelectorAll('.chips.follow .chip'), function (chip) {
+              if (/^yes,? save\b/i.test(chip.textContent || '')) chip.remove();   // the card did it already
+            });
             thingsChanged();
           }, function (e) {
             save.disabled = false;
@@ -2397,7 +2432,7 @@
           undo.disabled = true;
           api('/api/overrides/remove', { method: 'POST', body: { id: id } }).then(function () {
             row.remove();
-            msg.replaceChildren(h('p', { class: 'notice ok', role: 'status' }, 'Undone. I have forgotten that.'));
+            msg.replaceChildren(h('p', { class: 'notice ok', role: 'status' }, 'Undone. I\'ve forgotten that.'));
             thingsChanged();
           }, function (e) {
             undo.disabled = false;
@@ -2423,7 +2458,9 @@
     receipt_trends: 'What your receipts show',
     basket_profile: 'Your grocery trips',
     cut_ideas: 'Where groceries could give',
-    findings: 'Worth knowing'
+    findings: 'Worth knowing',
+    invest_plan: 'Your investing plan',
+    invest_facts: 'What the sources say'
   };
   var DEMO_RECEIPT_CARDS = { receipt_trends: 1, basket_profile: 1, cut_ideas: 1 };
   function storyCard(type, d) {
@@ -2491,8 +2528,8 @@
   var KIND = {
     goal: { name: 'Savings goal', icon: 'flag' },
     challenge: { name: 'Challenge', icon: 'target' },
-    target: { name: 'Saving target', icon: 'coin' },
-    learned: { name: 'Learned categories', icon: 'tag' },
+    target: { name: 'Monthly saving target', icon: 'coin' },
+    learned: { name: 'What I have learned', icon: 'tag' },
     quiz: { name: 'Quiz score', icon: 'help' },
     money: { name: 'Savings and investments', icon: 'coin' },
     note: { name: 'Note', icon: 'doc' },
@@ -2554,7 +2591,7 @@
       load(body, t, function () { return api('/api/quiz/stats'); }, function (s) {
         var box = h('div', { class: 'thing-body' });
         quizStatsInto(box, s);
-        box.appendChild(h('button', { type: 'button', class: 'btn block', onclick: function () { closeSheet(); openConversation({ insert: 'quiz' }); } }, 'Play this week\'s quiz'));
+        box.appendChild(h('button', { type: 'button', class: 'btn block', onclick: function () { closeSheet(); openConversation({ insert: 'quiz' }); } }, 'Play today\'s quiz'));
         body.appendChild(box);
       });
     } else {
@@ -2707,7 +2744,7 @@
       var ch = r[1] && r[1].active;
       if (ch) things.push({ id: 'challenge', kind: 'challenge', title: ch.title || 'Your challenge', summary: 'This week' });
       var tg = num(me && me.settings && me.settings.monthly_saving_target);
-      if (tg > 0) things.push({ id: 'target', kind: 'target', title: 'Saving target', summary: money(tg) + ' a month' });
+      if (tg > 0) things.push({ id: 'target', kind: 'target', title: 'Monthly saving target', summary: money(tg) + ' a month' });
       var ov = (r[2] && r[2].overrides) || [];
       if (ov.length) things.push({ id: 'learned', kind: 'learned', title: 'What I have learned', summary: plural(ov.length, 'correction', 'corrections') });
       var qs = r[3];
@@ -2745,6 +2782,14 @@
     mortgage: ['How can I save more?', 'What kind of spender am I?'],
     invest: ['How can I save more?', 'What is safe for me to spend this week?']
   };
+  var FOLLOW_FI_DEFAULT = ['Mihin rahani menivät?', 'Paljonko voin käyttää tällä viikolla?'];
+  var FOLLOW_FI = {
+    spend: ['Mihin rahani menivät?', 'Miten voisin säästää enemmän?'],
+    overview: ['Miten voisin säästää enemmän?', 'Paljonko voin käyttää tällä viikolla?'],
+    baskets: ['Miten voisin säästää enemmän?', 'Paljonko voin käyttää tällä viikolla?'],
+    safe_to_spend: ['Riittääkö rahani palkkapäivään?', 'Mihin rahani menivät?'],
+    forecast: ['Paljonko voin käyttää tällä viikolla?', 'Mihin rahani menivät?']
+  };
   var FOLLOW_DEFAULT = ['Where did my money go?', 'What is safe for me to spend this week?'];
 
   // Two next questions for an answer: by its first card, never the question just asked. None for an answer
@@ -2757,8 +2802,14 @@
     if (!cards.length && /\?$/.test(reply)) return [];
     var type = cards.length ? cards[0].type : '';
     if (type === 'money_proposal' || type === 'help') return [];
-    // The examples are in English; a customer writing Finnish gets none rather than a language switch.
-    if (/[äöå]|\b(paljonko|mitä|mita|miten|onko|kuinka|voinko|minulla|minun|käytin|kaytin|entä|enta)\b/i.test(String(asked || ''))) return [];
+    // The server says which language it answered in; Finnish gets the Finnish chips.
+    if (res && res.lang === 'fi') {
+      var af = String(asked || '').toLowerCase().replace(/[?!.\s]+$/, '');
+      return (FOLLOW_FI[type] || FOLLOW_FI_DEFAULT).filter(function (q) { return q.toLowerCase().replace(/[?!.\s]+$/, '') !== af; }).slice(0, 2);
+    }
+    if (res && res.lang === 'en') { /* English chips below */ }
+    // Without a language from the server: a customer writing Finnish gets none rather than a language switch.
+    else if (/[äöå]|\b(paljonko|mitä|mita|miten|onko|kuinka|voinko|minulla|minun|käytin|kaytin|entä|enta)\b/i.test(String(asked || ''))) return [];
     var a =String(asked || '').toLowerCase().replace(/[?!.\s]+$/, '');
     return (FOLLOW[type] || FOLLOW_DEFAULT).filter(function (q) { return q.toLowerCase().replace(/[?!.\s]+$/, '') !== a; }).slice(0, 2);
   }
@@ -2822,7 +2873,7 @@
   // One short line instead of an empty or out-of-date page when Home's data cannot be loaded.
   function homeErrorNode(retry) {
     return h('div', { class: 'notice err home-err', role: 'alert' },
-      h('span', null, 'Part of this page could not load. Check your connection.'),
+      h('span', null, 'I couldn\'t load part of this page. Check your connection.'),
       h('button', { type: 'button', class: 'link-btn', onclick: retry }, 'Try again'));
   }
 
@@ -2842,7 +2893,7 @@
       errBox.appendChild(homeErrorNode(function () { showHome(); }));
     }
     var first = firstName();
-    var comp = composer('Ask anything about your money', 'Ask Svinkki a question', function (text) { openConversation({ message: text }); });
+    var comp = composer('Ask about your money', 'Ask Svinkki a question', function (text) { openConversation({ message: text }); });
     var askLink = h('button', { type: 'button', class: 'link-btn ask-link', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, 'Goals, receipts, contracts and more', icon('chev', 16));
     var suggest = h('div', { class: 'suggest-box' },
       suggestChips(SUGGEST, function (it) {
@@ -2858,14 +2909,18 @@
     var acctBox = h('div', { class: 'acct-slot' });
     var greetLine = h('p', { class: 'muted', 'aria-live': 'polite' }, 'Ask me anything about your money, even the hard questions.');
     viewEl.appendChild(h('div', { class: 'home' },
-      errBox, acctBox,
+      errBox,
       h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), greetLine),
+      acctBox,
       comp.el, suggest, monthBox, forYou, convBox, thingsBox));
     // The lists that change when the customer does something; refreshed in place, never the check-in or the quiz.
     function refresh() {
       if (!alive(t)) return;
       errBox.replaceChildren();
-      api('/api/account').then(function (a) { if (alive(t) && a && a.current) acctBox.replaceChildren(accountCard(a)); }, homeFailed);
+      api('/api/account').then(function (a) {
+        if (!alive(t)) return;
+        if (a && a.current) { acctBox.hidden = false; acctBox.replaceChildren(accountCard(a)); } else acctBox.hidden = true;
+      }, function (e) { acctBox.hidden = true; homeFailed(e); });
       // The brief's core lesson, always in view: last month in the three baskets. A row opens its transactions.
       api('/api/baskets').then(function (d) {
         if (!alive(t) || !d) return;
@@ -2979,8 +3034,8 @@
       yes.addEventListener('click', function () {
         yes.disabled = true;
         if (cv.local) { localConv = null; row.remove(); return; }
-        api('/api/conversation/delete', { method: 'POST', body: { id: cv.id } }).then(function () { row.remove(); }, function (e) {
-          if (e.status === 404) { row.remove(); return; }   // already gone
+        api('/api/conversation/delete', { method: 'POST', body: { id: cv.id } }).then(function () { row.remove(); if (homeRefresh) homeRefresh(); }, function (e) {
+          if (e.status === 404) { row.remove(); if (homeRefresh) homeRefresh(); return; }   // already gone
           yes.disabled = false;
           if (!e.handled) confirm.appendChild(h('span', { class: 'help err-text' }, e.message));
         });
@@ -3035,8 +3090,8 @@
       { q: 'I am saving 4000 euros for Japan by June 2027' },
       { q: 'Give me a challenge' },
       { q: 'Remember that my rent goes up in January' },
-      { label: 'This week\'s quiz', act: 'quiz' },
-      { label: 'My monthly check-in', act: 'checkin' }
+      { label: 'Today\'s quiz', act: 'quiz' },
+      { label: 'My check-in', act: 'checkin' }
     ] },
     { title: 'Compared with others', icon: 'people', hint: 'Only when you ask', items: [
       { q: 'What kind of spender am I?' },
@@ -3066,7 +3121,7 @@
   }
 
   function offCard(text) {
-    var c = cardShell('Switched off');
+    var c = cardShell('Switched off', null, 'off-state');
     c.appendChild(h('p', { class: 'small' }, text));
     c.appendChild(h('button', { type: 'button', class: 'link-btn', onclick: function () { openSettings(); } }, 'Open Settings'));
     return c;
@@ -3177,6 +3232,7 @@
     var c = cardShell('What is typical?');
     box.appendChild(c);
     if (!(me && me.consent && me.consent.benchmarks)) {
+      c.classList.add('off-state');
       c.appendChild(h('p', { class: 'small' }, 'This compares you with groups of at least 20 similar customers. It needs "Compare me with people like me" in Settings.'));
       c.appendChild(h('button', { type: 'button', class: 'btn secondary', onclick: function () { openSettings(); } }, 'Open Settings'));
       return;
@@ -3238,7 +3294,7 @@
     var msgs = h('div', { class: 'msgs', role: 'log', 'aria-label': 'Conversation' });
     var busy = false;
     var shown = {};    // key -> thread message already holding that card
-    var comp = composer('Ask anything about your money', 'Your question', function (text) { send(text); });
+    var comp = composer('Ask about your money', 'Your question', function (text) { send(text); });
     var askBtn = h('button', { type: 'button', class: 'icon-btn ask-btn', 'aria-haspopup': 'dialog', 'aria-label': 'What can I ask?', onclick: function () { openAsk(); } }, icon('help', 22));
     comp.el.insertBefore(askBtn, comp.el.firstChild);
     var follow = null;   // the follow-up chips under the latest answer; only one set at a time
@@ -3285,11 +3341,12 @@
       }).then(function (res) {
         res = res || {};
         wait.stop();
+        if (res.conversation_id && !alive(t)) { thingsChanged(); return; }   // left the chat meanwhile: Home lists it now
         if (res.conversation_id) { conv.id = res.conversation_id; convApi = true; }
         else if (convApi !== true) {
           // The server keeps no conversations: remember this one until the next "New".
           if (!conv.local || !localConv) { localConv = { title: text.slice(0, 60), turns: [] }; conv.local = true; }
-          localConv.turns.push({ user: text, reply: res.reply, cards: res.cards, used: res.used, mode: res.mode, notice: res.notice });
+          localConv.turns.push({ user: text, reply: res.reply, cards: res.cards, used: res.used, mode: res.mode, notice: res.notice, lang: res.lang });
           localConv.updated = new Date().toISOString();
         }
         var m = botReply(res);
@@ -3297,9 +3354,9 @@
         toStartOf(m);
       }, function (e) {
         wait.stop();
-        if (e.handled) return;
+        if (e.handled || !alive(t)) return;
         // Try again asks the same question once more, in place of this attempt.
-        var m = botText(errorNode(e, function () { m.remove(); if (bubble && bubble.parentNode) bubble.remove(); send(text); }));
+        var m = botText(errorNode(e, function () { if (busy) { comp.set(text); return; } m.remove(); if (bubble && bubble.parentNode) bubble.remove(); send(text); }));
         toStartOf(m);
       }).then(function () { busy = false; comp.setBusy(false); comp.input.focus({ preventScroll: true }); });
     }
@@ -3312,6 +3369,15 @@
 
     // An answer: the reply text, the cards (always visible), then the transactions it used.
     function botReply(res) {
+      cardLang = res && res.lang === 'fi' ? 'fi' : 'en';
+      try { return botReplyIn(res); } finally { cardLang = 'en'; }
+    }
+    var FI_NOTICES = {
+      "One sentence with a figure I couldn't verify was removed from the AI's answer.": 'Poistin tekoälyn vastauksesta yhden lauseen, jonka lukua en voinut tarkistaa.',
+      "The AI's wording contained a figure I couldn't verify, so I replaced it with a checked answer.": 'Tekoälyn vastauksessa oli luku, jota en voinut tarkistaa, joten korvasin sen tarkistetulla vastauksella.',
+      'AI is offline, so this is a simpler answer.': 'Tekoäly ei ole nyt käytössä, joten tämä on yksinkertaisempi vastaus.'
+    };
+    function botReplyIn(res) {
       var m = h('div', { class: 'msg bot' });
       m.appendChild(h('div', { class: 'bot-text' }, richText(res.reply)));
       var used = null;
@@ -3332,7 +3398,9 @@
       if (source) acts.appendChild(h('span', { class: 'source-tag' }, source));
       if (acts.childNodes.length) m.appendChild(acts);
       if (used) m.appendChild(used.body);
-      if (res.notice) m.appendChild(h('p', { class: 'tiny reply-note' }, ht(String(res.notice))));
+      if (res.notice) m.appendChild(h('p', { class: 'tiny reply-note' }, ht(res.lang === 'fi' && FI_NOTICES[String(res.notice)] ? FI_NOTICES[String(res.notice)] : String(res.notice))));
+      // Add-on (web/extras.js): what is behind each figure of the answer. Never allowed to break an answer.
+      try { if (window.SvinkkiExtras && window.SvinkkiExtras.afterReply) window.SvinkkiExtras.afterReply(m, res); } catch (e) { if (window.console) console.error(e); }
       msgs.appendChild(m);
       return m;
     }
@@ -3341,6 +3409,7 @@
     function insertCard(key, build) {
       dropFollow();
       var old = shown[key];
+      if (old && document.contains(old) && old.querySelector('.off-state')) { old.remove(); old = null; }   // a "switched off" card is stale once asked again
       if (old && document.contains(old)) { toStartOf(old); return old; }
       var holder = h('div', { class: 'msg-cards' });
       var m = h('div', { class: 'msg bot' }, holder);
@@ -3381,7 +3450,7 @@
         return insertCard('checkin', function (hd) {
           fillCard(hd, t, src('/api/checkin'), function (r) {
             if (r && r.due && r.checkin) hd.appendChild(checkinCard(r.checkin));
-            else hd.appendChild(offCard('Check-ins are off, or none is due yet. You can choose how often in Settings.'));
+            else hd.appendChild(offCard('No check-in is ready yet, or check-ins are off. You can choose how often in Settings.'));
           }, 'Preparing your check-in...');
         });
       }
@@ -3428,7 +3497,8 @@
       (turns || []).forEach(function (tn) {
         if (tn.tool) { insert(tn.tool, null, true); return; }    // drawn fresh from today's data
         if (tn.user) userBubble(/^Receipt:\n/.test(tn.user) ? 'Read this receipt' : tn.user);
-        botReply(tn);
+        drawingStored = true;
+        try { botReply(tn); } finally { drawingStored = false; }
       });
       toBottom();
     }
@@ -3586,7 +3656,7 @@
     function setupError(e) {
       if (e && e.code === 'invalid_key') return 'That does not look like a Claude API key. It starts with "sk-ant-".';
       if (e && e.code === 'local_only') return 'The AI setup can only be changed on the computer that runs Svinkki.';
-      return (e && e.message) || 'Something went wrong. Please try again.';
+      return (e && e.message) || 'Something went wrong on my side. Please try again.';
     }
 
     function draw(st, note) {
@@ -3700,7 +3770,7 @@
         flash('Saved.');
       }, function (e) { if (!e.handled) flash(e.message, true); });
     });
-    sec('What Svinkki may do').appendChild(cc.el);
+    sec('What I may do').appendChild(cc.el);
 
     var payloadBox = h('div');
     var showBtn = h('button', { type: 'button', class: 'btn secondary' }, 'Show what the AI saw');
@@ -3718,7 +3788,7 @@
     aiSaw.appendChild(showBtn);
     aiSaw.appendChild(payloadBox);
 
-    aiSetupBlock(sec('AI model (demo setup)'), t);
+    if (!(me && me.demo && me.demo.ai_setup === false)) aiSetupBlock(sec('AI model (demo setup)'), t);
 
     var eraseBox = h('div');
     var eraseBtn = h('button', { type: 'button', class: 'btn danger block' }, 'Erase my data');
@@ -3727,7 +3797,7 @@
       var yes = h('button', { type: 'button', class: 'btn danger solid' }, 'Yes, erase everything');
       var no = h('button', { type: 'button', class: 'btn secondary' }, 'Cancel');
       var msg = h('div');
-      eraseBox.replaceChildren(h('p', { class: 'notice' }, 'This deletes your choices, Your things, your conversations and everything else Svinkki has stored about you. It cannot be undone. Your bank transactions are not touched.'),
+      eraseBox.replaceChildren(h('p', { class: 'notice' }, 'This deletes your choices, Your things, your conversations and everything else I have stored about you. It cannot be undone. Your bank transactions are not touched.'),
         h('div', { class: 'btn-row' }, yes, no), msg);
       no.addEventListener('click', function () { eraseBox.replaceChildren(); eraseBtn.hidden = false; eraseBtn.focus(); });
       yes.addEventListener('click', function () {
@@ -3740,8 +3810,8 @@
     });
     var dataBox = sec('Your data');
     dataBox.appendChild(h('ul', { class: 'plain-list small muted' },
-      h('li', null, 'Your transactions stay in the bank. Svinkki only reads your own rows.'),
-      h('li', null, 'Your choices and Your things are saved so the app can use them.'),
+      h('li', null, 'Your transactions stay in the bank. I only read your own.'),
+      h('li', null, 'Your choices and Your things are saved so I can use them next time.'),
       h('li', null, 'Your conversations are saved so you can return to them. "Erase my data" removes them too.')));
     dataBox.appendChild(eraseBtn);
     dataBox.appendChild(eraseBox);
@@ -3770,7 +3840,8 @@
       api('/api/logout', { method: 'POST', body: {} }).then(function () { me = null; localConv = null; showLogin(); },
         function (e) { logout.disabled = false; if (!e.handled) flash(e.message, true); });
     });
-    root.appendChild(h('div', { class: 'set-end' }, logout, resetBtn, resetBox));
+    if (me && me.demo && me.demo.reset === false) root.appendChild(h('div', { class: 'set-end' }, logout));
+    else root.appendChild(h('div', { class: 'set-end' }, logout, resetBtn, resetBox));
     root.appendChild(h('p', { class: 'tiny center' }, 'Hackathon prototype for the S-Pankki challenge. Synthetic data.'));
   }
 

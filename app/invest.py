@@ -111,6 +111,17 @@ def _future_value(monthly, years, annual_pct, start=0.0):
     return v
 
 
+def _fv_split(to_long, amount, months_to_buffer, years, annual_pct):
+    """Value and paid-in of what really goes into the fund: `to_long` a month until the buffer is full, then `amount`."""
+    r = annual_pct / 100.0 / 12.0
+    v = paid = 0.0
+    for m in range(int(round(years * 12))):
+        add = amount if (months_to_buffer is not None and m >= months_to_buffer) else to_long
+        v = v * (1 + r) + add
+        paid += add
+    return v, paid
+
+
 def _horizon_years(age_band):
     a = str(age_band or "")
     m = re.match(r"(\d+)", a)
@@ -139,7 +150,9 @@ def situation(conn, today):
         if pm.get("income") is not None and pm.get("spent") is not None and not story.get("too_little_data"):
             out["income_monthly"] = round(float(pm["income"]), 2)
             out["spending_monthly"] = round(float(pm["spent"]), 2)
-            out["left_monthly"] = round(float(pm["income"]) - float(pm["spent"]), 2)
+            inv_m = round(float(story.get("saved_in_window") or 0.0) / 12.0, 2)
+            out["already_investing_monthly"] = inv_m
+            out["left_monthly"] = round(float(pm["income"]) - float(pm["spent"]) - inv_m, 2)
             out["months_in_average"] = 12
     except Exception:
         pass
@@ -183,7 +196,8 @@ def plan(conn, today, monthly=None, age_band=None, holdings=None):
     bal = max(s["balance"], 0.0)
     held = sum(float(h.get("amount") or 0) for h in (holdings or []) if isinstance(h, dict))
     target_lo, target_hi = b_lo * spend, b_hi * spend
-    sav_rate = savings_rate(target_lo)
+    keep = max(target_lo, min(bal + held, target_hi))
+    sav_rate = savings_rate(keep)
     steps, sources = [], []
 
     def use(*ids):
@@ -223,19 +237,20 @@ def plan(conn, today, monthly=None, age_band=None, holdings=None):
             _eur(spend), _eur(target_lo), _eur(target_hi), _eur(bal + held),
             ", which covers it" if covered else ", so about %s is missing to the lower end" % _eur(target_lo - bal - held)))
         if sav_rate is not None and short_ret is not None:
-            diff = (short_ret - sav_rate) / 100.0 * target_lo
+            diff = (short_ret - sav_rate) / 100.0 * keep
             better = diff > 0
             st["where"] = ("Where to keep it: on %s the S-Bank savings account pays %s a year (its rate rises only "
                            "from 5,000 euros). The S-Bank short-term interest fund returned %s over the last 12 "
                            "months%s, about %s a year %s on that sum. The fund has no deposit guarantee and its value "
                            "can dip a little; the money can be taken out at any time.%s" % (
-                               _eur(target_lo), _pct(sav_rate), _pct(short_ret),
+                               _eur(keep), _pct(sav_rate), _pct(short_ret),
                                (" after charges of about %s" % _pct(short_fee)) if short_fee is not None else "",
                                _eur(abs(diff)), "more" if better else "less",
                                (" A fixed-term deposit paid %s on average but locks the money, so it suits a sum with "
                                 "a known date, not a buffer." % _pct(term_rate)) if term_rate is not None else ""))
             st["savings_account_rate_pct"], st["short_fund_return_1y_pct"] = sav_rate, short_ret
             st["yearly_difference_on_buffer"] = round(diff, 2)
+            st["rates_compared_on"] = round(keep, 2)
             st["better_place"] = ("S-Bank short-term interest fund" if better else "S-Bank savings account")
             st["recommendation"] = ("Keep the buffer in the %s, not on the current account." % st["better_place"])
             use((_fig_info("savings_account_tiers") or {}).get("source"), (_fig_info("short_fund_return_1y_pct") or {}).get("source"),
@@ -268,6 +283,8 @@ def plan(conn, today, monthly=None, age_band=None, holdings=None):
         amount, basis = 10.0, "a small start: a usual month leaves you nothing today"
     if covered:
         to_buffer, to_long = 0.0, amount
+    elif left <= 0 and not (monthly is not None and float(monthly) > 0):
+        to_buffer, to_long = amount, 0.0
     else:
         to_buffer = _round10(amount / 2.0) or amount
         to_long = amount - to_buffer
@@ -278,25 +295,37 @@ def plan(conn, today, monthly=None, age_band=None, holdings=None):
         missing = max(target_lo - bal - held, 0.0)
         months = int(math.ceil(missing / to_buffer)) if to_buffer > 0 else None
         st["months_to_buffer"] = months
-        st["what"] = ("%s a month in all (%s): %s into the buffer until it reaches %s (about %d months), and %s into "
+        if to_long <= 0:
+            st["what"] = ("%s a month (%s), all of it into the buffer until it reaches %s (about %d months). Only "
+                          "then does regular investing in an index fund start." % (_eur(amount), basis, _eur(target_lo), months or 0))
+        else:
+            st["what"] = ("%s a month in all (%s): %s into the buffer until it reaches %s (about %d months), and %s into "
                       "a low-cost global equity index fund from the start. When the buffer is full the whole %s goes "
                       "to the index fund." % (_eur(amount), basis, _eur(to_buffer), _eur(target_lo), months or 0,
                                               _eur(to_long), _eur(amount)))
     else:
         st["what"] = "%s a month (%s) into a low-cost global equity index fund." % (_eur(amount), basis)
-    if eq_ret is not None:
+    if eq_ret is not None and (covered or to_long > 0):
         long_amount = amount if covered else to_long
+        mtb = None if covered else st.get("months_to_buffer")
         proj = []
         for y in sorted({10, 20, years}):
-            proj.append({"years": y, "paid_in": round(amount * 12 * y, 2),
-                         "value_at_end": round(_future_value(amount, y, eq_ret), 2)})
+            val, paid = _fv_split(long_amount, amount, mtb, y, eq_ret)
+            proj.append({"years": y, "paid_in": round(paid, 2), "value_at_end": round(val, 2)})
         st["projection"] = proj
         st["planning_return_pct"] = eq_ret
         last = proj[-1]
+        if covered or mtb is None:
+            counts = "%s a month" % _eur(long_amount)
+        else:
+            counts = "%s a month in the fund, rising to %s once the buffer is full" % (_eur(long_amount), _eur(amount))
+        st["projection_counts"] = "The figure counts only what goes into the index fund, not the buffer."
+        st["what"] += " " + st["projection_counts"]
         st["illustration"] = ("World equities have returned about %s a year after inflation over the long run. At that "
-                              "pace %s a month for %d years would be about %s in today's money, of which %s paid in. "
-                              "An illustration, not a promise: single years and decades differ widely." % (
-                                  _pct(eq_ret), _eur(amount), last["years"], _eur(last["value_at_end"]),
+                              "pace %s for %d years would be about %s in the fund in today's money, of which %s paid in "
+                              "(the buffer is not counted). An illustration, not a promise: single years and decades "
+                              "differ widely." % (
+                                  _pct(eq_ret), counts, last["years"], _eur(last["value_at_end"]),
                                   _eur(last["paid_in"])))
         st["first_amount_to_long_term"] = long_amount
         use((_fig_info("equity_planning_return_pct") or {}).get("source"))

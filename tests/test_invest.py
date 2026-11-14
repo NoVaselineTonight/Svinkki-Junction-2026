@@ -98,8 +98,9 @@ class PlanTests(_Base):
                 st = {s["id"]: s for s in p["steps"]}
                 inv = st["invest_monthly"]
                 self.assertGreaterEqual(inv["monthly_total"], 10)
-                self.assertGreater(inv["monthly_to_long_term"], 0)
-                self.assertIn("index fund", inv["what"])
+                # a month that leaves nothing sends the whole small amount to the buffer first (no fund yet)
+                self.assertTrue(inv["monthly_to_long_term"] > 0 or inv["monthly_to_buffer"] == inv["monthly_total"])
+                self.assertTrue("index fund" in inv["what"])
                 self.assertTrue(p["sources"])
                 self.assertTrue(p["disclaimer"])
                 self.assertNotRegex(json.dumps(p), r"CUST\d|MRC-")
@@ -109,8 +110,8 @@ class PlanTests(_Base):
         b = {s["id"]: s for s in p["steps"]}["buffer"]
         k = self.invest.knowledge()["figures"]
         self.assertEqual(b["short_fund_return_1y_pct"], k["short_fund_return_1y_pct"]["value"])
-        self.assertEqual(b["savings_account_rate_pct"], self.invest.savings_rate(b["target_low"]))
-        want = round((b["short_fund_return_1y_pct"] - b["savings_account_rate_pct"]) / 100.0 * b["target_low"], 2)
+        self.assertEqual(b["savings_account_rate_pct"], self.invest.savings_rate(b["rates_compared_on"]))
+        want = round((b["short_fund_return_1y_pct"] - b["savings_account_rate_pct"]) / 100.0 * b["rates_compared_on"], 2)
         self.assertAlmostEqual(b["yearly_difference_on_buffer"], want, places=2)
         self.assertEqual(b["better_place"], "S-Bank short-term interest fund")
         self.assertIn("no deposit guarantee", b["where"])

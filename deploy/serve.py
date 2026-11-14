@@ -27,9 +27,12 @@ REQUESTS_PER_TURN = 8
 class DailyBudget:
     """Counts model turns and requests per UTC day. Thread-safe. `limit` None means no cap."""
 
-    def __init__(self, limit, clock=None):
+    def __init__(self, limit, clock=None, hour_clock=None):
         self.limit = limit
         self._clock = clock or (lambda: datetime.datetime.now(datetime.timezone.utc).date())
+        self._hour_clock = hour_clock or (lambda: datetime.datetime.now(datetime.timezone.utc).hour)
+        self._hour = None
+        self.hour_turns = 0
         self._lock = threading.Lock()
         self._day = None
         self.turns = 0
@@ -39,6 +42,13 @@ class DailyBudget:
         today = self._clock()
         if today != self._day:
             self._day, self.turns, self.requests = today, 0, 0
+        hour = self._hour_clock()
+        if hour != self._hour or today != getattr(self, "_hour_day", None):
+            self._hour, self._hour_day, self.hour_turns = hour, today, 0
+
+    def hourly_limit(self):
+        """At most this many turns in one clock hour, so one abuser cannot switch the AI off for the day."""
+        return None if self.limit is None else max(20, self.limit // 6)
 
     def take_turn(self):
         """True when one more customer question may go to the model today."""
@@ -46,7 +56,11 @@ class DailyBudget:
             self._roll()
             if self.limit is not None and self.turns >= self.limit:
                 return False
+            hourly = self.hourly_limit()
+            if hourly is not None and self.hour_turns >= hourly:
+                return False
             self.turns += 1
+            self.hour_turns += 1
             return True
 
     def take_request(self):
@@ -61,7 +75,10 @@ class DailyBudget:
     def left(self):
         with self._lock:
             self._roll()
-            return None if self.limit is None else max(self.limit - self.turns, 0)
+            if self.limit is None:
+                return None
+            left = max(self.limit - self.turns, 0)
+            return min(left, max(self.hourly_limit() - self.hour_turns, 0))
 
 
 def daily_limit(value):
@@ -102,6 +119,9 @@ def make_public():
     """Remove what must not be reachable by anybody on a public address."""
     from app import server
     removed = [p for p in ("/api/demo/reset",) if server.ROUTES.pop(p, None) is not None]
+    server.TRUST_FORWARDED_FOR = True   # behind the host's proxy the peer address is the proxy
+    server.RATE_CHAT = 15               # one visitor cannot use up the day's AI in a few minutes
+    server.PER_VISITOR_STATE = True   # every login gets a private copy of the persona's state
     return removed
 
 

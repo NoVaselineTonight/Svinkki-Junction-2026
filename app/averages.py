@@ -17,6 +17,10 @@ MIN_GROUP = 20
 NOTE = ("Averages are computed once from all customers. Only group statistics of at least 20 people are "
         "used; nobody's individual data is shown.")
 
+WINDOW_NOTE = ("'you' is your monthly average over your whole history in the data, 'typical' the group's median. "
+               "A what-if uses only the last 6 full months, so the two can differ: say which window you mean. "
+               "'difference' is you minus typical in euros: pick the biggest gap by difference, not by percentage.")
+
 # ---------------------------------------------------------------------------- topics
 TOPICS = {
     "overview": {
@@ -480,6 +484,9 @@ def averages(conn, today, profile, topic=None, bench_many=None, bench_meta=None,
                "direction": _direction(metric, unit, you, typ),
                "sentence": _sentence(metric, name, unit, you, typ, who, st.get("mean")),
                "_gk": st.get("group_key")}
+        if unit in ("eur_per_month", "eur") and _is_num(you) and _is_num(typ):
+            row["difference"] = round(float(you) - float(typ), 2)
+            row["difference_pct"] = round((float(you) - float(typ)) / float(typ) * 100) if float(typ) else None
         rows.append(row)
 
     group_counts = {}
@@ -514,4 +521,5 @@ def averages(conn, today, profile, topic=None, bench_many=None, bench_meta=None,
         else:
             headline = "On %s you are about in line with %s." % (spec["title"].lower(), who)
     return {"topic": key, "title": spec["title"], "group": group, "rows": rows, "headline": headline,
-            "topics": topic_catalogue(), "note": NOTE, "explain": explain, "evidence": []}
+            "topics": topic_catalogue(), "note": NOTE,
+            "window_note": WINDOW_NOTE, "explain": explain, "evidence": []}

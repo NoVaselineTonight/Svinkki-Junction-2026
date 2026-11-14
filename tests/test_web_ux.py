@@ -117,7 +117,7 @@ class HomeErrorTests(unittest.TestCase):
         body = _fn(self.js, "function homeErrorNode(")
         self.assertIn("role: 'alert'", body)
         self.assertIn("'Try again'", body)
-        self.assertRegex(body, r"could not (load|be loaded)")
+        self.assertRegex(body, r"(could not|couldn.{1,3}t) (load|be loaded)")
 
     def test_the_old_home_list_is_used_only_when_the_server_has_none(self):
         self.assertIn("e.status === 404", self.home[self.home.index("api('/api/home')"):])
@@ -135,7 +135,7 @@ class WelcomeTests(unittest.TestCase):
         self.assertIn("me.ai_available", body)
         i = body.index("An AI helps with the wording")
         self.assertIn("?", body[body.rindex("ai_available", 0, i):i], "the AI sentence is one side of a choice")
-        self.assertIn("built-in rules", body)
+        self.assertIn("built-in know-how", body)
 
     def test_the_server_says_whether_a_model_is_connected(self):
         with open(os.path.join(fx.REPO, "app", "server.py"), encoding="utf-8") as f:
@@ -148,11 +148,11 @@ class SourceLabelTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.js = _read("app.js")
-        cls.reply = _fn(cls.js, "function botReply(", "\n    }\n")
+        cls.reply = _fn(cls.js, "function botReplyIn(","\n    }\n")
 
     def test_every_answer_names_its_source(self):
         src = _fn(self.js, "function sourceLabel(")
-        self.assertIn("'On-device rules'", src)
+        self.assertIn("'Built-in answer'", src)
         self.assertIn("mode === 'offline'", src)
         self.assertIn("res.model", src, "a model name sent with the answer wins")
         self.assertIn("aiModelName", src)
@@ -239,7 +239,7 @@ class TurnProgressTests(unittest.TestCase):
     def test_a_timeout_is_a_plain_message(self):
         body = _fn(self.js, "function api(")
         self.assertIn("AbortController", body)
-        self.assertIn("'The answer took too long. Please try again in a moment.'", body)
+        self.assertIn("'That took me too long, sorry. Please try again in a moment.'", body)
 
     def test_the_wait_shows_seconds_and_a_line_that_changes(self):
         w = _fn(self.js, "function waitingNode(")

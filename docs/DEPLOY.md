@@ -3,7 +3,10 @@
 Written 14 Nov 2026 by agent-d. What is in the repository for this, what the owner has to do once in a
 browser, how to switch the API key, and what a public address changes.
 
-Nothing here has been deployed yet. What was run and what was not is listed at the end.
+It is deployed at https://svinkki.onrender.com from `main` via Render, on the free plan: 0.1 CPU, and it sleeps
+after 15 idle minutes (about a minute to wake). Use a paid instance for the judging hours (see "Plan" below). In
+public mode each visitor gets a private copy of the persona's state; see "What a public address changes". The
+history of what was run before the first deploy is listed at the end.
 
 ## What gets deployed
 
@@ -117,11 +120,13 @@ python -m deploy.build_data --source-dir /path/to/the/organisers/csv/files --out
 
 ## What a public address changes
 
-- **Visitors share the demo customers.** State is kept per customer, not per visitor: two people logged in as
-  Veeti see each other's conversations, goals and notes. "Try as a random customer" gives one of 300, so
-  collisions are rare there. Not solved; it needs a change in `app/server.py` or `app/state.py`.
+- **Each visitor gets a private copy of the persona.** Conversations, goals and notes belong to the visitor's
+  session, so logging out and in starts fresh. (The audit found state shared per customer; the per-visitor copy
+  was added in the demo-ready run on 14 Nov. Verify it on the deployed copy: log in as Veeti in two browsers
+  and check that one does not show the other's notes.)
 - **State is forgotten** when the host restarts the service (on a free plan, after every sleep).
-- **"Reset demo" does not work** in public mode: the button in Settings gets an error.
+- **There is no "Reset demo"** in public mode (the endpoint is removed). The audit found the button still shown
+  in Settings; check whether it is hidden now. To start clean, log out and log in again.
 - **The key setup in Settings is unreachable** from the internet (the app refuses it through a proxy): the key
   is changed on the host.
 - **Anyone can ask questions**, so the daily cap above is the protection against cost, together with the
@@ -149,7 +154,7 @@ Run on GitHub (workflow "demo image", pull request 41, 14 Nov):
 - Started without a key, it listed the six demo customers, answered Veeti's taxi question with €92.85 from the
   built-in rules, refused "Reset demo" with 404 and ran as the user `svinkki`, not root.
 
-Not run:
+Not run at the time of writing (before the first deploy; it is deployed now):
 - Docker is not installed on the owner's computer, so the image has only been built on GitHub.
-- Nothing has been deployed to Render or anywhere else, and `render.yaml` has not been read by Render.
-- The hosted entry point has not been run with a real key.
+- `render.yaml` had not been read by Render.
+- The hosted entry point had not been run with a real key.

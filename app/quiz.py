@@ -181,6 +181,11 @@ def _seed_weekday(conn, today, rng):
     best = max(range(7), key=lambda i: by[i])
     if total <= 0 or by[best] / total < 0.18:
         return None
+    # one big purchase is not a habit: the day must lead clearly, over several purchases, none of them most of it
+    second = max(by[i] for i in range(7) if i != best)
+    on_best = [float(a) for d, a in rows if date.fromisoformat(d[:10]).weekday() == best]
+    if by[best] < second * 1.2 or max(on_best) > 0.5 * by[best] or len(on_best) < 4:
+        return None
     others = [i for i in range(7) if i != best]
     rng.shuffle(others)
     opts = [_WEEKDAYS[best]] + [_WEEKDAYS[i] for i in others[:3]]
@@ -350,7 +355,7 @@ def _seed_dear_month(conn, today, rng):
     def name(ym):
         return date(int(ym[:4]), int(ym[5:7]), 1).strftime("%B %Y")
     opts = [name(m)] + [name(x) for x in others[:3]]
-    explain = "%s: you spent %s, about %s more than your usual month of %s." % (
+    explain = "%s: you spent %s, about %s more than a typical month that year (%s)." % (
         name(m), _eur(em.get("spent") or 0), _eur(em.get("difference") or 0), _eur(em.get("usual") or 0))
     return _choice("dear_month", "trends", "Which month in the last year was your most expensive compared with usual?",
                    opts, 0, explain, facts={"spent": em.get("spent"), "difference": em.get("difference"),
@@ -575,7 +580,7 @@ SYSTEM = """You prepare a short money quiz inside a bank's app for one customer.
 Do this:
 1. Pick 6 questions from the pool: at least 3 about the customer's own money (about = "you") and at least 2 money-skill questions (about = "skills"). Choose what would teach THIS customer the most or surprise them, using their facts: someone often below zero needs the credit and buffer questions; a saver gets tax, costs and fund questions; prefer variety of topics. Order them from easy to most interesting.
 2. For each, rewrite the question in a warm, short, personal voice (second person, max 30 words). Keep its exact meaning and keep it a question. Do not add any number that is not already in the original question, and never hint at the answer.
-3. For each, write "teach": ONE sentence (max 35 words) shown after the customer answers, that tells them why it matters for them or what to do. Use only figures that appear in that item's "facts" or "explain", or none. No lecturing.
+3. For each, write "teach": ONE sentence (max 30 words) shown directly under the item's "explain" text, so never repeat what "explain" says and never repeat its figures. Give the thing to remember: for a money-skill question the rule of thumb in everyday words and what it means for THIS customer (use their facts: days below zero, balance, what a month leaves); for a question about their own money, what the answer changes for them or the one thing to watch next. Say what is going right when it is. Never tell them to cut or spend less on something, never judge a purchase, no "should". Use only figures that appear in that item's "facts", or none.
 4. A "title" for the round, max 6 words, personal and light.
 Reply with JSON only, no other text: {"title": "...", "items": [{"id": "...", "question": "...", "teach": "..."}, ...]}"""
 
@@ -628,7 +633,10 @@ def check_item(q, question, teach):
         try:
             from app import coach
             ok = not coach.ungrounded_spans(teach, [q["facts"], {"explain": q["explain"]}], "", strict=True)
-            if ok and not coach.guardrail(teach):
+            tw = set(re.findall(r"[a-zäö]{4,}", teach.lower()))
+            ew = set(re.findall(r"[a-zäö]{4,}", str(q.get("explain") or "").lower()))
+            copies = bool(tw) and len(tw & ew) / len(tw) > 0.6
+            if ok and not copies and not coach.guardrail(teach):
                 good_t = teach
         except Exception:
             good_t = None

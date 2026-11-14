@@ -71,7 +71,7 @@ class GoalDeadlineHttpTests(unittest.TestCase):
     def test_goal_saved_in_chat_shows_its_date_on_the_start_page_and_survives_an_edit(self):
         r1 = self.say("I am saving 3000 euros for Japan by June 2027")
         r2 = self.say("yes, save it", r1["conversation_id"])
-        self.assertIn("Saved", r2["reply"])
+        self.assertIn("is saved", r2["reply"])
         g = self.a.get("/api/goal").json["goal"]
         self.assertEqual(g["deadline"][:7], "2027-06")
         self.assertGreater(g["monthly_needed"], 0)
