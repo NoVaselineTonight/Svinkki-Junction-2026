@@ -77,7 +77,7 @@ STRETCH
 - Stack: Python 3.13 standard library only (http.server, sqlite3, urllib, unittest) and a vanilla
   HTML/CSS/JS frontend with no build step and no CDN. Reason: slow venue network, zero install,
   runs anywhere, trivially embeddable in a WebView. No pip installs.
-- Dataset folder from env `SVINKKI_DATA_DIR`, default `C:/Users/onnik/Desktop/Junction-2026-S-pankki-filtered`.
+- Dataset folder from env `SVINKKI_DATA_DIR`, default `dataset` (a git-ignored folder in the repository root).
 - "Today" is fixed by env `SVINKKI_TODAY`, default `2026-09-24`. Rows after today are invisible.
 - UI language English. Currency formatted like `1 234,56 €` is not required; use `€1,234.56`.
 - Product name "Svinkki". S-Pankki-inspired green look, no official logos or trademarks copied.
@@ -319,7 +319,7 @@ process environment (environment wins):
 
 | Variable | Default |
 |---|---|
-| `SVINKKI_DATA_DIR` | `C:/Users/onnik/Desktop/Junction-2026-S-pankki-filtered` |
+| `SVINKKI_DATA_DIR` | `dataset` |
 | `SVINKKI_DB` | `data/svinkki.db` |
 | `SVINKKI_STATE_DB` | `data/state.db` |
 | `SVINKKI_TODAY` | `2026-09-24` |

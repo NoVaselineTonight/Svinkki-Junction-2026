@@ -8,6 +8,7 @@ claude_api_key.txt
 
 # Dataset and anything built from it (SR-26)
 data/
+dataset/
 *.csv
 *.db
 *.sqlite
