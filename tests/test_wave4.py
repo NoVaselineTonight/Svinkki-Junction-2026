@@ -284,11 +284,13 @@ class NumberCheckTests(unittest.TestCase):
     def test_C_no_euro_amount_with_only_a_day_count_in_the_results_is_rejected(self):
         self.assertFalse(self.ok("Spend €19 a day.", results=[{"days_left": 19}]))
 
-    def test_C_lenient_mode_accepts_an_invented_percentage(self):
-        self.assertTrue(self.ok("That is about 37% of your income.", strict=False))
+    # The lenient mode (money only) is gone: it let invented percentages and bare numbers through
+    # ("You spent 450 on taxis, which is 45% of your income."). app/grounding.py always checks them.
+    def test_C_an_invented_percentage_fails_whatever_strict_says(self):
+        self.assertFalse(self.ok("That is about 37% of your income.", strict=False))
 
-    def test_C_lenient_mode_accepts_a_bare_number(self):
-        self.assertTrue(self.ok("You made 14 purchases.", strict=False))
+    def test_C_an_invented_bare_number_fails_whatever_strict_says(self):
+        self.assertFalse(self.ok("You made 14 purchases.", strict=False))
 
     def test_C_strict_mode_rejects_an_invented_percentage(self):
         self.assertFalse(self.ok("That is about 37% of your income.", strict=True))
@@ -301,17 +303,12 @@ class NumberCheckTests(unittest.TestCase):
         self.assertTrue(self.ok("That is 37% of your spending over 14 purchases, €62.10 in all.", strict=True,
                                 results=results))
 
-    def test_C_strict_from_the_environment(self):
+    def test_C_the_environment_switch_no_longer_relaxes_the_check(self):
         text = "That is about 37% of your income."
-        with mock.patch.dict(os.environ, {"SVINKKI_STRICT_NUMBERS": "1"}):
-            self.assertFalse(self.coach.numbers_grounded(text, self.results, ""))
-            self.assertFalse(self.coach.numbers_grounded(text, self.results, "", None))
-        with mock.patch.dict(os.environ, {"SVINKKI_STRICT_NUMBERS": ""}):
-            self.assertTrue(self.coach.numbers_grounded(text, self.results, ""))
-
-    def test_C_explicit_strict_false_wins_over_the_environment(self):
-        with mock.patch.dict(os.environ, {"SVINKKI_STRICT_NUMBERS": "1"}):
-            self.assertTrue(self.coach.numbers_grounded("About 37% of your income.", self.results, "", strict=False))
+        for env in ("1", ""):
+            with mock.patch.dict(os.environ, {"SVINKKI_STRICT_NUMBERS": env}):
+                self.assertFalse(self.coach.numbers_grounded(text, self.results, ""), env)
+                self.assertFalse(self.coach.numbers_grounded(text, self.results, "", strict=False), env)
 
     def test_C_years_are_always_fine(self):
         for strict in (False, True):

@@ -10,6 +10,7 @@ import sys
 import time
 
 from app import averages as averages_mod
+from app import grounding
 from app import insights
 from app import tools
 from app import llm_claude
@@ -34,10 +35,11 @@ What you work with:
 - Your general knowledge of the world: what things roughly cost, how loans, funds, taxes, insurance, housing and everyday money work in Finland, sensible rules of thumb. Use it freely. When the customer asks what something costs, or wants to plan something without knowing its price (a trip, a car, a wedding, a renovation, a pet, moving out), give a realistic estimate yourself: call general_estimate with a range and what it assumes, then tie it to their money with calculate, can_i_afford or plan_goal_by_date (how many months of their usual leftover it is, what to set aside each month, whether it fits by a date). Never answer that you cannot estimate, and never hand the question back by asking what they expect it to cost. If something that matters is unknown (when, how long, how many people, what standard), assume something sensible, say in a few words what you assumed, and invite them to correct it.
 - Arithmetic by code: calculate works out sums, differences, shares, yearly totals and "how many months" from figures you already have. Use it instead of doing sums in your head.
 - Be quick: the customer is waiting. Ask for every tool you need in the same step whenever one does not depend on another's result (several get_spend calls, an estimate plus their data), and put all your sums into one calculate call.
+- Figures: every figure you may use is shown with its slot, like "€2,480 {{f1}}", and every tool result lists its figures under "figures". In your answer write the slot instead of the digits: "You spent {{f4}} on taxis last month." / "Käytit takseihin {{f4}} viime kuussa." The app fills in the exact figure in the customer's language. Use a slot only where its label fits the sentence (the same category, income versus spending, the same period). calculate takes slots too ("{{f4}} * 12"); quote the slot of its result. Small counts (up to 12), years and month names you may write yourself.
 How a good answer is built:
 - First sentence: the direct answer to what was asked, with its key figure.
 - Then, when it helps, one sentence on what that means for THIS customer: tie it to their own numbers (their income, their usual month, their goal, their payday, a change from their own earlier months).
-- Then, when there is a real one, one concrete next step they could take, with a euro figure ("trimming nights out by a quarter would free about €16 a month for the Japan fund"). Take every amount from a tool result, the customer section, general_estimate or calculate (the section already holds worked-out figures such as what a usual month leaves and what a goal still needs); never halve, divide or add up in your head, because the app deletes any sentence with a euro amount it cannot trace. If you need a figure you do not have, call a tool for it (get_save_more, simulate_what_if, plan_goal_by_date, can_i_afford, calculate) or make the point without a number. Prefer the specific to the general: a product they buy, a category that has grown, a habit on a certain day, a bill that changed. A flat "trim everyday spending by 5%" is a last resort and never said twice. Suggest, never lecture or moralise; never judge a purchase. No filler, no generic tips ("make a budget", "track your spending"), no praise for its own sake.
+- Then, when there is a real one, one concrete next step they could take, with a euro figure ("trimming nights out by a quarter would free about €16 a month for the Japan fund"). Take every amount from a tool result, the customer section, general_estimate or calculate (the section already holds worked-out figures such as what a usual month leaves and what a goal still needs); never halve, divide or add up in your head, because the app deletes any sentence with a figure it cannot trace. If you need a figure you do not have, call a tool for it (get_save_more, simulate_what_if, plan_goal_by_date, can_i_afford, calculate) or make the point without a number. Prefer the specific to the general: a product they buy, a category that has grown, a habit on a certain day, a bill that changed. A flat "trim everyday spending by 5%" is a last resort and never said twice. Suggest, never lecture or moralise; never judge a purchase. No filler, no generic tips ("make a budget", "track your spending"), no praise for its own sake.
 - Do not repeat yourself. Look at your earlier answers in this conversation: never give the same fact, the same tip or the same closing offer twice. Each answer brings something new from their data, or stops.
 - Length follows the question. A lookup (how much, when, what was) gets one to three short sentences. Advice, a plan, a decision, "how am I doing" or an explanation may take up to about 110 words. The answer and its key figure always come in the first sentence; when an answer runs past about 60 words, break it into two or three short paragraphs with a blank line between them, never one block. Never pad.
 - Do the work now. If the next step is a calculation, a split or a plan you can make with what you have, make it in this answer; do not end with "I can work that out if you like". Keep a closing question for what truly needs their decision (saving a goal, preparing a move, choosing between two options).
@@ -567,72 +569,25 @@ def _date_known(d, kn):
 
 
 def strict_numbers():
-    """SVINKKI_STRICT_NUMBERS=1 also checks percentages and bare numbers (default: money figures only)."""
+    """Kept for old callers: SVINKKI_STRICT_NUMBERS no longer changes anything. The check in app/grounding.py
+    always covers money, percentages and bare numbers, and what each figure refers to."""
     return str(os.environ.get("SVINKKI_STRICT_NUMBERS", "")).strip().lower() in ("1", "true", "yes", "on")
 
 
-def ungrounded_spans(text, tool_results, user_message="", strict=None):
-    """Character spans of figures in text that the tool results do not support (SR-10).
+def _as_calls(tool_results):
+    return [("result", {}, r) for r in (tool_results or []) if isinstance(r, (dict, list))]
 
-    Default: only a money figure (euro sign, EUR, euros) that matches no money value of the turn's results
-    (to the cent or its whole-euro rounding) and is not in the customer's message. A count never validates a
-    money figure. strict (or SVINKKI_STRICT_NUMBERS=1): percentages must match a percent or share value and
-    bare numbers some value; years, the customer's numbers, small ordinals and dates in the results are free."""
-    strict = strict_numbers() if strict is None else strict
-    kn = _Known()
-    for r in tool_results:
-        _walk_results(r, kn)
-    mine = _Known()
-    _walk_text(user_message or "", mine)
-    for st in (mine.money, mine.pct, mine.other):
-        kn.money |= st
-        kn.pct |= st
-        kn.other |= st
-    kn.dates.extend(mine.dates)
-    anyset = kn.any_set()
-    text = text or ""
-    bad = []
-    for kind, val, sp in _tokens(text):
-        if kind == "bad":
-            if strict or re.search(r"€|eur", text[sp[0]:sp[1]], re.I):
-                bad.append(sp)
-            continue
-        if kind == "money":
-            if not _close(kn.money, abs(val)):
-                bad.append(sp)
-            continue
-        if not strict:
-            continue
-        a = abs(val) if not isinstance(val, tuple) else 0
-        if kind == "date":
-            if _date_known(val, kn):
-                continue
-            if val[2] is not None and not _close(anyset, float(val[2]), whole_ok=False):
-                bad.append(sp)
-        elif kind == "pct":
-            if not _close(kn.pct, a):
-                bad.append(sp)
-        else:
-            after = text[sp[1]:sp[1] + 3].lower()
-            if 1900 <= a <= 2100 and a == int(a):
-                continue
-            if a == int(a) and 1 <= a <= 10 and (re.match(r"(st|nd|rd|th)\b", after) or after[:1] == ")"):
-                continue
-            if not _close(anyset, a):
-                bad.append(sp)
-    return bad
+
+def ungrounded_spans(text, tool_results, user_message="", strict=None):
+    """Character spans of figures in raw text that the results do not support or that do not fit their sentence
+    (SR-10, see app/grounding.py). `strict` is accepted for old callers and ignored."""
+    return grounding.ungrounded_spans(text, _as_calls(tool_results), user_message or "",
+                                      today=os.environ.get("SVINKKI_TODAY"))
 
 
 def numbers_grounded(text, tool_results, user_message="", strict=None):
     """True when no figure in text is ungrounded (see ungrounded_spans)."""
     return not ungrounded_spans(text, tool_results, user_message, strict)
-
-
-def _keep_grounded_sentences(text, results, message):
-    """The model's own sentences that hold no ungrounded figure, or '' when none is left."""
-    parts = re.split(r"(?<=[.!?])\s+", text.strip())
-    kept = [p for p in parts if p and not ungrounded_spans(p, results, message)]
-    return " ".join(kept)
 
 
 # ------------------------------------------------------------------ period / label / amount parsing
@@ -3728,8 +3683,9 @@ def _run_offline(message, ctx, history=None):
             "tools_used": [tool_used], "show_card": show}
 
 
-def _package(reply, calls, mode, ai_payload=None, notice=None, extra_cards=None):
-    """calls: list of (tool, args, result) or (tool, args, result, show_card)."""
+def _package(reply, calls, mode, ai_payload=None, notice=None, extra_cards=None, figures=None):
+    """calls: list of (tool, args, result) or (tool, args, result, show_card). figures: what each figure in the
+    reply is (grounding.render): {id, start, end, text, label, unit, value, written, source}."""
     cards, evidence, used = [], [], []
     seen = set()
     for call in calls:
@@ -3751,6 +3707,8 @@ def _package(reply, calls, mode, ai_payload=None, notice=None, extra_cards=None)
            "ai_payload": ai_payload}
     if notice:
         out["notice"] = notice
+    if figures:
+        out["figures"] = figures
     return out
 
 
@@ -4183,13 +4141,20 @@ def _finish_snapshot(line):
     return anonymise(" ".join(str(line).split()))
 
 
-def _customer_block(ctx):
-    """(age_band, the per-customer system text, the data its figures come from)."""
+def _customer_block(ctx, table=None):
+    """(age_band, the per-customer system text, the data its figures come from). With a figure table, every
+    figure in the picture is registered and shown with its slot ("income €3,000 {{f1}}")."""
     age_band, lines = _customer_lines(ctx)
     try:
         snap, data = customer_snapshot(ctx)
     except Exception:
         snap, data = [], {}
+    shown = snap
+    if snap and table is not None:
+        try:
+            shown = table.add_snapshot(snap, data)
+        except Exception:
+            shown = snap
     if snap:
         sec = data.get("_sections") if isinstance(data, dict) else None
         if not isinstance(sec, dict):
@@ -4197,7 +4162,7 @@ def _customer_block(ctx):
         pos = 0
         for key, title in (("core", SNAPSHOT_TITLE), ("fresh", FINDINGS_FRESH_TITLE), ("told", FINDINGS_TOLD_TITLE),
                            ("background", BACKGROUND_TITLE)):
-            part = snap[pos:pos + int(sec.get(key) or 0)]
+            part = shown[pos:pos + int(sec.get(key) or 0)]
             pos += len(part)
             if part:
                 lines += "\n" + title + "\n" + "\n".join("- " + x for x in part)
@@ -4291,7 +4256,15 @@ REPAIR_NOTE = ("[Automatic check by the app, not a message from the customer] Yo
 def _claude_turn(message, history, ctx, key):
     http_post = getattr(ctx, "http_post", None)
     declared = _declared_tools(ctx)
-    age_band, lines, snap, snap_data = _customer_block(ctx)
+    # The figures this turn may quote: the customer picture, earlier answers, the message, then each tool result.
+    table = grounding.FigureTable(_ctx_get(ctx, "today"))
+    age_band, lines, snap, snap_data = _customer_block(ctx, table)
+    table.add_earlier(_earlier_answers(history))
+    table.add_message(message)
+    try:
+        setattr(ctx, "figure_table", table)
+    except Exception:
+        pass
     # Two system blocks: the rules (the same for everyone, cacheable) and the per-customer lines.
     system = [SYSTEM_PROMPT, lines]
     model = _claude_model(ctx)
@@ -4301,7 +4274,7 @@ def _claude_turn(message, history, ctx, key):
     messages.append({"role": "user", "content": sent})
     payload = {"system_prompt_summary": SYSTEM_SUMMARY, "model": model, "profile": {"age_band": age_band},
                "history": sent_history, "user_message": sent, "tool_results": [],
-               "what_the_coach_knows": list(snap), "_snapshot": snap_data}
+               "what_the_coach_knows": list(snap), "_snapshot": snap_data, "_table": table}
     calls = []
     final_text = first_text = None
     repaired = False
@@ -4324,15 +4297,12 @@ def _claude_turn(message, history, ctx, key):
             # One chance to put right an amount the number check would delete: the model is told which amounts
             # the app cannot trace and may fetch them with a tool or rewrite the answer without them.
             if final_text and not repaired and rnd < CLAUDE_ROUNDS:
-                known = [c[2] for c in calls] + ([snap_data] if snap_data else []) + \
-                        [{"earlier_answers": _earlier_answers(history)}]
-                bad = ungrounded_spans(body_text, known, message)
+                bad = grounding.check(tidy_model_text(body_text, message) or body_text, table)
                 if bad:
                     repaired, first_text = True, final_text
-                    amounts = ", ".join(sorted({body_text[a:b].strip() for a, b in bad})[:6])
                     messages.append({"role": "assistant", "content": resp["content"]})
-                    messages.append({"role": "user", "content": REPAIR_NOTE % amounts})
-                    payload["repair"] = amounts
+                    messages.append({"role": "user", "content": grounding.repair_note(bad)})
+                    payload["repair"] = ", ".join(sorted({str(v.get("raw")) for v in bad})[:6])
                     final_text = None
                     continue
             break
@@ -4348,8 +4318,12 @@ def _claude_turn(message, history, ctx, key):
             calls.append((name, args, res))
             view = _model_view(res)
             payload["tool_results"].append({"tool": name, "args": _clean(args), "result": view})
+            try:
+                sent_view = table.add_result(name, args, view, raw=res)   # figures listed with their slots
+            except Exception:
+                sent_view = view
             block = {"type": "tool_result", "tool_use_id": u.get("id"),
-                     "content": json.dumps(view, ensure_ascii=False, default=str)}
+                     "content": json.dumps(sent_view, ensure_ascii=False, default=str)}
             if isinstance(res, dict) and "error" in res:
                 block["is_error"] = True
             results.append(block)
@@ -4649,37 +4623,35 @@ def chat(message, history, ctx):
         return res
 
     text = tidy_model_text(text, message) or text
-    if is_finnish(message) or _FI_REPLY_RE.search(text):
-        text = fi_money_format(text)
-    results = [c[2] for c in calls]
-    earlier = _earlier_answers(history)
-    if earlier:
-        results = results + [{"earlier_answers": earlier}]
-    # What the coach was told about the customer is checked data too: its figures may be quoted.
+    lang = "fi" if (is_finnish(message) or _FI_REPLY_RE.search(text)) else "en"
     snapshot = payload.pop("_snapshot", None) if isinstance(payload, dict) else None
+    table = payload.pop("_table", None) if isinstance(payload, dict) else None
+    if table is None:     # a path that built no table (Gemini): the same check on the digits it wrote
+        table = grounding.build_table(calls, snapshot_data=snapshot, earlier=_earlier_answers(history),
+                                      message=message, today=_ctx_get(ctx, "today"))
+    # SR-10: every figure is filled in from the table ({{fN}} slots) or matched to a figure of the table that
+    # fits its sentence; a sentence with any other figure is removed.
+    g = grounding.render(text, table, lang)
+    follow = [grounding.render(q, table, lang)["text"] if grounding.slots(q) else q for q in follow]
+    follow = [q for q in follow if q and "{{" not in q]
     if snapshot:
-        results = results + [snapshot]
-        mark_said(ctx, text, snapshot)
-    if not numbers_grounded(text, results, message):
-        # SR-10: an unverified figure. Keep the model's sentences that have none, when there are any and a
-        # tool was used; otherwise use the checked template.
+        mark_said(ctx, g["text"] or text, snapshot)
+    if g["violations"] and g["ok"]:
+        return done(_package(g["text"], calls, provider, payload, extra_cards=help_cards, figures=g["figures"],
+                             notice="One sentence with a figure I couldn't verify was removed from the AI's answer."))
+    if g["violations"]:
+        # What is left would not answer the question: the checked answer of the tool that answered it.
+        replaced = "The AI's wording contained a figure I couldn't verify, so I replaced it with a checked answer."
         if calls:
-            kept = _keep_grounded_sentences(text, results, message)
-            if kept and len(kept) >= 20:
-                return done(_package(kept, calls, provider, payload,
-                                     notice="One sentence with a figure I couldn't verify was removed from the AI's answer."))
-            tool, args, res = next((c for c in calls if c[0] not in HELPER_TOOLS), calls[0])
-            if tool in HELPER_TOOLS:
-                est = next((c[2] for c in calls if c[0] == "general_estimate" and isinstance(c[2], dict)
-                            and c[2].get("text")), None)
-                if kept or est:
-                    return done(_package(kept or str(est["text"]), calls, provider, payload,
-                                         notice="A sentence with a figure I couldn't verify was removed from the AI's answer."))
-                return _offline_turn(message, ctx, notice="The AI's wording contained a figure I couldn't verify, "
-                                                          "so I replaced it with a checked answer.")
-            reply = render(tool, _enrich(tool, res), args, {"today": _ctx_get(ctx, "today")})
-            return _package(reply, calls, provider, payload,
-                            notice="The AI's wording contained a figure I couldn't verify, so I replaced it with a checked answer.")
-        return _offline_turn(message, ctx,
-                             notice="The AI's wording contained a figure I couldn't verify, so I replaced it with a checked answer.")
-    return done(_package(text, calls, provider, payload, extra_cards=help_cards))
+            i = grounding.answering_call(calls, grounding.used_figures(text, table), HELPER_TOOLS)
+            if i is not None:
+                tool, args, res = calls[i]
+                reply = render(tool, _enrich(tool, res), args, {"today": _ctx_get(ctx, "today")})
+                return _package(reply, calls, provider, payload, notice=replaced)
+            est = next((c[2] for c in calls if c[0] == "general_estimate" and isinstance(c[2], dict)
+                        and c[2].get("text")), None)
+            if est:
+                return done(_package(str(est["text"]), calls, provider, payload,
+                                     notice="A sentence with a figure I couldn't verify was removed from the AI's answer."))
+        return _offline_turn(message, ctx, notice=replaced)
+    return done(_package(g["text"], calls, provider, payload, extra_cards=help_cards, figures=g["figures"]))

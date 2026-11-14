@@ -331,6 +331,7 @@ class AcrossAllRepliesTests(_Base):
     def test_number_check_accepts_every_template(self):
         for cid, q, _out, r in self.rows:
             results = [x for x in r.get("results") or [] if isinstance(x, dict)]
+            results += [v for v in (r.get("hints") or {}).values() if isinstance(v, dict)]   # e.g. the fuel receipts
             for strict in (False, True):
                 with self.subTest(cid=cid, q=q[:40], strict=strict):
                     self.assertTrue(self.coach.numbers_grounded(r["reply"], results, q, strict=strict),

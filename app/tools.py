@@ -1456,12 +1456,21 @@ def _t_calculate(args, ctx, ins):
             continue
         label = re.sub(r"[\x00-\x1f]", " ", str(it.get("label") or "")).strip()[:80] or "result"
         expr = str(it.get("expression") or "").strip()[:200]
+        typed = expr          # the numbers the model typed itself are checked; slots come from the figure table
+        table = getattr(ctx, "figure_table", None)
+        if table is not None and re.search(r"\{\{\s*f\d+\s*\}\}|\bf\d+\b", expr):
+            try:
+                typed = re.sub(r"\{\{\s*f\d+\s*\}\}|\bf\d+\b", " ", expr)
+                expr = table.resolve_expression(expr)
+            except KeyError as e:
+                out.append({"label": label, "expression": expr, "error": "%s is not in the figure list" % e.args[0]})
+                continue
         if not expr or not _CALC_OK.match(expr):
             out.append({"label": label, "expression": expr, "error": "only numbers, + - * / and brackets are allowed"})
             continue
         clean = re.sub(r"(?<=\d),(?=\d{3}\b)", "", expr).replace("%", "/100")
         if callable(known):
-            bad = [v for v in calc_literals(clean) if not known(v)]
+            bad = [v for v in calc_literals(re.sub(r"(?<=\d),(?=\d{3}\b)", "", typed).replace("%", "/100")) if not known(v)]
             if bad:
                 out.append({"label": label, "expression": expr,
                             "error": "%s is not a figure from the customer's data, their message or an estimate. "

@@ -54,7 +54,8 @@ import datetime
 import re
 
 UNITS = ("money", "percent", "count", "number")
-MAX_PER_SOURCE = 60          # figures registered from one tool result
+MAX_PER_SOURCE = 400         # figures registered from one tool result
+MAX_LISTED = 60              # of which listed for the model under "figures"
 MAX_LIST_ITEMS = 12          # items of a list (rows, by_label ...) whose figures are registered
 SOURCE_ORDER = {"tool": 0, "snapshot": 1, "earlier_answer": 2, "customer_message": 3}
 
@@ -258,6 +259,23 @@ def _prev(ym, n=1):
 
 def metric_groups(text):
     return {g for g, rx in _METRIC_RE if rx.search(text or "")}
+
+
+def _nearest_group(before, after):
+    """{the group} of the metric word nearest before the figure (else the first after it), or set()."""
+    best = None
+    for g, rx in _METRIC_RE:
+        for m in rx.finditer(before):
+            if best is None or m.end() > best[0]:
+                best = (m.end(), g)
+    if best:
+        return {best[1]}
+    first = None
+    for g, rx in _METRIC_RE:
+        m = rx.search(after)
+        if m and (first is None or m.start() < first[0]):
+            first = (m.start(), g)
+    return {first[1]} if first else set()
 
 
 def categories(text):
@@ -547,7 +565,7 @@ class FigureTable:
             before, after = window(text, sp, [s for s in spans if s != sp])
             part = before + " " + after
             sent = _sentence_around(text, sp)
-            groups = metric_groups(part) or (metric_groups(sent) if len(metric_groups(sent)) == 1 else set())
+            groups = _nearest_group(before, after) or                 (metric_groups(sent) if len(metric_groups(sent)) == 1 else set())
             cats = categories(part) or (categories(sent) if len(categories(sent)) == 1 else set()) \
                 or set(base.get("categories") or ())
             rate = rate_of(after) or rate_of(before) or base.get("rate")
@@ -627,7 +645,7 @@ class FigureTable:
             return o
         if isinstance(o, (int, float)):
             fid = self._leaf(tool, args, o, keys, ctx, unit, call, evid, state)
-            if fid:
+            if fid and len(listing) < MAX_LISTED:
                 listing[fid] = self._listing_label(self.by_id[fid])
             return o
         if isinstance(o, str):
@@ -916,7 +934,7 @@ def _month_word(ym):
 def split_sentences(text):
     """[(paragraph index, sentence)]."""
     out = []
-    for pi, para in enumerate(re.split(r"\n\s*\n", str(text or "").strip())):
+    for pi, para in enumerate(str(text or "").strip().split("\n")):
         for s in re.split(r"(?<=[.!?])\s+(?=[A-ZÄÖÅ\"\u201c(€\d{])", para.strip()):
             if s.strip():
                 out.append((pi, " ".join(s.split())))
@@ -1073,8 +1091,12 @@ def render(text, table, lang="en", adopt=True):
             continue
         kept.append((pi, rendered, figs))
     out, pos, last_p = [], 0, None
+    breaks, blank = {}, False
+    for li, line in enumerate(str(text or "").strip().split("\n")):   # line -> the break before it
+        breaks[li] = "\n\n" if blank else "\n"
+        blank = not line.strip()
     for pi, s, figs in kept:
-        sep = "" if last_p is None else ("\n\n" if pi != last_p else " ")
+        sep = "" if last_p is None else (breaks.get(pi, "\n") if pi != last_p else " ")
         pos += len(sep)
         for f in figs:
             f = dict(f, start=f["start"] + pos, end=f["end"] + pos)
