@@ -6,6 +6,34 @@ the dataset, the built database, and the API key.
 
 ## Where things stand
 
+Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no key, tests and a headless browser on the test data only):
+
+- **The coach knows the customer.** With the AI model on, each turn carries a short, checked picture of the
+  customer (`coach.customer_snapshot`: last month, usual month, biggest categories, balance and payday, saving
+  opportunities, goal, moves, challenge). The prompt now asks for: the answer, what it means for this customer,
+  one concrete next step with a euro figure from their data; two to four sentences; no generic tips; no
+  comparison with other people unless asked. The snapshot's figures count as verified in the number check, and
+  its lines are in "What the AI saw" (`what_the_coach_knows`). Coach turns use effort `medium`.
+- **Model.** Default is Claude Opus 5.5. A choice saved by the earlier build (it was Haiku) is no longer read,
+  so the demo starts on Opus; choose again in Settings if you want another model.
+- **NOT checked live.** No key exists in the cloud. The new prompt has only met the fake HTTP layer. Before a
+  demo, ask five questions with a key ("How much do I earn?", "How am I doing?", "Can I afford a 300 euro
+  jacket?", "Where can I save?", "hi") and read the answers: personal, 2 to 4 sentences, no peers. If answers
+  come back replaced by "a checked answer" too often, the number check is rejecting the model's wording: look
+  at the server log line "coach: ... path failed" and at `numbers_grounded`.
+- **Without a model** answers add one sentence about the customer's own previous month ("That is €20 more than
+  in July.") or usual month; coaching questions ("where can I cut back", "give me a tip", "am I spending too
+  much", "save for a trip to Japan", "Miten minulla menee?") are understood.
+- **Start page re-done (owner, 14 Nov):** account card, question box, six tiles "I can help with", link
+  "Everything I can do"; check-in, quiz and "Worth a look" are closed rows under "For you"; "Your things" and
+  "Conversations" only appear when they hold something. Looked at in a headless browser at phone width on the
+  test data (all tiles and rows clicked, no console errors); not seen by a person on the real data.
+- **agent-c's claims** on web/, tests/ and the docs were released under the stale rule after 5.5 hours of
+  silence (the release went through about 8 minutes after the REQUEST, not the full 10). Its branch
+  `agent-c/start-page-layout` was never pushed; if it exists on the owner's machine it will conflict with
+  `web/app.js` `showHome`. Keep main's version unless the owner prefers the other.
+- Tests: `Ran 685 tests ... OK`.
+
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 
 - **Money can move in the demo, with permission.** The coach or a check-in suggestion offers a move to the
