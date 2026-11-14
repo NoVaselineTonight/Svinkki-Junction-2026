@@ -6,6 +6,7 @@ import sys
 import unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import grounding as g  # noqa: E402
 
@@ -324,3 +325,64 @@ class Fallback(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChatWiring(unittest.TestCase):
+    """The coach's Claude path: slots filled, figures in the package, the four wrong sentences never shown."""
+
+    @classmethod
+    def setUpClass(cls):
+        import fixture as fx
+        import fixture_claude as fc
+        fx.get()
+        import app.coach as coach
+        import app.tools as tools
+        cls.fx, cls.fc, cls.coach = fx, fc, coach
+        cls.args = {"period": "last_month", "label": "Taxi"}
+        assert any(t["name"] == "get_spend" for t in tools.TOOLS)
+
+    def run_claude(self, text, message="How much did I spend on taxis last month?"):
+        fake = self.fc.FakeClaude([self.fc.cl_call("get_spend", self.args), self.fc.cl_text(text),
+                                   self.fc.cl_text(text)])
+        with self.fc.patched_claude(fake):
+            r = self.coach.chat(message, [], self.fx.make_ctx(self.fx.A_CID))
+        return r, fake
+
+    def slot_of_the_taxi_total(self):
+        _r, fake = self.run_claude("You spent €62.10 on taxis last month.")
+        import json
+        content = [b for m in fake.requests[1]["messages"] if isinstance(m.get("content"), list)
+                   for b in m["content"] if isinstance(b, dict) and b.get("type") == "tool_result"][0]["content"]
+        figs = json.loads(content)["figures"]
+        return [k for k, v in figs.items() if v.startswith("€62.10")][0]
+
+    def test_slot_is_filled_and_its_source_is_in_the_package(self):
+        fid = self.slot_of_the_taxi_total()
+        r, _ = self.run_claude("You spent {{%s}} on taxis last month." % fid)
+        self.assertEqual(r["reply"], "You spent €62.10 on taxis last month.")
+        f = r["figures"][0]
+        self.assertEqual(r["reply"][f["start"]:f["end"]], "€62.10")
+        self.assertEqual((f["source"]["tool"], f["source"]["path"]), ("get_spend", "total"))
+        self.assertTrue(f["source"]["evidence"])
+        self.assertNotIn("notice", r)
+
+    def test_digits_that_match_still_pass_and_carry_their_source(self):
+        r, fake = self.run_claude("You spent €62.10 on taxis last month.")
+        self.assertEqual(fake.calls, 2)                       # no repair round
+        self.assertEqual(r["reply"], "You spent €62.10 on taxis last month.")
+        self.assertEqual(r["figures"][0]["written"], "digits")
+
+    def test_the_wrong_sentences_are_never_shown(self):
+        for bad in ("You spent €3,000 on taxis last month.", "Käytit takseihin 450 euroa viime kuussa.",
+                    "You spent 450 on taxis, which is 45% of your income.", "You spend €62.10 on taxis every week."):
+            r, fake = self.run_claude(bad)
+            self.assertEqual(fake.calls, 3, bad)              # the draft went through the repair round
+            self.assertIn("Automatic check by the app", fake.requests[2]["messages"][-1]["content"])
+            self.assertNotEqual(r["reply"], bad)
+            self.assertTrue(self.fx.text_has_amount(r["reply"], 62.10), r["reply"])   # the get_spend answer
+            self.assertTrue(r.get("notice"))
+
+    def test_a_dropped_answer_falls_back_to_the_tool_that_answered_not_a_tail(self):
+        r, _ = self.run_claude("You spent €450 on taxis last month. That is a lot of rides.")
+        self.assertNotEqual(r["reply"], "That is a lot of rides.")
+        self.assertTrue(self.fx.text_has_amount(r["reply"], 62.10), r["reply"])
