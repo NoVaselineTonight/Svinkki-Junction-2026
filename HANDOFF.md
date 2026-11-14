@@ -6,6 +6,39 @@ the dataset, the built database, and the API key.
 
 ## Where things stand
 
+Updated 14 Nov 2026, about 09:30 UTC, by agent-d (local session with the dataset and the key; the AI side.
+The GUI is agent-c's). Detail, figures and what was not solved: `.devloop/WAVE5.md`.
+
+- **The coach was measured, and it was weak.** 180 conversations asked through the real app with the live
+  model and scored by independent judges: helpful 1.88 of 3, and 50 of 180 left the customer with little or
+  nothing. The owner's own example ("what would a trip to China for four cost?" answered with "I can't
+  estimate, what do you expect it to cost?") was the commonest failure.
+- **After this wave:** helpful 2.65, personal 2.66, actionable 2.07; 3 of 180 weak; nothing unsafe found in
+  the boundary cases. Run with Claude Opus 5.5, live, on the real dataset.
+- **It estimates and calculates.** `general_estimate` registers a rough range from the model's general
+  knowledge (shown as such, and listed under "What the AI saw"); `calculate`, `project_savings` and
+  `loan_payment` do the sums by code. The number check still removes any amount that is neither the
+  customer's data nor a registered estimate nor a calculated figure; the model first gets one chance to put
+  it right.
+- **It looks further back.** New tools for the last 12 to 24 months: the balance path and what changed, the
+  season ahead on last year's pace, one category's story, why a month was expensive, low points and cushion,
+  pay rhythm, a year of receipts, how the customer shops, grocery cut ideas (`app/trends.py`,
+  `app/cashflow.py`, `app/receipts.py`).
+- **It stops repeating itself.** The picture of the customer is a ranked pool of findings (`app/findings.py`);
+  what a reply used is remembered for the conversation and shown to the model as "already told".
+- **Payday is the customer's usual pay day** (was a month too late for many). Safe to spend, can-I-afford
+  and the forecast are less gloomy for customers paid on the 15th; the picture says when pay has come late.
+- **With the model on, the model answers** follow-ups, "help", "what can you do", messages that mention a
+  partner or a friend, and requests for a payment (it says no in one sentence and offers what it can; the
+  tool that prepares a money move is withheld for that message). Another customer's id and attempts to read
+  the instructions are still refused before the model. `docs/SECURITY_PLAN.md` describes the older, stricter
+  routing and has not been updated.
+- **Slower and longer:** a plan takes about 10 to 15 seconds and 100 to 160 words; a lookup 4 to 6 seconds.
+- **The new tools have no card in the web app.** Their figures are in the answer text.
+- **The question bank is in the repo** (`.devloop/coach-bank/`): 180 conversations, the judging rubric and a
+  runner. A live run makes about 240 paid model turns.
+- Tests: `Ran 872 tests ... OK`.
+
 Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no key, tests and a headless browser on the test data only):
 
 - **The coach knows the customer.** With the AI model on, each turn carries a short, checked picture of the

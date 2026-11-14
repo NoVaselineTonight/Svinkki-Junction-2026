@@ -1,0 +1,679 @@
+[
+ {
+  "id": "D-001",
+  "category": "receipts_top_products",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "What do I buy most often at the grocery store?"
+  ],
+  "needs": "Top products or product groups by frequency and euro total from the receipts, one specific observation (e.g. a repeated item), and one concrete suggestion with a euro figure.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-002",
+  "category": "receipts_group",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "How much did I spend on snacks and sweets in the last three months?"
+  ],
+  "needs": "Euro total and share of grocery spend for snacks and sweets over a stated 3-month window, a specific example from the receipts, and a practical tip.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-003",
+  "category": "receipts_price_change",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "Has the price of the milk and bread I buy gone up lately?"
+  ],
+  "needs": "Compares unit prices of the specific dairy and bread products over time from receipts, states the change in cents or percent, and says honestly if data is thin.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-004",
+  "category": "receipts_swap",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "Is there a cheaper alternative to the stuff I buy at Alepa all the time?"
+  ],
+  "needs": "Names his most repeated Alepa items, suggests cheaper alternatives (other chain or own-brand) with price difference, tied to his tight budget.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-005",
+  "category": "receipts_energy",
+  "lang": "fi",
+  "persona": "Joonas",
+  "turns": [
+   "paljonko oon polttanu energiajuomiin tänä vuonna"
+  ],
+  "needs": "Euro total and number of cans for the energy drink product group this year, monthly equivalent, and a casual non-judgmental suggestion with savings figure.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-006",
+  "category": "receipts_alcohol",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "how much do I spend on beer and cider from the shop vs bars?"
+  ],
+  "needs": "Euro totals for beer and cider in receipts versus bar category in bank data over the same period, and an observation about the split.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-007",
+  "category": "receipts_ready_meals",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "How much are we spending on ready meals and could we cook instead?"
+  ],
+  "needs": "Euro total of ready meals from receipts, typical price per item, and a cook-at-home alternative with an estimated saving; may use general cost knowledge.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-008",
+  "category": "receipts_healthy",
+  "lang": "fi",
+  "persona": "Helmi",
+  "turns": [
+   "Onko mun ruokakori terveellinen vai epäterveellinen? Mitä ostan eniten?"
+  ],
+  "needs": "Share of fruit and vegetables versus snacks, sweets, ready meals and soft drinks from the receipts with euro figures, balanced and non-preachy, with one concrete improvement.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-009",
+  "category": "receipts_store_compare",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "Which of Prisma, S-market, Alepa or Sale is cheapest for me?"
+  ],
+  "needs": "Compares his spend and prices across the chains for comparable products, notes basket size and trip counts per chain, and gives a clear recommendation with a euro estimate.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-010",
+  "category": "receipts_basket",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Do I do more small top-up trips or big weekly shops, and what is my average basket?"
+  ],
+  "needs": "Counts of small versus large shops, average basket in euros, which chains are used for each, and what the pattern costs her.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-011",
+  "category": "receipts_cut",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "What could I cut from my groceries without noticing?",
+   "How much would that save in a year?"
+  ],
+  "needs": "Turn 1: specific products/groups that are impulse or pricey with euro amounts. Turn 2: a yearly saving computed from those same items, consistent with turn 1.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-012",
+  "category": "receipts_compare_hh",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Do I spend more on food than a typical household?"
+  ],
+  "needs": "Her monthly grocery spend versus Statistics Finland or group figures for a comparable household, stating the difference and what the comparison does not capture.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-013",
+  "category": "meal_plan",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Based on what I normally buy, help me plan dinners for next week on a budget",
+   "make it vegetarian two nights"
+  ],
+  "needs": "A dinner plan built from products she actually buys with approximate euro costs; turn 2 adjusts two nights to vegetarian, staying consistent and within budget.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-014",
+  "category": "fuel",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "How much have I spent on fuel this year and what is it per month?"
+  ],
+  "needs": "Total fuel spend this year to date, monthly average, number of fill-ups and average per fill-up, with a note on the highest month.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-015",
+  "category": "fuel",
+  "lang": "fi",
+  "persona": "Mikko",
+  "turns": [
+   "paljonko tankkaamiseen on mennyt kesällä",
+   "entä viime kesänä?",
+   "kumpi oli kalliimpaa ja miksi"
+  ],
+  "needs": "Summer 2026 fuel total, then summer 2025 total, then a comparison with a plausible reason from data (more fill-ups, longer trips, larger fill-ups) or honest uncertainty about price.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-016",
+  "category": "fuel",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "Do I fill up at ABC at certain times, and is it costing me more than needed?"
+  ],
+  "needs": "Fill-up frequency, weekdays and times, average amount, and whether anything stands out; caution about inferring fuel prices that are not in data.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-017",
+  "category": "odd_period",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "How much did I spend on restaurants since Christmas?"
+  ],
+  "needs": "Restaurant category total from 25 December 2025 to 26 September 2026, monthly average, count of visits, average per visit, with a comparison to fast food.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-018",
+  "category": "odd_period",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Compare this summer to last summer",
+   "which category changed the most?"
+  ],
+  "needs": "Summer 2026 versus summer 2025 total spend with euro and percent difference; turn 2 names the category with the biggest change and the amounts.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-019",
+  "category": "odd_period",
+  "lang": "fi",
+  "persona": "Joonas",
+  "turns": [
+   "Paljonko meni rahaa viimeisinä kolmena viikonloppuna?"
+  ],
+  "needs": "Total spend for the last three weekends, broken down per weekend and top categories, casual tone.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-020",
+  "category": "trend",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "Is my spending going up?",
+   "what's driving it?"
+  ],
+  "needs": "Compares recent months to earlier ones with euro and percent change; turn 2 names the categories driving the rise using data.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-021",
+  "category": "trend",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "Which category grew most this year?"
+  ],
+  "needs": "The category with the largest increase this year versus last, with euro amounts and percent, plus possible reasons or a suggestion to check.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-022",
+  "category": "trend",
+  "lang": "fi",
+  "persona": "Helmi",
+  "turns": [
+   "Miksi viime kuu oli niin kallis?"
+  ],
+  "needs": "August 2026 total versus her normal month, the categories and individual large purchases that explain the gap, and whether it was a one-off.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-023",
+  "category": "trend",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "why was last month so expensive",
+   "and the month before?"
+  ],
+  "needs": "Explains last month's spend with specific categories and large purchases; turn 2 gives the same analysis for the month before and compares the two.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-024",
+  "category": "timing_habit",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "Do I spend more on weekdays or weekends?",
+   "what about Fridays specifically?"
+  ],
+  "needs": "Average spend per weekday versus weekend day with euro figures; turn 2 gives Friday's average and what he buys on Fridays.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-025",
+  "category": "timing_habit",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "What time of day do I spend the most?"
+  ],
+  "needs": "Spend by time-of-day bands with euro totals, the peak band, and what categories dominate it.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-026",
+  "category": "timing_habit",
+  "lang": "fi",
+  "persona": "Joonas",
+  "turns": [
+   "Paljonko kulutan palkkapäivän jälkeen ekalla viikolla?"
+  ],
+  "needs": "Share and euro amount spent in the first week after payday versus the rest of the month, with the main categories.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-027",
+  "category": "timing_habit",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "Show me my late-night purchases"
+  ],
+  "needs": "Purchases after about 11pm or midnight with total, count, typical amounts and categories such as bar, fast food and taxi, plus one observation.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-028",
+  "category": "night_out",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "What does a typical night out cost me?",
+   "how many have I had this year?",
+   "what if I cut it by a third?"
+  ],
+  "needs": "A typical night-out total (bar, food, taxi) from the data, count of nights this year, and a saving computed by cutting a third, consistent across turns.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-029",
+  "category": "biggest_purchase",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "What was my biggest purchase this year, and the biggest one that was not housing?"
+  ],
+  "needs": "Names the largest transaction with date, amount and category, and the largest non-housing one, with context.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-030",
+  "category": "most_frequent",
+  "lang": "fi",
+  "persona": "Pentti",
+  "turns": [
+   "Mikä on mun yleisin ostos ja paljonko pienet ostokset yhteensä on?"
+  ],
+  "needs": "Most frequent purchase category or recurring amount with count, and the euro total of small purchases under a stated threshold.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-031",
+  "category": "recurring",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "List my recurring charges and subscriptions"
+  ],
+  "needs": "A list of recurring charges identifiable from bank data (utilities, housing, entertainment) with monthly amounts and a total.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-032",
+  "category": "recurring",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "Am I paying for anything I forgot about?"
+  ],
+  "needs": "Candidates among small recurring charges in entertainment or other categories with monthly and yearly amounts, honestly noting merchants are anonymous.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-033",
+  "category": "income",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "How much did I earn last year? Is my income stable?"
+  ],
+  "needs": "Total salary in 2025, monthly average, month-to-month variation including any bonus months, and a verdict on stability.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-034",
+  "category": "income",
+  "lang": "fi",
+  "persona": "Joonas",
+  "turns": [
+   "Paljonko palkkaa oon saanu kuukaudessa keskimäärin?"
+  ],
+  "needs": "Average monthly salary and range over the period, noting variability if shifts or irregular pay show in the data.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-035",
+  "category": "balance_history",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "When was my balance lowest in the last two years?"
+  ],
+  "needs": "The date and amount of his lowest balance, what led up to it, and how often he got near zero.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-036",
+  "category": "balance_history",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Am I richer than a year ago?"
+  ],
+  "needs": "Balance now versus a year ago from the data, the difference, and savings or investment contributions that explain it.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-037",
+  "category": "balance_history",
+  "lang": "fi",
+  "persona": "Pentti",
+  "turns": [
+   "Onko tilini saldo kasvanut vai pienentynyt vuodessa?"
+  ],
+  "needs": "Balance now versus a year ago with euro change, and the monthly pattern.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-038",
+  "category": "baskets_essentials",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "What do I spend on regular essentials every month, the things I can't avoid?"
+  ],
+  "needs": "Monthly total and breakdown of regular essentials (housing, utilities, groceries, pharmacy) from the data, share of income, and a note on what is flexible.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-039",
+  "category": "baskets_unexpected",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "How much went on unexpected stuff this year, like repairs, medical or things I had to buy?"
+  ],
+  "needs": "Identifies unplanned necessities (pharmacy, health, car or electronics) in the data with euro totals and dates, and a suggested buffer amount.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-040",
+  "category": "baskets_slip",
+  "lang": "fi",
+  "persona": "Veeti",
+  "turns": [
+   "Mihin rahaa menee huomaamatta, tälleen pikkujuttuihin?"
+  ],
+  "needs": "Small frequent purchases (fast food, snacks, coffee, taxis) with count and euro total over a period, and the yearly figure.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-041",
+  "category": "surprise",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Tell me something I don't know about my spending"
+  ],
+  "needs": "One or two non-obvious, data-backed insights with specific figures, such as a pattern in receipts or timing.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-042",
+  "category": "surprise",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "Surprise me"
+  ],
+  "needs": "An engaging, specific, data-backed fact about his habits with numbers, not generic advice.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-043",
+  "category": "surprise",
+  "lang": "fi",
+  "persona": "Mikko",
+  "turns": [
+   "kerro jotain yllättävää mun kulutuksesta"
+  ],
+  "needs": "A surprising specific finding from bank data or receipts with euro figures, in casual Finnish.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-044",
+  "category": "compare_people",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "How do I compare to other people my age in my area?",
+   "where am I higher?"
+  ],
+  "needs": "Her spend by main category versus the peer group, and in turn 2 the categories where she is above the group with euro differences.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-045",
+  "category": "compare_people",
+  "lang": "fi",
+  "persona": "Pentti",
+  "turns": [
+   "Kuluttaako muut mun ikäiset enemmän ruokaan?",
+   "entä lääkkeisiin?"
+  ],
+  "needs": "Compares his food spend with same-age peers, then pharmacy spend, with euro figures and a non-judgmental takeaway.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-046",
+  "category": "receipts_product",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "How much have I spent on cola and energy drinks, and what would that be as a monthly bill?"
+  ],
+  "needs": "Euro total for soft and energy drinks over a period, a monthly equivalent, and a swap suggestion with savings.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-047",
+  "category": "receipts_product",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "How much did we spend on meat and fish last month?",
+   "is that normal for a family?",
+   "what could be swapped?"
+  ],
+  "needs": "Meat and fish euro total for August 2026, a comparison against group or national household figures, then specific swaps with savings.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-048",
+  "category": "receipts_price_change",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Which product I buy often has gotten most expensive?"
+  ],
+  "needs": "Identifies a repeated product whose unit price rose most with before and after prices and percent change, and how much extra it costs her.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-049",
+  "category": "receipts_store",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Am I paying different prices for the same items at Prisma and Alepa?"
+  ],
+  "needs": "Examples of products bought in both chains with unit price gaps, and how much switching would save.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-050",
+  "category": "receipts_treats",
+  "lang": "fi",
+  "persona": "Joonas",
+  "turns": [
+   "Paljonko meni karkkiin ja naposteluun?",
+   "onko se paljon?"
+  ],
+  "needs": "Euro total for snacks and sweets with monthly figure, then a context comparison against peers or his food budget.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-051",
+  "category": "receipts_fruit",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "Do I buy enough fruit and vegetables? How much a month?"
+  ],
+  "needs": "Monthly euro and share of fruit and vegetables in receipts, a gentle comparison with typical guidance, and an easy suggestion.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-052",
+  "category": "receipts_weekday",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Which day do I do most of my grocery shopping and does it matter for price?"
+  ],
+  "needs": "Grocery trips by weekday, average basket per day, and whether the day links to higher or lower spend.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-053",
+  "category": "receipts_alcohol",
+  "lang": "fi",
+  "persona": "Mikko",
+  "turns": [
+   "Paljonko alkoholiin menee kuussa ruokakaupassa?"
+  ],
+  "needs": "Monthly euro for beer and cider product groups in receipts, share of grocery bill, and perhaps bar spend for context.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-054",
+  "category": "fuel",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Is my car costing more than it should? Fuel plus anything else car related"
+  ],
+  "needs": "Fuel total and car-related categories from the data with monthly figures, and an honest note about what the data cannot show (insurance, depreciation).",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-055",
+  "category": "transport",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "How much did taxis and public transport cost me over the last 6 months, and what if half my taxi rides were bus rides?"
+  ],
+  "needs": "Totals for taxi and public transport with ride counts, average taxi fare, and a hypothetical saving with a stated assumption for the bus fare.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-056",
+  "category": "odd_period",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "How much did we spend on travel and holidays last summer in total?"
+  ],
+  "needs": "Travel category spend for summer 2025 with dates and largest items, plus anything related to restaurants or entertainment during the trip.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-057",
+  "category": "income",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Has my salary changed since I started?",
+   "how much is left after the fixed bills each month?"
+  ],
+  "needs": "Salary level over time with any change dated, then average leftover after housing and utilities; relevant to her mortgage plan.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "D-058",
+  "category": "receipts_compare_hh",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "Is my grocery bill high for one person?"
+  ],
+  "needs": "His monthly grocery spend versus Statistics Finland figures for a single-person household or his peer group, with a plain verdict.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-059",
+  "category": "trend",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Is my grocery spending rising faster than prices?",
+   "show me month by month"
+  ],
+  "needs": "Grocery trend in euros with percent change, mention of general food inflation as context, then a monthly table or list.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "D-060",
+  "category": "receipts_mealplan",
+  "lang": "fi",
+  "persona": "Helmi",
+  "turns": [
+   "Mitä voisin tehdä ruoalla jota ostan, että säästäisin 50 e kuussa?"
+  ],
+  "needs": "A concrete plan from her receipts (swaps, fewer impulse items, store choice) adding up to about 50 euros a month, with figures.",
+  "outside_knowledge": false
+ }
+]

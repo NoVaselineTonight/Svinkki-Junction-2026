@@ -781,8 +781,14 @@ def baskets(conn, today, period="last_month"):
 # --------------------------------------------------------------------------- safe to spend
 
 def _usual_payday(conn, t):
-    """'eom', a day of month (int), or None when no salary has been seen."""
-    since = _add_months(t, -6).isoformat()
+    """'eom', a day of month (int), or None when no salary has been seen.
+
+    The most common day over the last 12 months of salaries (all of them when there are none that
+    recent). Month end wins only when MORE THAN HALF of the salaries came in the last four days of a
+    month; otherwise it is the most common ordinary day (a customer paid on the 15th in 18 of 24
+    months is "the 15th", even when the last two salaries came at month end). When that day has passed
+    and the salary has not come, `_next_payday` expects it at month end, see there."""
+    since = _add_months(t, -12).isoformat()
     rows = conn.execute("SELECT d FROM tx WHERE type='salary' AND d>=? AND d<=? ORDER BY d",
                         (since, t.isoformat())).fetchall()
     if not rows:
@@ -792,9 +798,9 @@ def _usual_payday(conn, t):
         return None
     ds = [_d(r[0]) for r in rows]
     eom = sum(1 for x in ds if x.day >= _last_day(x.year, x.month) - 3)
-    if eom * 2 > len(ds) or (eom * 3 >= len(ds) and (len(ds) - eom) * 3 >= len(ds)):
-        return "eom"
     cnt = Counter(x.day for x in ds if x.day < _last_day(x.year, x.month) - 3)
+    if eom * 2 > len(ds) or not cnt:
+        return "eom"
     return sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
 
 
@@ -804,14 +810,28 @@ def _payday_on(y, m, pay):
 
 
 def _next_payday(t, pay, conn=None):
-    """Next payday after t. With `conn`, a salary already received this month moves it to next month."""
+    """Next payday after t. With `conn`: a salary already received this month moves it to next month,
+    and when the usual day has passed without salary the pay is expected at the end of this month
+    (pay comes late now and then, almost never a whole month late)."""
     cand = _payday_on(t.year, t.month, pay)
     paid = conn is not None and _scalar(conn, "SELECT COUNT(*) FROM tx WHERE type='salary' AND d>=? AND d<=?",
                                         (_month_start(t).isoformat(), t.isoformat()), default=0) > 0
+    if conn is not None and not paid and pay != "eom" and cand <= t:
+        eom = _payday_on(t.year, t.month, "eom")
+        if eom > t:
+            return eom
     if cand <= t or paid:
         nm = _add_months(_month_start(t), 1)
         cand = _payday_on(nm.year, nm.month, pay)
     return cand
+
+
+def _payday_latest(nxt, pay):
+    """The latest likely date for a payday that is a day of month: the end of that month; else None."""
+    if nxt is None or pay in (None, "eom"):
+        return None
+    last = _payday_on(nxt.year, nxt.month, "eom")
+    return last if last > nxt else None
 
 
 def _expected_events(conn, t, where, months, win_end):
@@ -929,6 +949,7 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
         "upcoming_bills": bills, "bills_total": _r(bills_total), "unexpected_buffer": _r(buffer),
         "planned_savings": _r(planned), "safe_total": _r(safe_total), "per_day": _r(per_day),
         "per_week": _r(per_week), "status": status, "working": working,
+        "payday_may_be_late_days": (lambda x: (x - nxt).days if x else 0)(_payday_latest(nxt, pay)),
         "evidence": ev, "explain": explain,
     }
 
@@ -1183,6 +1204,34 @@ def _net_deposits(conn, t):
     return float(dep) - float(wd)
 
 
+FIRST_HOME_MAX_LTV = 0.95      # a first-home buyer can usually borrow up to 95% of the price
+TRANSFER_TAX_FLAT = 0.015      # transfer tax on housing-company shares (no first-buyer exemption since 2024)
+
+
+def _first_home(max_loan, own_money, monthly_saving):
+    """The same readiness check for a first-home buyer, who needs 5% of the price and the transfer tax, not 15%."""
+    if max_loan <= 0:
+        return None
+    price = max_loan / FIRST_HOME_MAX_LTV
+    deposit, tax = price * (1 - FIRST_HOME_MAX_LTV), price * TRANSFER_TAX_FLAT
+    need = deposit + tax
+    gap = need - own_money
+    months = 0 if gap <= 0 else (int(math.ceil(gap / monthly_saving)) if monthly_saving > 0 else None)
+    if gap <= 0:
+        when = "their own money of %s already covers that" % _eur0(own_money)
+    elif months is not None:
+        when = "%s is still missing, about %d month%s at the pace of %s a month" % (
+            _eur0(gap), months, "" if months == 1 else "s", _eur0(monthly_saving))
+    else:
+        when = "%s is still missing" % _eur0(gap)
+    return {"max_price": _r(price), "deposit_5pct": _r(deposit), "transfer_tax": _r(tax), "own_money_needed": _r(need),
+            "still_missing": _r(max(gap, 0.0)), "months_to_ready": months,
+            "note": ("As a first-home buyer the loan can usually be up to 95%% of the price. For a home of about %s "
+                     "that means a deposit of about %s and transfer tax of about %s (1.5%% for a flat in a housing "
+                     "company), about %s in all; %s. The 15%% above is what approved applicants in this data "
+                     "typically had, not a requirement." % (_eur0(price), _eur0(deposit), _eur0(tax), _eur0(need), when))}
+
+
 def mortgage(conn, today, price=None, equity=None):
     t = _d(today)
     ms = _month_list(conn, t, 6)
@@ -1236,6 +1285,14 @@ def mortgage(conn, today, price=None, equity=None):
     return {"monthly_income": _r(income), "max_loan": _r(max_loan),
             "max_price_with_15pct_equity": _r(max_price), "equity_needed": _r(equity_needed),
             "account_balance": _r(balance),   # money in the account; savings_now adds net investment deposits
+            "first_home": _first_home(max_loan, savings_now, monthly_saving),
+            "invested_net": _r(deposits),
+            "own_money_note": ("Own money counted here is %s: %s in the account%s. Over the last %d full months "
+                               "about %s a month was kept (left over or put aside)." % (
+                                   _eur0(savings_now), _eur0(balance),
+                                   (" plus %s put into investments over time and not taken out (what those "
+                                    "investments are worth today is not known)" % _eur0(deposits)) if deposits > 0.005 else "",
+                                   len(ms), _eur0(monthly_saving))),
             "savings_now": _r(savings_now), "monthly_saving": _r(monthly_saving),
             "months_to_equity": months_to, "rule": rule, "check": check,
             "disclaimer": _MORTGAGE_DISCLAIMER, "evidence": ev, "explain": explain}

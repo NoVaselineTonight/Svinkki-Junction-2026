@@ -16,6 +16,9 @@ Public functions:
   receipts(conn, today, period="last_month", habit_seed=None, limit=20) -> dict
   receipt_insights(conn, today, period="last_3_months", habit_seed=None) -> dict
   product_habit(conn, today, query, period="last_3_months", habit_seed=None) -> dict
+  receipt_trends(conn, today, period="last_12_months", habit_seed=None) -> dict   (12 or 24 months)
+  basket_profile(conn, today, period="last_12_months", habit_seed=None) -> dict   (real payments only)
+  cut_ideas(conn, today, period="last_3_months", habit_seed=None) -> dict
   parse_receipt_text(text) -> dict
   build_dataset(db_path=None, out_dir=None, today=None) -> list   (also: python -m app.receipts)
 
@@ -35,7 +38,7 @@ import os
 import random
 import re
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from functools import lru_cache
 from pathlib import Path
 
@@ -560,7 +563,7 @@ def receipt_for(tx_row, habit_seed=None, monthly_grocery=None):
 # --------------------------------------------------------------------------- period helpers
 
 _PERIOD_MONTHS = {"last_month": 1, "this_month": None, "last_3_months": 3, "last_6_months": 6,
-                  "last_12_months": 12}
+                  "last_12_months": 12, "last_24_months": 24}
 def _key(p):
     return str(p or "").strip().lower().replace(" ", "_").replace("-", "_")
 
@@ -738,6 +741,16 @@ def _aggregate(rcs, skip=()):
     return groups, prods
 
 
+EXTRA_FLOOR = 5.0      # euros a month a product group must reach to be mentioned as an extra
+# (group, receipts needed, sentence)
+_EXTRA_LINES = [
+    ("energy_drinks", 3, "You bought energy drinks %(n)d times: about %(m)s a month, %(y)s a year."),
+    ("alcohol_mild", 4, "Beer and cider showed up on %(n)d receipts: about %(m)s a month, %(y)s a year."),
+    ("snacks_sweets", 5, "Snacks and sweets were on %(n)d receipts: about %(m)s a month, %(y)s a year."),
+    ("soft_drinks", 4, "Soft drinks were on %(n)d receipts: about %(m)s a month, %(y)s a year."),
+]
+
+
 def receipt_insights(conn, today, period="last_3_months", habit_seed=None):
     frm, to = ins.period(today, period)
     months = _months_in(period, frm, to)
@@ -785,23 +798,20 @@ def receipt_insights(conn, today, period="last_3_months", habit_seed=None):
             hl.append("Your biggest grocery group is %s: %s, %s of the total."
                       % (GROUP_NAMES.get(g, g).lower(), _eur(gv["c"] / 100.0),
                          pct(100 * gv["c"] / total_c) if total_c else "0%"))
-        extras = []
-        e = groups.get("energy_drinks")
-        if e and len(e["tx"]) >= 3:
-            et = e["c"] / 100.0
-            extras.append("You bought energy drinks %d times: about %s a month, %s a year."
-                          % (len(e["tx"]), _eur0(et / months), _eur0(et * 12.0 / months)))
-        a = groups.get("alcohol_mild")
-        if a and len(a["tx"]) >= 4:
-            at = a["c"] / 100.0
-            extras.append("Beer and cider showed up on %d receipts: about %s a month."
-                          % (len(a["tx"]), _eur0(at / months)))
-        sn = groups.get("snacks_sweets")
-        if sn and len(sn["tx"]) >= 5:
-            st = sn["c"] / 100.0
-            extras.append("Snacks and sweets were on %d receipts: about %s a month, %s a year."
-                          % (len(sn["tx"]), _eur0(st / months), _eur0(st * 12.0 / months)))
-        if tc:
+        # the extras are ranked by euros a month (biggest first) and only mentioned from EXTRA_FLOOR a month
+        cand = []
+        for g, min_receipts, text in _EXTRA_LINES:
+            v = groups.get(g)
+            if not v or len(v["tx"]) < min_receipts:
+                continue
+            gt = v["c"] / 100.0
+            if gt / months < EXTRA_FLOOR:
+                continue
+            cand.append((gt / months, g, text % {"n": len(v["tx"]), "m": _eur0(gt / months),
+                                                  "y": _eur0(gt * 12.0 / months)}))
+        cand.sort(key=lambda c: (-c[0], c[1]))
+        extras = [c[2] for c in cand]
+        if treats["monthly"] >= EXTRA_FLOOR and len(cand) < 2:
             extras.append("Snacks, soft drinks, energy drinks and beer or cider together came to about "
                           "%s a month (%s of grocery spending)." % (_eur0(treats["monthly"]), pct(100 * treats["share"])))
         hl += extras
@@ -864,6 +874,455 @@ def _fuel_block(frs, months):
         "fuel_type": max(types, key=types.get) if types else None,
         "shop_total": round(shop_c / 100.0, 2), "receipts": len(frs),
     }
+
+
+# --------------------------------------------------------------------------- longer views
+
+BIG_SHOP = 60.0          # euros: a shop this size or more is a "big shop"
+SMALL_SHOP = 25.0        # euros: under this is a "small top-up"
+HOME_COOK_SHARE = 0.4    # a home-cooked portion costs this share of a ready meal (illustrative)
+_DAYS_PER_MONTH = 30.4375
+_HABIT_GROUPS = ("alcohol_mild", "ready_meals", "soft_drinks", "energy_drinks", "snacks_sweets", "coffee_tea")
+_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+_MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+                "October", "November", "December"]
+_DAYPARTS = [("in the morning", 5, 10), ("around midday", 11, 13), ("in the afternoon", 14, 17),
+             ("in the evening", 18, 21), ("late at night", 22, 28)]       # hours; 22-28 wraps past midnight
+
+
+def _first_day(conn):
+    try:
+        r = conn.execute("SELECT MIN(d) FROM tx").fetchone()
+    except sqlite3.Error:
+        return None
+    return r[0] if r and r[0] else None
+
+
+def _months_between(frm, to, first, nominal=None):
+    """Months in [frm, to]. The nominal count is used unless the customer's data starts well after `frm`;
+    then only the months with data count. 0.0 when the data starts after `to`."""
+    a, b = ins._d(frm), ins._d(to)
+    if first:
+        f = ins._d(first)
+        if f > b:
+            return 0.0
+        if nominal is None or f > a + timedelta(days=10):
+            a = max(a, f)
+            nominal = None
+    if nominal:
+        return float(nominal)
+    return max(((b - a).days + 1) / _DAYS_PER_MONTH, 0.25)
+
+
+def _span(conn, today, period):
+    """The period, how many months of data it holds, and the equal period just before it (or None)."""
+    t = ins._d(today)
+    first = _first_day(conn)
+    key = _key(period)
+    m = re.fullmatch(r"last_(\d{1,2})_months", key)
+    if m and int(m.group(1)) >= 1:
+        n = int(m.group(1))
+        frm = ins._add_months(t, -n) + timedelta(days=1)
+        to = t
+        p_to = ins._add_months(t, -n)
+        p_frm = ins._add_months(t, -2 * n) + timedelta(days=1)
+        nominal = n
+    else:
+        f, e = ins.period(today, period)
+        frm, to = ins._d(f), ins._d(e)
+        nominal = int(_PERIOD_MONTHS[key]) if _PERIOD_MONTHS.get(key) else None
+        days = (to - frm).days + 1
+        p_to = frm - timedelta(days=1)
+        p_frm = p_to - timedelta(days=days - 1)
+    months = _months_between(frm, to, first, nominal) or 1.0     # no data at all: never divide by zero
+    p_months = _months_between(p_frm, p_to, first, nominal)
+    return {"frm": frm.isoformat(), "to": to.isoformat(), "months": months,
+            "prev": ({"frm": p_frm.isoformat(), "to": p_to.isoformat(), "months": p_months}
+                     if p_months > 0 else None),
+            "when": _phrase(period, frm.isoformat(), to.isoformat(), today)}
+
+
+def _rate(x):
+    """A count per month for a sentence: one decimal, no trailing zero."""
+    x = round(float(x), 1)
+    return "%d" % x if x == int(x) else "%.1f" % x
+
+
+def _month_label(ym, today):
+    y, m = int(ym[:4]), int(ym[5:7])
+    name = _MONTH_NAMES[m - 1]
+    return name if y == ins._d(today).year else "%s %d" % (name, y)
+
+
+def _grocery_payments(conn, frm, to):
+    cur = conn.execute(
+        "SELECT d, ts, -amount FROM tx WHERE label = 'Groceries' AND type = 'purchase' AND amount < 0 "
+        "AND d >= ? AND d <= ? ORDER BY ts, id", (frm, to))
+    return [(r[0], str(r[1] or ""), float(r[2])) for r in cur.fetchall()]
+
+
+def _group_stats(rcs):
+    """Cent-exact per group over grocery receipts: cents, lines, units (counted items), receipts."""
+    out = {}
+    for rc in rcs:
+        for ln in rc["lines"]:
+            g = out.setdefault(ln["group"], {"c": 0, "lines": 0, "units": 0.0, "tx": set()})
+            g["c"] += int(round(ln["line_total"] * 100))
+            g["lines"] += 1
+            if ln["unit"] == "kpl":
+                g["units"] += ln["qty"]
+            g["tx"].add(rc["tx_id"])
+    return out
+
+
+def _empty_text(when):
+    return "There are no grocery purchases %s to look at." % when
+
+
+def receipt_trends(conn, today, period="last_12_months", habit_seed=None):
+    """Product groups over 12 or 24 months on the simulated receipts: euros, euros a month, receipts that
+    hold the group, half-year euros a month, fuel litres. Never says a share is rising: the simulated mix is
+    fixed per customer, only the grocery total moves."""
+    key = _key(period)
+    if key not in ("last_12_months", "last_24_months"):
+        raise ValueError("unknown period: %s" % period)
+    sp = _span(conn, today, key)
+    frm, to, months, when = sp["frm"], sp["to"], sp["months"], sp["when"]
+    every = _receipts_in(conn, today, frm, to, habit_seed)
+    rcs = [r for r in every if not _is_fuel(r)]
+    frs = [r for r in every if _is_fuel(r)]
+    total_c = sum(int(round(r["total"] * 100)) for r in rcs)
+    stats = _group_stats(rcs)
+    fuel_block = _fuel_block(frs, months)
+    missing = _without_receipt(conn, frm, to)
+
+    groups, small_c, small_n = [], 0, 0
+    for g, v in sorted(stats.items(), key=lambda kv: (-kv[1]["c"], kv[0])):
+        t = v["c"] / 100.0
+        if months and t / months >= EXTRA_FLOOR:
+            groups.append({"group": g, "name": GROUP_NAMES.get(g, g), "total": round(t, 2),
+                           "monthly": round(t / months, 2), "receipts": len(v["tx"]), "items": v["lines"],
+                           "units": int(round(v["units"])), "share": round(v["c"] / total_c, 3)})
+        else:
+            small_c += v["c"]
+            small_n += 1
+    listed = {g["group"] for g in groups}
+
+    # half years, oldest first: euros a month per listed group and fuel litres
+    first = _first_day(conn)
+    halves = []
+    t0 = ins._d(to)
+    n_h = 2 if key == "last_12_months" else 4
+    for i in range(n_h):
+        h_to = ins._add_months(t0, -6 * (n_h - 1 - i))
+        h_frm = ins._add_months(t0, -6 * (n_h - i)) + timedelta(days=1)
+        hm = _months_between(h_frm, h_to, first, 6)
+        if hm <= 0:
+            continue
+        a, b = h_frm.isoformat(), h_to.isoformat()
+        h_g = [r for r in rcs if a <= str(r["d"]) <= b]
+        h_f = [r for r in frs if a <= str(r["d"]) <= b]
+        hs = _group_stats(h_g)
+        gc = sum(int(round(r["total"] * 100)) for r in h_g)
+        fb = _fuel_block(h_f, hm)
+        halves.append({"from": a, "to": b, "months": round(hm, 2),
+                       "grocery_monthly": round(gc / 100.0 / hm, 2),
+                       "groups": {GROUP_NAMES.get(g, g): round(hs[g]["c"] / 100.0 / hm, 2)
+                                  for g in sorted(listed) if g in hs},
+                       "fuel_litres": fb["litres"], "fuel_monthly": fb["monthly"]})
+
+    fuel = {"litres": fuel_block["litres"], "fills": fuel_block["fills"], "total": fuel_block["total"],
+            "avg_price_per_litre": fuel_block["avg_price_per_litre"], "monthly": fuel_block["monthly"],
+            "fuel_type": fuel_block["fuel_type"]}
+
+    hl = []
+    if rcs:
+        total = total_c / 100.0
+        hl.append("On the demo receipts your grocery payments came to %s %s, about %s a month, on %d receipts."
+                  % (_eur(total), when, _eur0(total / months), len(rcs)))
+        habit = [g for g in groups if g["group"] in _HABIT_GROUPS]
+        habit.sort(key=lambda g: (-g["monthly"], g["group"]))
+        for g in habit[:3]:
+            hl.append("%s came to about %s a month (%s %s), on %d receipts, %s of your grocery spending."
+                      % (g["name"], _eur0(g["monthly"]), _eur(g["total"]), when, g["receipts"],
+                         "{:.0f}%".format(100 * g["share"])))
+        if len(halves) >= 2 and halves[0]["grocery_monthly"] > 0 and halves[-1]["grocery_monthly"] > 0:
+            hl.append("Your grocery spending ran about %s a month in the first 6 months of that time and about %s "
+                      "a month in the latest 6."
+                      % (_eur0(halves[0]["grocery_monthly"]), _eur0(halves[-1]["grocery_monthly"])))
+    else:
+        hl = []
+    if fuel_block["fills"]:
+        fb = fuel_block
+        hl.append("You filled up %s %s: about %.0f litres for %s, an average of %s a litre, roughly %s a month."
+                  % ("once" if fb["fills"] == 1 else "%d times" % fb["fills"], when, fb["litres"],
+                     _eur(fb["total"]), _eur(fb["avg_price_per_litre"]), _eur0(fb["monthly"])))
+    text = " ".join(hl) + (" These come from simulated demo receipts." if hl else _empty_text(when))
+    return {
+        "period": {"from": frm, "to": to, "label": when, "months": round(months, 2)},
+        "label": DEMO_LABEL,
+        "receipt_count": len(rcs), "total": round(total_c / 100.0, 2),
+        "groups": groups,
+        "other_groups": {"count": small_n, "total": round(small_c / 100.0, 2),
+                         "monthly": round(small_c / 100.0 / months, 2) if months else 0.0},
+        "half_years": halves, "fuel": fuel,
+        "highlights": hl, "text": text, "note": SIM_NOTE,
+        "explain": ("Grocery receipts %s were summed by product group; groups under %s a month are lumped together "
+                    "as other groups. Half years show euros a month, which follow your grocery payments. The lines "
+                    "are simulated, so this shows how much goes to each group, not whether a share is changing.%s"
+                    % (when, _eur0(EXTRA_FLOOR), _without_receipt_text(missing) if missing.get("Groceries") else "")),
+        "evidence": _evidence(frm, to, True, bool(frs)),
+    }
+
+
+def _daypart(ts):
+    try:
+        h = int(str(ts)[11:13])
+    except ValueError:
+        return None
+    if h < 5:
+        h += 24
+    for name, lo, hi in _DAYPARTS:
+        if lo <= h <= hi:
+            return name
+    return None
+
+
+def _full_months(frm, to, first):
+    """YYYY-MM keys of the calendar months that lie wholly inside [frm, to] and after the data starts."""
+    a, b = ins._d(frm), ins._d(to)
+    if first:
+        a = max(a, ins._d(first))
+    cur = a if a.day == 1 else ins._add_months(ins._month_start(a), 1)
+    out = []
+    while ins._month_end(cur) <= b:
+        out.append(cur.strftime("%Y-%m"))
+        cur = ins._add_months(cur, 1)
+    return out
+
+
+def basket_profile(conn, today, period="last_12_months", habit_seed=None):
+    """How and when the customer shops, from the grocery PAYMENTS themselves (no simulated lines)."""
+    sp = _span(conn, today, period)
+    frm, to, months, when = sp["frm"], sp["to"], sp["months"], sp["when"]
+    pay = _grocery_payments(conn, frm, to)
+    base = {"period": {"from": frm, "to": to, "label": when, "months": round(months, 2)},
+            "basis": "Real payments labelled groceries, not the simulated receipt lines.",
+            "evidence": _evidence(frm, to)}
+    n = len(pay)
+    if n == 0:
+        base.update({"trips": 0, "highlights": [], "text": _empty_text(when),
+                     "explain": "No grocery payments in the period."})
+        return base
+    total = round(sum(a for _, _, a in pay), 2)
+    avg = total / n
+    per_month = n / months
+    big = [a for _, _, a in pay if a >= BIG_SHOP]
+    small = [a for _, _, a in pay if a < SMALL_SHOP]
+    mid = n - len(big) - len(small)
+    wd = {}
+    dp = {}
+    for d, ts, _a in pay:
+        w = ins._d(d).weekday()
+        wd[w] = wd.get(w, 0) + 1
+        p = _daypart(ts)
+        if p:
+            dp[p] = dp.get(p, 0) + 1
+    top_w = min(wd.items(), key=lambda kv: (-kv[1], kv[0]))
+    order = [x[0] for x in _DAYPARTS]
+    top_p = min(dp.items(), key=lambda kv: (-kv[1], order.index(kv[0]))) if dp else None
+    biggest = max(pay, key=lambda x: (x[2], x[0]))
+    # months with the most and fewest trips, over whole calendar months only
+    counts = {}
+    for d, _ts, _a in pay:
+        counts[d[:7]] = counts.get(d[:7], 0) + 1
+    full = _full_months(frm, to, _first_day(conn))
+    months_info = None
+    if len(full) >= 3:
+        series = [(counts.get(m, 0), m) for m in full]
+        most = max(series, key=lambda x: (x[0], x[1]))
+        fewest = min(series, key=lambda x: (x[0], x[1]))
+        if most[0] != fewest[0]:
+            months_info = {"most": {"month": most[1], "label": _month_label(most[1], today), "trips": most[0]},
+                           "fewest": {"month": fewest[1], "label": _month_label(fewest[1], today),
+                                      "trips": fewest[0]}}
+
+    # change against the equal period before
+    change = None
+    pv = sp["prev"]
+    if pv:
+        prev = _grocery_payments(conn, pv["frm"], pv["to"])
+        if len(prev) >= 3:
+            p_total = sum(a for _, _, a in prev)
+            p_avg = p_total / len(prev)
+            p_rate = len(prev) / pv["months"]
+            t_pct = (per_month - p_rate) / p_rate
+            b_pct = (avg - p_avg) / p_avg
+            if abs(t_pct) >= 0.10 and abs(b_pct) < 0.10:
+                driver = "trips"
+            elif abs(b_pct) >= 0.10 and abs(t_pct) < 0.10:
+                driver = "basket"
+            elif abs(t_pct) < 0.10 and abs(b_pct) < 0.10:
+                driver = "none"
+            else:
+                driver = "both"
+            change = {"trips_per_month_before": round(p_rate, 2), "average_basket_before": round(p_avg, 2),
+                      "monthly_before": round(p_total / pv["months"], 2),
+                      "trips_change_pct": round(100 * t_pct), "basket_change_pct": round(100 * b_pct),
+                      "months_before": round(pv["months"], 2), "driver": driver}
+
+    hl = []
+    hl.append("You made about %s grocery trips a month %s, with an average basket of %s."
+              % (_rate(per_month), when, _eur(avg)))
+    if change:
+        c = change
+        mb = max(1, int(round(c["months_before"])))
+        if c["driver"] == "trips":
+            hl.append("That is %s than the %s trips a month in the %d months before, while the average basket stayed "
+                      "near %s (%s before), so your grocery spending moved with how often you shop, not with bigger "
+                      "baskets: about %s a month now, %s before."
+                      % ("more" if per_month > c["trips_per_month_before"] else "fewer",
+                         _rate(c["trips_per_month_before"]), mb, _eur(avg), _eur(c["average_basket_before"]),
+                         _eur0(total / months), _eur0(c["monthly_before"])))
+        elif c["driver"] == "basket":
+            hl.append("Your trips stayed near %s a month (%s before), but the average basket went from %s to %s."
+                      % (_rate(per_month), _rate(c["trips_per_month_before"]), _eur(c["average_basket_before"]),
+                         _eur(avg)))
+        elif c["driver"] == "both":
+            hl.append("Before, you made %s trips a month with a basket of %s; now it is %s trips and %s."
+                      % (_rate(c["trips_per_month_before"]), _eur(c["average_basket_before"]), _rate(per_month),
+                         _eur(avg)))
+        else:
+            hl.append("That is about the same as the %d months before: %s trips a month and a %s basket."
+                      % (mb, _rate(c["trips_per_month_before"]), _eur(c["average_basket_before"])))
+    pct = "{:.0f}%".format
+    hl.append("%s of your trips were big shops of %s or more, and %s were small top-ups under %s."
+              % (pct(100.0 * len(big) / n), _eur(BIG_SHOP), pct(100.0 * len(small) / n), _eur(SMALL_SHOP)))
+    when_txt = "Most of your trips are on %ss (%s of them)" % (_WEEKDAYS[top_w[0]], pct(100.0 * top_w[1] / n))
+    if top_p:
+        when_txt += ", usually %s (%s)" % (top_p[0], pct(100.0 * top_p[1] / sum(dp.values())))
+    hl.append(when_txt + ".")
+    hl.append("Your most expensive shop was %s on %s." % (_eur(biggest[2]), ins.human_range(biggest[0], biggest[0],
+                                                                                           today)))
+    if months_info:
+        hl.append("%s was your busiest month with %d trips and %s your quietest with %d."
+                  % (months_info["most"]["label"], months_info["most"]["trips"], months_info["fewest"]["label"],
+                     months_info["fewest"]["trips"]))
+    base.update({
+        "trips": n, "trips_per_month": round(per_month, 2), "total": total, "monthly": round(total / months, 2),
+        "average_basket": round(avg, 2),
+        "big_shops": {"count": len(big), "share": round(len(big) / n, 3), "from": BIG_SHOP},
+        "small_topups": {"count": len(small), "share": round(len(small) / n, 3), "under": SMALL_SHOP},
+        "middle_shops": mid,
+        "busiest_weekday": {"name": _WEEKDAYS[top_w[0]], "trips": top_w[1], "share": round(top_w[1] / n, 3)},
+        "weekday_trips": {_WEEKDAYS[k]: v for k, v in sorted(wd.items())},
+        "busiest_time": ({"name": top_p[0], "trips": top_p[1], "share": round(top_p[1] / sum(dp.values()), 3)}
+                         if top_p else None),
+        "most_expensive": {"amount": round(biggest[2], 2), "d": biggest[0]},
+        "months": months_info, "change": change, "highlights": hl, "text": " ".join(hl),
+        "explain": ("Counted the grocery payments %s: a big shop is %s or more, a small top-up is under %s. Trips a "
+                    "month divide by the months with data. The change compares with the same length of time just "
+                    "before." % (when, _eur(BIG_SHOP), _eur(SMALL_SHOP))),
+    })
+    return base
+
+
+def cut_ideas(conn, today, period="last_3_months", habit_seed=None):
+    """Two to four concrete ideas for spending less on groceries, from the customer's own receipts, ranked by
+    what they would free up each month. Group-level only; the simulated lines carry no real prices or brands."""
+    sp = _span(conn, today, period)
+    frm, to, months, when = sp["frm"], sp["to"], sp["months"], sp["when"]
+    rcs = [r for r in _receipts_in(conn, today, frm, to, habit_seed) if not _is_fuel(r)]
+    base = {"period": {"from": frm, "to": to, "label": when, "months": round(months, 2)}, "label": DEMO_LABEL,
+            "receipt_count": len(rcs), "note": SIM_NOTE, "evidence": _evidence(frm, to)}
+    if len(rcs) < 3 or not months:
+        base.update({"ideas": [], "highlights": [], "text": _empty_text(when),
+                     "explain": "Too few grocery receipts in the period for an idea."})
+        return base
+    st = _group_stats(rcs)
+
+    def monthly(*groups):
+        return sum(st[g]["c"] for g in groups if g in st) / 100.0 / months
+
+    ideas = []
+    # ready meals: cook half of them at home
+    if "ready_meals" in st:
+        now = monthly("ready_meals")
+        cnt = st["ready_meals"]["units"] / months
+        saved = now * 0.5 * (1.0 - HOME_COOK_SHARE)
+        ideas.append({
+            "id": "ready_meals", "title": "Cook some ready meals at home",
+            "detail": ("You buy about %s ready meals a month for about %s. Cooking half of them at home would save "
+                       "about %s a month." % (_rate(cnt), _eur0(now), _eur0(saved))),
+            "monthly_now": now, "saved_monthly": saved,
+            "basis": ("Assumes half of your ready meals are cooked instead and a home-cooked portion costs %d%% of a "
+                      "ready meal. Based on simulated receipt lines." % round(100 * HOME_COOK_SHARE))})
+    # soft and energy drinks: half as many
+    drinks = monthly("soft_drinks", "energy_drinks")
+    if drinks:
+        ideas.append({
+            "id": "soft_energy_drinks", "title": "Half as many soft and energy drinks",
+            "detail": ("Soft and energy drinks come to about %s a month. Having half as many would free up about %s a "
+                       "month." % (_eur0(drinks), _eur0(drinks / 2.0))),
+            "monthly_now": drinks, "saved_monthly": drinks / 2.0,
+            "basis": "Assumes half as many drinks at the same prices. Based on simulated receipt lines."})
+    # snacks and sweets: half as many
+    snacks = monthly("snacks_sweets")
+    if snacks:
+        ideas.append({
+            "id": "snacks_sweets", "title": "Half as many snacks and sweets",
+            "detail": ("Snacks and sweets come to about %s a month. Having half as many would free up about %s a "
+                       "month." % (_eur0(snacks), _eur0(snacks / 2.0))),
+            "monthly_now": snacks, "saved_monthly": snacks / 2.0,
+            "basis": "Assumes half as many at the same prices. Based on simulated receipt lines."})
+    # beer and cider: one purchase fewer a week (at most half of what is bought)
+    if "alcohol_mild" in st and st["alcohol_mild"]["lines"] >= 2:
+        s = st["alcohol_mild"]
+        now = monthly("alcohol_mild")
+        lines_pm = s["lines"] / months
+        avg_line = s["c"] / 100.0 / s["lines"]
+        fewer = min(52.0 / 12.0, lines_pm / 2.0)
+        saved = avg_line * fewer
+        if fewer >= 52.0 / 12.0 - 1e-9:
+            title, what = "One beer or cider purchase fewer a week", "One pack fewer a week"
+        else:
+            title, what = "Half as many beer and cider purchases", "Half as many purchases"
+        ideas.append({
+            "id": "beer_cider", "title": title,
+            "detail": ("Beer and cider come to about %s a month, with an average purchase of %s. %s would free up "
+                       "about %s a month." % (_eur0(now), _eur(avg_line), what, _eur0(saved))),
+            "monthly_now": now, "saved_monthly": saved,
+            "basis": ("Your own average beer or cider line on a receipt (%s) times %s fewer purchases a month. "
+                      "Based on simulated receipt lines." % (_eur(avg_line), _rate(fewer)))})
+    # small top-up trips: one fewer a week
+    pay = _grocery_payments(conn, frm, to)
+    small = [a for _, _, a in pay if a < SMALL_SHOP]
+    if small and len(small) / months >= 6.0:
+        avg_small = sum(small) / len(small)
+        saved = avg_small * 52.0 / 12.0
+        now = sum(small) / months
+        ideas.append({
+            "id": "top_up_trips", "title": "One top-up trip fewer a week",
+            "detail": ("You make about %s small top-up trips (under %s) a month, about %s in all. One trip fewer a week, "
+                       "at your average top-up of %s, is about %s a month."
+                       % (_rate(len(small) / months), _eur(SMALL_SHOP), _eur0(now), _eur(avg_small), _eur0(saved))),
+            "monthly_now": now, "saved_monthly": saved,
+            "basis": "Your average small top-up times about 4.3 weeks a month; assumes the shop is skipped, not moved "
+                     "to another trip. From your real payments."})
+    ideas = [i for i in ideas if i["saved_monthly"] >= EXTRA_FLOOR]
+    ideas.sort(key=lambda i: (-i["saved_monthly"], i["id"]))
+    ideas = ideas[:4]
+    for i in ideas:
+        i["monthly_now"] = round(i["monthly_now"], 2)
+        i["saved_monthly"] = round(i["saved_monthly"], 2)
+    hl = [i["detail"] for i in ideas]
+    base.update({
+        "ideas": ideas, "highlights": hl,
+        "text": (" ".join(hl) + " These come from simulated demo receipts.") if hl else
+                "I found nothing on your receipts %s that would free up %s a month or more." % (when, _eur0(EXTRA_FLOOR)),
+        "explain": ("Each idea is a simple what-if on the simulated receipt lines %s, ranked by what it would free up "
+                    "each month. Ideas under %s a month are left out." % (when, _eur0(EXTRA_FLOOR)))})
+    return base
 
 
 # --------------------------------------------------------------------------- product habit
