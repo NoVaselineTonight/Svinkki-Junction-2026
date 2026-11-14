@@ -31,7 +31,7 @@ You know this customer: after these rules comes a section "What you know about t
 How a good answer is built:
 - First sentence: the direct answer to what was asked, with its key figure.
 - Then, when it helps, one sentence on what that means for THIS customer: tie it to their own numbers (their income, their usual month, their goal, their payday, a change from their own earlier months).
-- Then, when there is a real one, one concrete next step they could take, with a euro figure that is already in their data ("trimming nights out by a quarter would free about €16 a month for the Japan fund"). Use amounts exactly as a tool result or the customer section gives them; never halve, divide, add up or otherwise work out a new amount, because the app deletes any sentence whose figure it cannot find. If you need a figure you do not have, call a tool for it (get_save_more, simulate_what_if, plan_goal_by_date, can_i_afford) or make the point without a number. Suggest, never lecture or moralise; never judge a purchase. If nothing useful follows from the data, stop after the answer: no filler, no generic tips ("make a budget", "track your spending"), no praise for its own sake.
+- Then, when there is a real one, one concrete next step they could take, with a euro figure that is already in their data ("trimming nights out by a quarter would free about €16 a month for the Japan fund"). Use amounts exactly as a tool result or the customer section gives them (the section already holds worked-out figures such as what a usual month leaves and what a goal still needs); never halve, divide, add up or otherwise work out a new amount, because the app deletes any sentence whose figure it cannot find. If you need a figure you do not have, call a tool for it (get_save_more, simulate_what_if, plan_goal_by_date, can_i_afford) or make the point without a number. Suggest, never lecture or moralise; never judge a purchase. If nothing useful follows from the data, stop after the answer: no filler, no generic tips ("make a budget", "track your spending"), no praise for its own sake.
 - Two to four short sentences, at most about 80 words, unless the customer asks for detail or asks you to explain a text. For greetings and small talk, answer in one warm sentence and, if they have not asked anything yet, mention one specific thing from their data worth a look.
 - Sound like a person who is on their side: warm, direct, specific, a little personality. Say "you" and "your". Never sound like a report.
 - Plain text only: no lists, headings, bold or emoji. The app shows the transactions and details under your answer, so do not repeat them. Do not mention Settings or app features unless the customer asked.
@@ -3838,8 +3838,18 @@ def customer_snapshot(ctx):
         avg = ((ov.get("vs_average") or {}).get("spent") or {})
         n = (ov.get("vs_average") or {}).get("months_in_average")
         if avg.get("average") is not None and n:
-            lines.append("Their usual month: spending of about %s (average of the last %s full months)."
-                         % (_snap_money(avg["average"]), n))
+            usual = "Their usual month: spending of about %s (average of the last %s full months)" % (
+                _snap_money(avg["average"]), n)
+            try:
+                left = round(float(ov["income"]) - float(avg["average"]), 2)
+            except (TypeError, ValueError):
+                left = None
+            if left is not None:
+                # worked out here, by code, so the coach never has to do the sum itself
+                data["usual_month"] = {"income": ov["income"], "spending": avg["average"], "difference": abs(left)}
+                usual += (", which leaves about %s a month" % _snap_money(left)) if left >= 0 else \
+                         (", about %s more than comes in" % _snap_money(-left))
+            lines.append(usual + ".")
         tops = [t for t in (ov.get("top_labels") or []) if isinstance(t, dict) and t.get("label")][:4]
         if tops:
             lines.append("Biggest categories in %s: %s." % (month, ", ".join(
@@ -3900,9 +3910,32 @@ def customer_snapshot(ctx):
         if goal.get("deadline"):
             g["deadline"] = str(goal["deadline"])[:10]
         data["goal"] = g
-        lines.append("Their savings goal: %s, target %s, %s set aside so far%s." % (
+        gl = "Their savings goal: %s, target %s, %s set aside so far%s" % (
             anonymise(g["name"]), _snap_money(g["target"]), _snap_money(g["saved"]) if g["saved"] else "nothing",
-            (", by %s" % _date_words(g["deadline"][:7])) if g.get("deadline") else ""))
+            (", by %s" % _date_words(g["deadline"][:7])) if g.get("deadline") else "")
+        try:
+            togo = round(float(g["target"]) - float(g["saved"]), 2)
+        except (TypeError, ValueError):
+            togo = None
+        if togo is not None and togo > 0:
+            g["still_to_go"] = togo
+            gl += ", so %s still to go" % _snap_money(togo)
+            if goal.get("monthly_needed"):
+                g["monthly_needed"] = goal["monthly_needed"]
+                gl += "; it needs about %s a month" % _snap_money(goal["monthly_needed"])
+            left = (data.get("usual_month") or {})
+            try:
+                spare = float(left["income"]) - float(left["spending"])
+            except (KeyError, TypeError, ValueError):
+                spare = 0.0
+            if spare > 0:
+                months = int(-(-togo // spare))      # whole months, rounded up
+                if 1 <= months <= 600:
+                    g["months_at_usual_leftover"] = months
+                    gl += "; at their usual leftover that is about %s month%s" % (months, "" if months == 1 else "s")
+        elif togo is not None:
+            gl += "; the target is reached"
+        lines.append(gl + ".")
     else:
         lines.append("They have not set a savings goal yet.")
     held = [h for h in (_ctx_get(ctx, "holdings") or []) if isinstance(h, dict) and h.get("amount")]

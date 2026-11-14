@@ -114,6 +114,30 @@ class SnapshotTests(_Base):
             self.assertNotIn("(nothing) lands", t)
             self.assertNotRegex(t, r"\d{3,}% of the total")
 
+    def test_worked_out_figures_are_handed_over_so_the_coach_need_not_calculate(self):
+        ctx = self.ctx(goal={"name": "Japan", "target": 3000.0, "saved": 400.0, "deadline": "2027-06", "monthly_needed": 289.0})
+        lines, data = self.coach.customer_snapshot(ctx)
+        text = "\n".join(lines)
+        ov = data["get_overview"]
+        left = round(ov["income"] - ov["vs_average"]["spent"]["average"])
+        self.assertIn("which leaves about €{:,} a month".format(left), text)
+        self.assertIn("€400 set aside so far, by June 2027, so €2,600 still to go; it needs about €289 a month", text)
+        months = -(-2600 // left)
+        self.assertIn("at their usual leftover that is about %d month" % months, text)
+        for say in ("After your usual spending about €{:,} a month is left.".format(left),
+                    "You still have €2,600 to go for Japan, about €289 a month.",
+                    "At your usual pace that is about %d months." % months):
+            with self.subTest(say=say):
+                self.assertTrue(self.coach.numbers_grounded(say, [data], "How is my goal going?"), say)
+
+    def test_a_reached_goal_and_a_customer_who_overspends_are_worded_not_negative(self):
+        ctx = self.ctx(goal={"name": "Buffer", "target": 500.0, "saved": 500.0})
+        self.assertIn("the target is reached", "\n".join(self.coach.customer_snapshot(ctx)[0]))
+        for c in fx.CUSTOMERS:
+            t = "\n".join(self.coach.customer_snapshot(self.ctx(c["cid"], goal={"name": "Trip", "target": 900.0, "saved": 0.0}))[0])
+            self.assertNotRegex(t, r"€-|-€|about -?0 month|leaves about €-")
+            self.assertNotRegex(t, r"about -\d+ month")
+
     def test_snapshot_survives_a_broken_connection(self):
         ctx = self.ctx(conn=fx.closed_conn())
         lines, data = self.coach.customer_snapshot(ctx)
