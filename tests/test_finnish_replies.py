@@ -74,7 +74,7 @@ class FinnishReplyTests(unittest.TestCase):
         self.assertEqual(self.ask("Miten minulla menee?")["tools_used"], ["get_overview"])
         self.assertEqual(self.ask("Anna vinkki")["tools_used"], ["get_save_more"])
         r = self.ask("Haluan säästää matkaan Japaniin")
-        self.assertEqual(r["tools_used"], ["plan_goal_by_date"])
+        self.assertEqual(r["tools_used"], ["make_savings_plan"])
         self.assertNotIn("My goal", r["reply"])
 
     def test_no_finnish_help_question_falls_back_to_english(self):
@@ -151,7 +151,7 @@ class EnglishCoachingQuestions(unittest.TestCase):
     def test_saving_for_something_starts_a_goal(self):
         for q in ("I want to save for a trip to Japan", "Help me save for a new bike", "I'd like to start saving for a car"):
             with self.subTest(q=q):
-                self.assertEqual(self.route(q), "plan_goal_by_date")
+                self.assertEqual(self.route(q), "make_savings_plan")
 
     def test_analyse_my_groceries_reads_the_receipts(self):
         self.assertEqual(self.route("analyse my groceries"), "receipt_insights")

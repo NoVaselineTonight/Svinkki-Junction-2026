@@ -651,7 +651,6 @@
   function addRow(canAdd, have) {
     var kinds = [];
     if (canAdd.indexOf('plan') >= 0) kinds.push({ type: 'plan', label: L('Another plan', 'Toinen suunnitelma') });
-    if (canAdd.indexOf('safe') >= 0 && !have.safe) kinds.push({ type: 'safe', label: L('Safe to spend', 'Käyttövara') });
     if (canAdd.indexOf('baskets') >= 0 && !have.baskets) kinds.push({ type: 'baskets', label: L('Where money goes', 'Minne raha menee') });
     if (!kinds.length) return null;
     var row = h('div', { class: 'wg-add-home' }, h('span', { class: 'tiny' }, L('Add to this page', 'Lisää tälle sivulle')));
@@ -797,6 +796,22 @@
       name: d.name || g.name || '', target: target, saved: n0(g.saved), monthly: monthly || undefined, deadline: d.deadline,
       note: pick(d.note, d.note_fi)
     }));
+    // make_savings_plan: where the monthly amount comes from, in the customer's own categories.
+    var cuts = Array.isArray(d.cuts) ? d.cuts.filter(function (x) { return x && n0(x.saves) > 0; }) : [];
+    if (cuts.length || n0(d.from_leftover) > 0) {
+      var list = h('ul', { class: 'wg-cuts' });
+      if (n0(d.from_leftover) > 0) {
+        list.appendChild(h('li', null, h('b', null, '+' + eur(Math.min(n0(d.from_leftover), monthly || n0(d.from_leftover)))),
+          ' ' + L('from your usual monthly leftover', 'tavallisesta kuukausiylijäämästäsi')));
+      }
+      cuts.forEach(function (x) {
+        list.appendChild(h('li', null, h('b', null, '+' + eur(x.saves)), ' ',
+          pick(String(x.label || ''), x.label_fi) + ' ' + eur(x.now) + ' → ' + eur(x.to) + L(' a month', ' kuussa') + ': ' +
+          pick(String(x.how || ''), x.how_fi)));
+      });
+      c.appendChild(h('div', { class: 'wg-cuts-box' },
+        h('p', { class: 'eyebrow' }, L('Where the money comes from', 'Mistä rahat tulevat')), list));
+    }
     return c;
   }
   window.SvinkkiCards.goal_plan = function (d) { try { return planCardFromData(d || {}); } catch (e) { return null; } };

@@ -422,6 +422,8 @@ class GeminiCoachTests(CoachCase):
         try:      # the plan tool (app/plans.py) is declared too once that module exists
             import app.plans as plans
             offered |= set(plans.TOOL_NAMES)
+            import app.goalplan as goalplan
+            offered |= set(goalplan.TOOL_NAMES)
         except ImportError:
             pass
         self.assertEqual(sorted(decls), sorted(offered - cmp_tools))

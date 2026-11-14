@@ -1277,10 +1277,7 @@
       h('span', { class: 'acct-top' }, h('span', { class: 'acct-name' }, cur.name || 'Current account'), icon('chev', 18)),
       h('span', { class: 'acct-bal' }, money(cur.balance, { exact: true })),
       h('span', { class: 'acct-rows' },
-        num(sav.balance) > 0 ? h('span', { class: 'acct-row' }, h('span', null, sav.name || 'Savings and investments'), h('b', null, money(sav.balance, { exact: true }))) : null,
-        // The coach's key number: what can go out before payday without missing a bill.
-        a.safe_to_spend != null ? h('span', { class: 'acct-row acct-safe' }, h('span', null, 'Safe to spend' + (a.next_payday ? ' until ' + fmtDate(a.next_payday) : '')),
-          h('b', null, num(a.safe_to_spend) > 0 ? money(a.safe_to_spend) : 'Nothing')) : null));
+        num(sav.balance) > 0 ? h('span', { class: 'acct-row' }, h('span', null, sav.name || 'Savings and investments'), h('b', null, money(sav.balance, { exact: true }))) : null));
     btn.addEventListener('click', function () { openAccount(); });
     return btn;
   }
@@ -2774,7 +2771,7 @@
   // Example questions under the question box: written the way a customer would ask, so they show that a real
   // question works. q: asked right away. act: a tool. fill: starts the sentence for you.
   var SUGGEST = [
-    { label: 'What can I spend this week?', q: 'What is safe for me to spend this week?' },
+    { label: 'Where did my money go?', q: 'Where did my money go?' },
     { label: 'What kind of spender am I?', q: 'What kind of spender am I?' },
     { label: 'Can I afford it?', act: 'afford' },
     { label: 'How can I save more?', q: 'How can I save more?' }
@@ -2928,8 +2925,8 @@
     viewEl.appendChild(h('div', { class: 'home' },
       errBox,
       h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), greetLine),
-      acctBox, comp.el, widgetBox,
-      suggest, monthBox, forYou, convBox, thingsBox));
+      monthBox, acctBox, comp.el, widgetBox,
+      suggest, forYou, convBox, thingsBox));
     // The lists that change when the customer does something; refreshed in place, never the check-in or the quiz.
     function refresh() {
       if (!alive(t)) return;
