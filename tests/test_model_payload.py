@@ -5,8 +5,7 @@ A. explore_my_data: the model's SQL runs on a copy of the customer's transaction
 B. tools.model_payload: list_transactions, get_receipts and find_leaks send the model aggregates and a few
    trimmed rows (no timestamps, no receipt transaction ids, no merchant hashes); the card keeps everything.
 C. tools.mask_names: first names from a built-in list are replaced with [name] in what the customer types.
-D. The coach wiring for B and C and the Gemini path (coach.py, held by another agent): expectedFailure until
-   the coach.py change lands; that change removes the decorators.
+D. The coach wiring: _model_view uses model_payload; both model paths send the anonymised, name-masked message.
 """
 import json
 import os
@@ -199,7 +198,7 @@ def _fake_gemini_text(text):
 
 
 class CoachWiringTests(unittest.TestCase):
-    """Needs the coach.py change (agent-s6 report): until then these fail and are marked expectedFailure."""
+    """coach._model_view, _claude_turn and _gemini_turn use model_payload and anonymise_text."""
 
     @classmethod
     def setUpClass(cls):
@@ -207,19 +206,16 @@ class CoachWiringTests(unittest.TestCase):
         from app import coach, tools
         cls.coach, cls.tools = coach, tools
 
-    @unittest.expectedFailure
     def test_model_view_uses_model_payload(self):
         ctx = fx.make_ctx()
         view = self.coach._model_view(self.tools.call("list_transactions", {"limit": 50}, ctx))
         self.assertLessEqual(len(view["rows"]), self.tools.MODEL_TX_ROWS)
         self.assertNotIn('"ts"', json.dumps(view))
 
-    @unittest.expectedFailure
     def test_find_leaks_view_has_no_merchant_hash(self):
         view = self.coach._model_view({"card": "leaks", "subscriptions": [{"merchant_ref": "ab12cd34", "label": "x"}]})
         self.assertNotIn("merchant_ref", json.dumps(view))
 
-    @unittest.expectedFailure
     def test_gemini_path_sends_the_anonymised_message(self):
         ctx = fx.make_ctx()
         seen = []
@@ -234,7 +230,6 @@ class CoachWiringTests(unittest.TestCase):
         self.assertNotIn("Anna", sent)
         self.assertNotIn("Anna", json.dumps(payload["user_message"]))
 
-    @unittest.expectedFailure
     def test_claude_path_masks_names_in_message_and_history(self):
         ctx = fx.make_ctx()
         seen = []

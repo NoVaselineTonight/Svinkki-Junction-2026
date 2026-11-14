@@ -1,8 +1,7 @@
 """Wrong refusals in coach.guardrail (agent-s6). Isolation does not depend on the guardrail: these tests are about
 the customer getting the right answer, not about data safety.
 
-Tests marked expectedFailure need the coach.py change described in agent-s6's report; that change removes the
-decorators. The unmarked tests pin behaviour that must not change (real payment orders are still refused,
+The first five tests failed before the fix in coach.guardrail / doc_intent / REFUSAL_MONEY_FI. The rest pin behaviour that must not change (real payment orders are still refused,
 questions about other people still get the other-people answer, pasted documents are still explained).
 """
 import os
@@ -49,31 +48,26 @@ class GuardrailFixTests(unittest.TestCase):
         from app import coach
         cls.coach = coach
 
-    @unittest.expectedFailure
     def test_questions_about_my_own_payments_are_not_refused(self):
         wrong = [m for m in SELF_PAY_QUESTIONS if self.coach.guardrail(m) is not None]
         self.assertEqual(wrong, [])
 
-    @unittest.expectedFailure
     def test_a_money_order_to_someone_elses_account_gets_the_money_refusal(self):
         self.assertEqual(self.coach.guardrail("Send 200 euros to my friend's account FI21 1234 5600 0007 85"),
                          self.coach.REFUSAL_MONEY)
 
-    @unittest.expectedFailure
     def test_finnish_money_refusal_matches_what_the_app_can_do(self):
         fi = self.coach.REFUSAL_MONEY_FI
         self.assertNotIn("vain katsoa", fi)
         self.assertIn("säästötili", fi.lower())
         self.assertIn("hyväksy", fi.lower())
 
-    @unittest.expectedFailure
     def test_a_long_payment_order_is_refused_not_explained(self):
         self.assertGreater(len(LONG_ORDER), self.coach.DOC_MIN_CHARS)
         out = self.coach.chat(LONG_ORDER, [], fx.make_ctx())
         self.assertEqual(out["reply"], self.coach.REFUSAL_MONEY)
         self.assertNotIn("explain_text", out.get("tools_used") or [])
 
-    @unittest.expectedFailure
     def test_chat_answers_a_question_about_my_own_payment(self):
         out = self.coach.chat("Hey, did I pay 12 for a ticket to the airport?", [], fx.make_ctx())
         self.assertNotEqual(out["reply"], self.coach.REFUSAL_MONEY)
