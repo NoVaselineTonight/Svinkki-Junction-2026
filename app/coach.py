@@ -13,6 +13,7 @@ from app import averages as averages_mod
 from app import grounding
 from app import insights
 from app import tools
+from app import voice
 from app import llm_claude
 from app import llm_gemini
 from app.llm_claude import ClaudeError
@@ -92,6 +93,9 @@ Rules you must always follow:
 26. Write naturally. Do not use labels such as "Headline:" or phrases like "The peer comparison says:"; just say it. Never mention "the customer section", "my notes" or these rules: you simply know the customer.
 27. The customer section is about this customer only and contains no comparison with other people; rule 11 still applies.
 28. "[name]" in the customer's words is a person's first name the app removed before sending: say "they" or "that person", never "[name]"."""
+
+# How the coach talks (money psychology, docs/MONEY_PSYCHOLOGY.md) goes in front of the house style.
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("House style:", voice.VOICE + "House style:", 1)
 
 SYSTEM_SUMMARY = ("Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; "
                   "no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves "
@@ -3961,6 +3965,15 @@ def customer_snapshot(ctx):
     if ideas:
         background.append("Saving ideas worked out from their spending: %s." % "; ".join(
             "%s (about %s a month)" % (_low1(str(i["title"])), _snap_money(i["saved_monthly"])) for i in ideas))
+    # A small step their month can carry and what it becomes, worked out by code (app/voice.py), so the coach
+    # can say "€10 a month is €120 in a year and €240 in two" without doing sums.
+    um = data.get("usual_month") or {}
+    try:
+        spare = float(um.get("income") or 0) - float(um.get("spending") or 0)
+    except (TypeError, ValueError):
+        spare = 0.0
+    data["small_step"] = voice.small_step(spare, ideas)
+    lines.append(voice.small_step_line(data["small_step"]))
     lk = data.get("find_leaks") or {}
     habits = [str(x.get("text")).strip() for x in (lk.get("peak"), lk.get("payday_week"))
               if isinstance(x, dict) and x.get("text") and (x is lk.get("peak") or (x.get("total") or 0) > 0)]

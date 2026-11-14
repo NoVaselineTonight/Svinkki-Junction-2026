@@ -62,7 +62,7 @@ class SmallStepTests(_Base):
         s = self.voice.small_step(300, [{"saved_monthly": 23.4}])
         self.assertEqual(s["monthly"], 20.0)                       # the best idea, rounded down to fives
         self.assertIsNone(s["from_idea"])
-        self.assertEqual((s["year"], s["two_years"], s["ten_years_paid"]), (240.0, 480.0, 2400.0))
+        self.assertEqual((s["yearly_total"], s["two_years"], s["ten_years_paid"]), (240.0, 480.0, 2400.0))
         self.assertGreater(s["ten_years"], s["ten_years_paid"])
         self.assertLess(s["ten_years"], s["ten_years_paid"] * 1.4)
         self.assertEqual(self.voice.small_step(0, [])["monthly"], 10.0)        # nothing to spare: €10 to start
@@ -72,12 +72,12 @@ class SmallStepTests(_Base):
     @unittest.skipUnless(_hooked(), "app/coach.py does not use app/voice.py yet")
     def test_the_picture_carries_it_and_its_figures_pass_the_number_check(self):
         lines, data = self.coach.customer_snapshot(self.ctx())
-        line = next(x for x in lines if x.startswith("A small step that fits their month"))
+        line = next(x for x in lines if x.startswith("Small step that fits their month"))
         step = data["small_step"]
         m = step["monthly"]
         self.assertIn("€{:,.0f} a month".format(m), line)
         say = ("Starting with €{:,.0f} a month is €{:,.0f} in a year and €{:,.0f} in two years; in an index fund "
-               "it could be about €{:,.0f} after 10 years.").format(m, step["year"], step["two_years"], step["ten_years"])
+               "it could be about €{:,.0f} after 10 years.").format(m, step["yearly_total"], step["two_years"], step["ten_years"])
         self.assertTrue(self.coach.numbers_grounded(say, [data], "How can I save more?"), say)
 
     @unittest.skipUnless(_hooked(), "app/coach.py does not use app/voice.py yet")
@@ -85,7 +85,7 @@ class SmallStepTests(_Base):
         fake = fc.FakeClaude([fc.cl_text("Hello")])
         with fc.patched_claude(fake):
             self.coach.chat("How can I save more?", [], self.ctx())
-        self.assertIn("A small step that fits their month", fake.requests[0]["system"][1]["text"]
+        self.assertIn("Small step that fits their month", fake.requests[0]["system"][1]["text"]
                       if isinstance(fake.requests[0]["system"], list) and len(fake.requests[0]["system"]) > 1
                       else str(fake.requests[0]["system"]))
 

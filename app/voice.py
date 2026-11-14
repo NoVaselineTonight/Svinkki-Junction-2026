@@ -59,7 +59,7 @@ def small_step(left, ideas=()):
     v = 0.0
     for _ in range(120):
         v = v * (1 + r) + m
-    return {"monthly": m, "year": m * 12, "two_years": m * 24, "ten_years": round(v, 2), "ten_years_paid": m * 120,
+    return {"monthly": m, "yearly_total": m * 12, "two_years": m * 24, "ten_years": round(v, 2), "ten_years_paid": m * 120,
             "rate": SMALL_STEP_RETURN, "from_idea": str(src) if src else None}
 
 
@@ -69,8 +69,7 @@ def small_step_line(step):
     if step.get("from_idea"):
         t = str(step["from_idea"])
         src = ' (what "%s" would free)' % (t[:1].lower() + t[1:])
-    return ("A small step that fits their month: %s a month%s is %s in a year and %s in two years; kept up for 10 years "
-            "in a global index fund at the long-run %g%% a year after inflation it could be about %s, of which %s paid "
-            "in (an illustration, not a promise). Use these figures when you suggest saving."
-            % (_money(step["monthly"]), src, _money(step["year"]), _money(step["two_years"]), step["rate"],
-               _money(step["ten_years"]), _money(step["ten_years_paid"])))
+    return ("Small step that fits their month: %s a month%s = %s in a year, %s in two; in an index fund for 10 years "
+            "about %s (%s paid in; %g%% a year after inflation, an illustration)."
+            % (_money(step["monthly"]), src, _money(step["yearly_total"]), _money(step["two_years"]),
+               _money(step["ten_years"]), _money(step["ten_years_paid"]), step["rate"]))

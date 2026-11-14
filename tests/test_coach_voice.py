@@ -96,7 +96,7 @@ class SnapshotTests(_Base):
         self.assertLessEqual(len(data["receipt_insights"]["top_products"]), 3)
         self.assertNotIn("by_hour", data["find_leaks"])
         self.assertNotIn("merchant_ref", json.dumps(data), "never which merchant, not even as a reference")
-        self.assertLess(len(text), 2400, "the picture stays short")
+        self.assertLess(len(text), 2700, "the picture stays short (2,400 plus the small step, app/voice.py)")
 
     def test_receipt_figures_from_the_picture_pass_the_number_check(self):
         ctx = self.ctx()
