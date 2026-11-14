@@ -2181,6 +2181,7 @@
     learned: { name: 'Learned categories', icon: 'tag' },
     quiz: { name: 'Quiz score', icon: 'help' },
     money: { name: 'Savings and investments', icon: 'coin' },
+    note: { name: 'Note', icon: 'doc' },
     pin: { name: 'Kept answer', icon: 'pin' }
   };
   function kindOf(t) { return KIND[t && t.kind] || KIND[String(t && t.id || '').split(':')[0]] || KIND.pin; }
@@ -2196,7 +2197,7 @@
   function openThing(thing) {
     var k = kindOf(thing);
     var kind = thing.kind || String(thing.id || '').split(':')[0];
-    var body = openSheet(thing.title || k.name);
+    var body = openSheet(kind === 'note' ? k.name : (thing.title || k.name));
     var t = token;
     var done = function () { closeSheet(); thingsChanged(); };
     if (kind === 'goal') goalThing(body, t, done);
@@ -2217,6 +2218,22 @@
         box.appendChild(out);
         body.appendChild(box);
       });
+    } else if (kind === 'note') {
+      // A note in the customer's own words; the coach is given it with every question until it is removed.
+      var nb = h('div', { class: 'thing-body' });
+      nb.appendChild(h('p', null, cap(thing.title || '')));
+      nb.appendChild(h('p', { class: 'tiny' }, 'You asked me to remember this' + (thing.updated ? ' ' + humanWhen(thing.updated).replace(/^(Today|Yesterday) /, function (m, w) { return w.toLowerCase() + ' at '; }) : '') + '. I keep it in mind when I answer.'));
+      var forget = h('button', { type: 'button', class: 'link-btn danger-link' }, icon('trash', 18), 'Forget this');
+      forget.addEventListener('click', function () {
+        forget.disabled = true;
+        api('/api/notes/remove', { method: 'POST', body: { id: thing.id } }).then(done, function (e) {
+          if (e.status === 404) { done(); return; }   // already gone
+          forget.disabled = false;
+          if (!e.handled) nb.appendChild(errorNode(e));
+        });
+      });
+      nb.appendChild(forget);
+      body.appendChild(nb);
     } else if (kind === 'target') targetThing(body, done);
     else if (kind === 'learned') learnedThing(body, t);
     else if (kind === 'quiz') {
@@ -2627,7 +2644,8 @@
     ] },
     { title: 'Set something up', items: [
       { q: 'I am saving 4000 euros for Japan by June 2027' },
-      { q: 'Give me a challenge' }
+      { q: 'Give me a challenge' },
+      { q: 'Remember that my rent goes up in January' }
     ] },
     { title: 'Compared with others', items: [
       { q: 'What kind of spender am I?' },
