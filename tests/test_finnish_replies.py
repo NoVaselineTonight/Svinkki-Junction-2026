@@ -84,6 +84,51 @@ class FinnishReplyTests(unittest.TestCase):
                     self.assertNotIn(NOTE, self.ask(it["question"])["reply"])
 
 
+class FinnishSweepTests(unittest.TestCase):
+    """Every Finnish question in the help list, for every test customer: Finnish, and no signed money."""
+
+    @classmethod
+    def setUpClass(cls):
+        fx.get()
+        import app.coach as coach
+        import app.db as db
+        cls.rows = []
+        qs = [it["question"] for g in coach.help_groups("fi") for it in g["items"]] + [
+            "Mikä on saldoni?", "Onko minulla varaa 300 euron takkiin?", "Mihin minun kannattaisi sijoittaa?",
+            "Riittävätkö rahani palkkapäivään?", "Paljonko tienaan?"]
+        for c in fx.CUSTOMERS:
+            for q in qs:
+                if coach.note_intent(q):
+                    continue
+                ctx = fx.make_ctx(c["cid"], consent=dict(fx.ALL_CONSENT, ai=False))
+                ctx.memory, ctx.cid, ctx.bench_lookup = {}, c["cid"], db.bench
+                cls.rows.append((c["cid"], q, coach.chat(q, [], ctx)["reply"]))
+
+    def test_none_falls_back_to_english(self):
+        """One known gap: a FOUND spending pattern is still worded in English (W14 pins that reply)."""
+        for cid, q, r in self.rows:
+            if q == "Onko kulutuksessani kuvioita?" and r.rstrip().endswith("(Vastaan tähän vielä englanniksi.)"):
+                continue
+            with self.subTest(cid=cid, q=q):
+                self.assertNotIn(NOTE, r)
+
+    def test_no_signed_or_negative_figures(self):
+        for cid, q, r in self.rows:
+            with self.subTest(cid=cid, q=q):
+                self.assertNotRegex(r, r"\bmiinus \d|(?<![\d–])-\d|€-|-€")
+
+    def test_overdrawn_balance_is_worded(self):
+        hit = [r for _c, q, r in self.rows if q == "Mikä on saldoni?" and "miinuksella" in r]
+        self.assertTrue(hit, "the fixture has a customer below zero")
+        self.assertRegex(hit[0], r"^Tilisi on [\d ]+,\d\d € miinuksella\.")
+
+    def test_is_it_normal_is_a_comparison_and_unusual_is_not(self):
+        import app.coach as coach
+        self.assertTrue(coach.compare_requested("Onko taksikulutukseni tavallista?"))
+        self.assertFalse(coach.compare_requested("Onko tässä kuussa jotain epätavallista?"))
+        self.assertEqual(coach.route("Onko taksikulutukseni tavallista?", fx.make_ctx(fx.A_CID))[0], "get_averages")
+
+
 class EnglishCoachingQuestions(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

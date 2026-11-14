@@ -58,7 +58,12 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
   under "Your things" as a Note with "Forget this", and the newest six go into the coach's picture of the
   customer, labelled as the customer's own words and never instructions. A note that trips the prompt guardrail
   is refused; "remember I pay my mum 100 a month" is a note, not a refused payment. `tests/test_notes.py`.
-- Tests: `Ran 748 tests ... OK`.
+- Without a model, "How can I save more?" now says whether the ideas cover what the customer's goal needs each
+  month. A sweep of 3,588 rule-based answers (every help question, every test customer) found and fixed the last
+  Finnish defects: "miinus 3 800 €", "-2,7 kuukauden", and "Onko ... tavallista?" not being treated as a
+  comparison. Known gap: a FOUND spending pattern asked about in Finnish is still answered in English with a
+  note, because `tests/test_wave3_http.py` (W14) pins that reply; change both together if you want it in Finnish.
+- Tests: `Ran 753 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 

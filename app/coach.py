@@ -1836,6 +1836,7 @@ _FI_INTENTS = [
     (r"\bpaljonko (?:ihmiset|muut|useimmat|suomalaiset|asiakkaat)\b[^?]*?\b(?:käyttävät|kuluttavat)\b",
      "what do people typically spend on"),
     (r"\b(?:yleensä|tyypillisesti|keskimäärin)\b", "typically"),
+    (r"\btavallista\b|\bnormaalia\b", "normal"),
     (r"\bpaljonko (?:käytin|kulutin|maksoin|olen käyttänyt|olen kuluttanut|menetin|meni)\b", "how much did i spend on"),
     (r"\bmissä raha\w* vuota\w*|\bmihin raha\w* vuota\w*|\bvuotaa\w*|\bpienet ostokset\b|\bunohtuneet tilaukset\b|"
      r"\bturhat kulut\b|\bpiilokulut\b|\bpikkuostokset\b|\btilaukset\b", "where is my money leaking"),
@@ -2071,6 +2072,12 @@ def fi_lead(tool, res, args, hints):
         if view == "balance":
             tail = ("Laskujen jälkeen rahaa puuttuu noin %s palkkapäivään asti." % _eur_fi(abs(res.get("safe_total")))
                     if short else "Laskujen jälkeen voit käyttää noin %s tällä viikolla." % _eur_fi(res.get("per_week")))
+            try:
+                bal = float(res.get("balance"))
+            except (TypeError, ValueError):
+                bal = 0.0
+            if bal < 0:
+                return "Tilisi on %s miinuksella. %s" % (_eur_fi_x(-bal), tail)
             return "Tililläsi on %s. %s" % (_eur_fi_x(res.get("balance")), tail)
         if short:
             return "Rahasi eivät riitä palkkapäivään asti: puuttuu noin %s." % _eur_fi(abs(res.get("safe_total")))
@@ -2136,6 +2143,9 @@ def fi_lead(tool, res, args, hints):
         if res.get("buffer_ok"):
             return ("Puskurisi kattaa noin %s kuukauden menot, joten sijoittamisen perusteisiin on hyvä tutustua. "
                     "En suosittele yksittäisiä tuotteita." % _num_fi(bm))
+        if float(bm) <= 0:
+            return ("Tilisi on nyt miinuksella, joten ensimmäinen askel on päästä takaisin plussalle ja rakentaa "
+                    "puskuri; tavallinen tavoite on 3–6 kuukauden menot. En suosittele yksittäisiä tuotteita.")
         return ("Rakenna ensin puskuri: tilisi kattaa noin %s kuukauden menot, ja tavallinen tavoite on 3–6 kuukautta. "
                 "En suosittele yksittäisiä tuotteita." % _num_fi(bm))
     if tool == "find_leaks":
@@ -2204,6 +2214,8 @@ def fi_lead(tool, res, args, hints):
         if v == "tight":
             return "%s onnistuu, mutta tiukasti: palkkapäivään jää noin %s päivässä." % (price, _eur_fi(res.get("per_day_after")))
         if v == "no":
+            if (res.get("safe_total") or 0) <= 0:
+                return "Ei juuri nyt: ylimääräiseen ei ole turvallista käyttövaraa ennen palkkapäivää."
             return "Ei ihan: %s ylittää turvallisen käyttövarasi (%s) palkkapäivään asti." % (price, _eur_fi(res.get("safe_total")))
         return None
     if tool == "get_balance_forecast":
@@ -2351,7 +2363,7 @@ def _fi_lead2(tool, res, args, hints):
         if not (res.get("patterns") or []):
             return ("Kävin läpi viimeiset 12 viikkoa, eikä kulutuksestasi erotu selvää kuviota, kuten tiettyä iltaa, "
                     "palkkapäivän jälkeisiä päiviä tai pienten ostosten ryppäitä.")
-        return None
+        return None      # a found pattern is still worded in English (tests/test_wave3_http.py W14 pins that reply)
     if tool == "get_quiz_stats":
         if not res.get("count"):
             return "Et ole vielä vastannut visaan, joten pisteitä ei ole. Kokeile etusivun viikkovisaa."
@@ -3518,6 +3530,24 @@ def _personal_note(tool, res, args, hints, ctx, fi=False):
         if fi:
             return "Se on %s %s kuin %s." % (_eur_fi(abs(diff)), "enemmän" if diff > 0 else "vähemmän", mon_fi), extra
         return "That is %s %s than in %s." % (_eur(abs(diff)), "more" if diff > 0 else "less", mon_en), extra
+    if tool == "get_save_more":
+        # Tie the ideas to the goal the customer set: do they cover what it needs each month?
+        goal = _ctx_get(ctx, "goal")
+        ideas = [x for x in (res.get("ideas") or [])[:2] if isinstance(x, dict)]
+        try:
+            need = float(goal.get("monthly_needed")) if isinstance(goal, dict) else 0.0
+            found = sum(float(x.get("saved_monthly") or 0) for x in ideas)
+        except (TypeError, ValueError):
+            return "", None
+        if need <= 0 or found <= 0 or not goal.get("name"):
+            return "", None
+        name = anonymise(str(goal["name"])[:40])
+        extra = {"your_goal": {"name": name, "monthly_needed": need}}
+        if found >= need:
+            return (("Se kattaisi tavoitteesi %s tarvitsemat %s kuussa." % (name, _eur_fi(need))) if fi else
+                    ("That would cover the %s a month your %s goal needs." % (_eur(need), name))), extra
+        return (("Tavoitteesi %s tarvitsee %s kuussa, joten tämä ei vielä yksin riitä." % (name, _eur_fi(need))) if fi else
+                ("Your %s goal needs %s a month, so this alone is not enough yet." % (name, _eur(need)))), extra
     if tool == "get_overview":
         avg = (res.get("vs_average") or {}).get("spent") or {}
         try:
@@ -4068,7 +4098,7 @@ _COMPARE_RE = re.compile(
     r"\bothers?\b|other people|everyone else|most people|\bmy age\b|same age|similar (age|people)|"
     r"\baverage\b|\btypical(ly)?\b|\bnormal\b|\bbenchmark\w*|\bfinns\b|\bstatistic\w*|"
     r"\b(my|the) (area|neighbou?rhood|postcode|district)\b|\bwhere i live\b|"
-    r"vertaa\w*|verrattuna|muihin|muut ihmiset|ikäisi\w*|keskimäär\w*|tyypillise\w*|normaali\w*|alueeni|asuinalue\w*",
+    r"vertaa\w*|verrattuna|muihin|muut ihmiset|ikäisi\w*|keskimäär\w*|tyypillise\w*|normaali\w*|\btavallista\b|alueeni|asuinalue\w*",
     re.I)
 
 

@@ -236,6 +236,20 @@ class OfflineNoteTests(_Base):
         self.assertRegex(r["reply"], r"heinäkuussa")
         self.assertNotIn("That is", r["reply"])
 
+    def test_saving_ideas_are_tied_to_the_goal_the_customer_set(self):
+        off = dict(fx.ALL_CONSENT, ai=False)
+        r = self.ask("How can I save more?", self.ctx(consent=off, goal={"name": "Japan", "target": 3000.0, "saved": 0.0,
+                                                                         "deadline": "2027-06", "monthly_needed": 334.0}))
+        self.assertTrue(r["reply"].endswith("That would cover the €334 a month your Japan goal needs."), r["reply"])
+        r = self.ask("How can I save more?", self.ctx(consent=off, goal={"name": "Home", "target": 90000.0, "saved": 0.0,
+                                                                         "deadline": "2027-06", "monthly_needed": 9000.0}))
+        self.assertTrue(r["reply"].endswith("Your Home goal needs €9,000 a month, so this alone is not enough yet."), r["reply"])
+        r = self.ask("How can I save more?", self.ctx(consent=off, goal={"name": "Buffer", "target": 1000.0, "saved": 0.0}))
+        self.assertNotIn("goal", r["reply"], "a goal without a monthly amount adds nothing")
+        r = self.ask("Miten voisin säästää enemmän?", self.ctx(consent=off, goal={"name": "Japani", "target": 3000.0,
+                                                                                  "saved": 0.0, "monthly_needed": 334.0}))
+        self.assertIn("Se kattaisi tavoitteesi Japani tarvitsemat 334 € kuussa.", r["reply"])
+
     def test_no_note_when_suggestions_are_off(self):
         ctx = self.ctx(consent=dict(fx.ALL_CONSENT, ai=False))
         ctx.settings = dict(ctx.settings, suggestion_level="off")
