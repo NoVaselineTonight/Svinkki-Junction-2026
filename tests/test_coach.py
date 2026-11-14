@@ -419,6 +419,11 @@ class GeminiCoachTests(CoachCase):
         # of the older education-only tool.
         import app.invest as invest
         offered = (set(t["name"] for t in self.tools.TOOLS) - {"get_invest_education"}) | set(invest.TOOL_NAMES)
+        try:      # the plan tool (app/plans.py) is declared too once that module exists
+            import app.plans as plans
+            offered |= set(plans.TOOL_NAMES)
+        except ImportError:
+            pass
         self.assertEqual(sorted(decls), sorted(offered - cmp_tools))
         _, fake2 = self.run_gemini([fx.gem_text("Hello")], message="How do I compare with people my age?")
         decls2 = [d["name"] for t in fake2.requests[0]["tools"] for d in t["functionDeclarations"]]

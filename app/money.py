@@ -84,7 +84,7 @@ def _eur(v):
     return "€{:,.0f}".format(v) if round(v, 2) == round(v) else "€{:,.2f}".format(v)
 
 
-def propose(conn, today, cid, dest, amount, reason="", source="chat"):
+def propose(conn, today, cid, dest, amount, reason="", source="chat", widget_id=None):
     """Create a pending proposal. Moves nothing. Returns the proposal the customer is asked to approve."""
     if dest not in DESTINATIONS:
         raise MoneyError("I can only move money to your S-Bank savings account or an S-Bank fund in S-mobiili.")
@@ -114,6 +114,8 @@ def propose(conn, today, cid, dest, amount, reason="", source="chat"):
         "note": "Nothing moves until you approve. The money stays in S-mobiili.",
         "expires_in_s": state.PROPOSAL_TTL_S,
     }
+    if widget_id:   # a move into a savings plan on the home page: confirming it grows that plan's "saved"
+        prop["widget_id"] = str(widget_id)[:20]
     state.save_proposal(cid, pid, prop)
     return prop
 

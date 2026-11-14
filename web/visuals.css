@@ -1,0 +1,91 @@
+/* Styles for web/visuals.js: the chart library and the visual answer card. Tokens from styles.css. */
+.vz {
+  --vz-main: var(--green-strong);
+  --vz-muted: #CBDDCD;
+  --vz-two: var(--green-light);
+  --vz-good: var(--green-medium);
+  --vz-warn: var(--unexpected);
+  --vz-neg: var(--error);
+  color: var(--text);
+}
+.vz-figure { margin-top: 2px; }
+.vz-caption { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; color: var(--green-strongest); }
+.visual-card > .vz-figure + .vz-caption { margin-top: 10px; }
+.visual-card .key { margin-top: 4px; }
+.msg.visual-first > .msg-cards { margin-bottom: 12px; }
+
+/* svg charts */
+.vz-svg { display: block; width: 100%; height: auto; max-width: 440px; overflow: visible; }
+.vz-axis { stroke: var(--border); stroke-width: 1; }
+.vz-bar { fill: var(--vz-main); }
+.vz-bar.vz-t-muted, .vz-seg.vz-t-muted { fill: var(--vz-muted); }
+.vz-bar.vz-t-good, .vz-seg.vz-t-good { fill: var(--vz-good); }
+.vz-bar.vz-t-warn, .vz-seg.vz-t-warn { fill: var(--vz-warn); }
+.vz-bar.vz-two { fill: var(--vz-two); }
+.vz-lab { font-size: 12.5px; fill: var(--text-secondary); }
+.vz-lab-strong { fill: var(--green-strongest); font-weight: 700; }
+.vz-val { font-size: 13px; font-weight: 700; fill: var(--green-strongest); font-variant-numeric: tabular-nums; }
+.vz-target { stroke: var(--text-secondary); stroke-width: 1.2; stroke-dasharray: 4 3; }
+.vz-target-lab { fill: var(--text-secondary); }
+.vz-zero { stroke: var(--error); stroke-width: 1; stroke-dasharray: 4 3; }
+.vz-zero-lab { fill: var(--error); }
+
+/* line */
+.vz-line { fill: none; stroke: var(--vz-main); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.vz-line.vz-line-neg { stroke: var(--vz-neg); }
+.vz-pt { fill: var(--surface); stroke: var(--vz-main); stroke-width: 2; }
+.vz-pt.vz-pt-neg { stroke: var(--vz-neg); }
+.vz-pt.vz-pt-mark { fill: var(--vz-main); stroke: var(--surface); stroke-width: 2; }
+
+/* legend */
+.vz-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
+.vz-leg-item { display: inline-flex; align-items: center; gap: 6px; }
+.vz-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; display: inline-block; background: var(--vz-main); }
+.vz-tick { width: 3px; height: 14px; background: var(--text); border-radius: 2px; display: inline-block; }
+.vz-c-main, .vz-c0 { background: var(--green-strongest); }
+.vz-c-two { background: var(--vz-two); }
+.vz-c1 { background: var(--green-strong); }
+.vz-c2 { background: var(--green-medium); }
+.vz-c3 { background: var(--green-light); }
+.vz-c4 { background: var(--other); }
+.vz-dot.vz-t-good { background: var(--vz-good); }
+.vz-dot.vz-t-warn { background: var(--vz-warn); }
+.vz-dot.vz-t-muted { background: var(--other); }
+.vz-seg.vz-c0 { fill: var(--green-strongest); }
+.vz-seg.vz-c1 { fill: var(--green-strong); }
+.vz-seg.vz-c2 { fill: var(--green-medium); }
+.vz-seg.vz-c3 { fill: var(--green-light); }
+.vz-seg.vz-c4 { fill: var(--other); }
+.vz-seg { stroke: var(--surface); stroke-width: 1.5; }
+
+/* hbars */
+.vz-hbars { display: flex; flex-direction: column; gap: 10px; }
+.vz-hrow { display: grid; grid-template-columns: minmax(70px, 1fr) minmax(0, 1.5fr) auto; gap: 10px; align-items: center; font-size: 14px; }
+.vz-hlabel { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.vz-hbar { display: block; height: 12px; border-radius: 999px; overflow: hidden; background: var(--tonal); }
+.vz-hbar-svg { display: block; width: 100%; height: 100%; }
+.vz-hbar-track { fill: var(--tonal); }
+.vz-hmark { stroke: var(--text); stroke-width: 2.5; }
+.vz-hval { font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* split */
+.vz-split-wrap { border-radius: 999px; overflow: hidden; height: 18px; }
+.vz-split-bar { max-width: none; height: 18px; overflow: hidden; }
+.vz-split-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.vz-split-list li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto 44px; gap: 8px; align-items: center; font-size: 14px; }
+.vz-share { text-align: right; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+/* progress ring */
+.vz-progress { display: flex; align-items: center; gap: 16px; }
+.vz-ring { width: 104px; height: 104px; flex: none; }
+.vz-ring-track { fill: none; stroke: var(--tonal); stroke-width: 11; }
+.vz-ring-fill { fill: none; stroke: var(--vz-good); stroke-width: 11; stroke-linecap: round; }
+.vz-ring-num { font-size: 20px; font-weight: 800; fill: var(--green-strongest); }
+.vz-progress-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vz-progress-now { font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: var(--green-strongest); overflow-wrap: anywhere; }
+.vz-progress-of { font-size: 14px; color: var(--text-secondary); }
+
+@media (max-width: 360px) {
+  .vz-hrow { grid-template-columns: minmax(60px, 1fr) minmax(0, 1.2fr) auto; gap: 8px; }
+  .vz-caption { font-size: 16px; }
+}

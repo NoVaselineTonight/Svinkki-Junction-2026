@@ -115,7 +115,7 @@ class StartPageTests(unittest.TestCase):
         self.assertNotIn("STARTERS", self.js)
 
     def test_order_account_question_box_examples_month_then_for_you(self):
-        order = re.search(r"h\('div', \{ class: 'greet' \}.*?\),\s*acctBox,\s*comp\.el, suggest, monthBox, forYou, convBox, thingsBox\)\)",
+        order = re.search(r"h\('div', \{ class: 'greet' \}.*?\),\s*acctBox, comp\.el, widgetBox,\s*suggest, monthBox, forYou, convBox, thingsBox\)\)",
                           self.home, re.S)
         self.assertIsNotNone(order)
 
