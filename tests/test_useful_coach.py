@@ -292,6 +292,47 @@ class WordingTests(_Base):
         self.assertIn("62,10 €", r["reply"])
         self.assertNotIn("notice", r)
 
+    def test_finnish_money_with_a_space_for_thousands_is_not_torn_apart(self):
+        """The model wrote "€12 580" in a Finnish answer and it came out as "12 € 580"."""
+        f = self.coach.fi_money_format
+        self.assertEqual(f("Käsiraha on noin €12 580 ja vero €3 774."), "Käsiraha on noin 12 580 € ja vero 3 774 €.")
+        self.assertEqual(f("noin €1 766 kuussa, €12,35 kerralla"), "noin 1 766 € kuussa, 12,35 € kerralla")
+        kn = self.coach._Known()
+        self.coach._walk_text(f("€12 580 ja €1,107.64"), kn)
+        self.assertEqual(sorted(kn.money), [1107.64, 12580.0])
+
+    def test_a_long_answer_in_one_block_is_broken_into_paragraphs(self):
+        p = self.coach.paragraphs
+        short = "You spent €62.10 on taxis last month. That is about the same as in July."
+        self.assertEqual(p(short), short)
+        sent = "This sentence has exactly eight words in it. "
+        two = p((sent * 12).strip())                  # 96 words
+        self.assertEqual(two.count("\n\n"), 1)
+        three = p((sent * 20).strip())                # 160 words
+        self.assertEqual(three.count("\n\n"), 2)
+        self.assertEqual(three.replace("\n\n", " "), (sent * 20).strip())      # nothing lost or reordered
+        already = (sent * 6).strip() + "\n\n" + (sent * 6).strip()
+        self.assertEqual(p(already), already)
+        self.assertEqual(self.coach.tidy_model_text((sent * 12).strip(), "why?").count("\n\n"), 1)
+
+    def test_the_mortgage_check_gives_a_first_home_buyer_the_five_percent_route(self):
+        r = self.tools.call("check_mortgage", {}, self.ctx())
+        fh = r["first_home"]
+        self.assertAlmostEqual(fh["max_price"], r["max_loan"] / 0.95, delta=0.02)
+        self.assertAlmostEqual(fh["deposit_5pct"], fh["max_price"] * 0.05, delta=0.02)
+        self.assertAlmostEqual(fh["transfer_tax"], fh["max_price"] * 0.015, delta=0.02)
+        self.assertAlmostEqual(fh["own_money_needed"], fh["deposit_5pct"] + fh["transfer_tax"], delta=0.02)
+        self.assertIn("95%", fh["note"])
+        self.assertIn("not a requirement", fh["note"])
+        self.assertIn("own_money_note", r)
+        self.assertIn("first_home", self.coach.SYSTEM_PROMPT)
+
+    def test_six_month_tools_say_which_period_they_cover(self):
+        for name, args in (("get_spender_type", {}), ("get_save_more", {}),
+                           ("plan_goal_by_date", {"name": "Trip", "target": 2000, "deadline": "2027-06"})):
+            with self.subTest(tool=name):
+                self.assertIn("last 6 full months", self.tools.call(name, args, self.ctx())["period_note"])
+
     def test_a_follow_up_to_a_comparison_keeps_the_comparison_tools(self):
         hist = [{"role": "user", "text": "Do others my age spend more on food?"}, {"role": "assistant", "text": "Yes."}]
         _, fake = self.run_claude([fc.cl_text("Hello")], message="and on medicine?", history=hist)

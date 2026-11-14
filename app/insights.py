@@ -1204,6 +1204,34 @@ def _net_deposits(conn, t):
     return float(dep) - float(wd)
 
 
+FIRST_HOME_MAX_LTV = 0.95      # a first-home buyer can usually borrow up to 95% of the price
+TRANSFER_TAX_FLAT = 0.015      # transfer tax on housing-company shares (no first-buyer exemption since 2024)
+
+
+def _first_home(max_loan, own_money, monthly_saving):
+    """The same readiness check for a first-home buyer, who needs 5% of the price and the transfer tax, not 15%."""
+    if max_loan <= 0:
+        return None
+    price = max_loan / FIRST_HOME_MAX_LTV
+    deposit, tax = price * (1 - FIRST_HOME_MAX_LTV), price * TRANSFER_TAX_FLAT
+    need = deposit + tax
+    gap = need - own_money
+    months = 0 if gap <= 0 else (int(math.ceil(gap / monthly_saving)) if monthly_saving > 0 else None)
+    if gap <= 0:
+        when = "their own money of %s already covers that" % _eur0(own_money)
+    elif months is not None:
+        when = "%s is still missing, about %d month%s at the pace of %s a month" % (
+            _eur0(gap), months, "" if months == 1 else "s", _eur0(monthly_saving))
+    else:
+        when = "%s is still missing" % _eur0(gap)
+    return {"max_price": _r(price), "deposit_5pct": _r(deposit), "transfer_tax": _r(tax), "own_money_needed": _r(need),
+            "still_missing": _r(max(gap, 0.0)), "months_to_ready": months,
+            "note": ("As a first-home buyer the loan can usually be up to 95%% of the price. For a home of about %s "
+                     "that means a deposit of about %s and transfer tax of about %s (1.5%% for a flat in a housing "
+                     "company), about %s in all; %s. The 15%% above is what approved applicants in this data "
+                     "typically had, not a requirement." % (_eur0(price), _eur0(deposit), _eur0(tax), _eur0(need), when))}
+
+
 def mortgage(conn, today, price=None, equity=None):
     t = _d(today)
     ms = _month_list(conn, t, 6)
@@ -1257,6 +1285,7 @@ def mortgage(conn, today, price=None, equity=None):
     return {"monthly_income": _r(income), "max_loan": _r(max_loan),
             "max_price_with_15pct_equity": _r(max_price), "equity_needed": _r(equity_needed),
             "account_balance": _r(balance),   # money in the account; savings_now adds net investment deposits
+            "first_home": _first_home(max_loan, savings_now, monthly_saving),
             "invested_net": _r(deposits),
             "own_money_note": ("Own money counted here is %s: %s in the account%s. Over the last %d full months "
                                "about %s a month was kept (left over or put aside)." % (

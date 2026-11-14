@@ -729,12 +729,25 @@ def _t_what_if(args, ctx, ins):
     return ins.what_if(ctx.conn, ctx.today, _expand_targets(ch), months=months), "what_if"
 
 
+SIX_MONTH_NOTE = ("The averages in this result cover the last 6 full months. The usual month in the customer section "
+                  "covers 12. If the two tell different stories, do not put the bare figures side by side: say it in "
+                  "words, for example 'over the last 6 months you kept about X a month, but over the whole year more "
+                  "went out than came in'.")
+
+
+def _with_period_note(res):
+    if isinstance(res, dict) and "error" not in res:
+        res = dict(res)
+        res["period_note"] = SIX_MONTH_NOTE
+    return res
+
+
 def _t_spender(args, ctx, ins):
-    return ins.spender_type(ctx.conn, ctx.today), "spender_type"
+    return _with_period_note(ins.spender_type(ctx.conn, ctx.today)), "spender_type"
 
 
 def _t_save_more(args, ctx, ins):
-    return ins.save_more(ctx.conn, ctx.today), "save_more"
+    return _with_period_note(ins.save_more(ctx.conn, ctx.today)), "save_more"
 
 
 def _t_mortgage(args, ctx, ins):
@@ -1144,7 +1157,7 @@ def _t_goal_by_date(args, ctx, ins):
                 mem["plan_ready"] = {"name": res.get("name") or name, "target": res.get("target"),
                                      "deadline": res.get("deadline"), "turn": mem.get("_turn", 0),
                                      "monthly_needed": res.get("monthly_needed_up", res.get("monthly_needed"))}
-    return res, "goal_plan"
+    return _with_period_note(res), "goal_plan"
 
 
 _MONTH_WORDS = ("", "January", "February", "March", "April", "May", "June", "July", "August", "September",
