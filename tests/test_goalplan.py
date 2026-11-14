@@ -55,7 +55,7 @@ class PlanDecisionTests(unittest.TestCase):
         self.assertTrue(r["fits"])
         self.assertEqual(r["monthly"], 334)
         self.assertTrue(r["decision"].startswith("Yes"))
-        self.assertIn("€334 of your usual leftover", r["decision"])
+        self.assertIn("€334 of what you usually have left (last 6 months)", r["decision"])
 
     def test_a_date_that_does_not_fit_gives_the_realistic_one(self):
         self.use(-80.0, {"Restaurant": 257, "Fast food": 148})

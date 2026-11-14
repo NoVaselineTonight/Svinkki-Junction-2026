@@ -334,15 +334,19 @@ def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=Non
         price_fi = "Tavoite %s: %s." % (_eur_fi(target), est["basis_fi"])
     else:
         price_en, price_fi = "Target %s." % _eur(target), "Tavoite %s." % _eur_fi(target)
-    parts_en = (["%s of your usual leftover" % _eur(used_leftover)] if used_leftover > 0 else []) + [
+    parts_en = (["%s of what you usually have left (last %d months)" % (_eur(used_leftover), pic["months"])]
+                if used_leftover > 0 else []) + [
         "%s %s less" % (_label_en(c["label"]), _eur(c["saves"])) for c in chosen]
-    parts_fi = (["%s tavallisesta ylijäämästäsi" % _eur_fi(used_leftover)] if used_leftover > 0 else []) + [
+    parts_fi = (["%s tavallisesta ylijäämästäsi (viim. %d kk)" % (_eur_fi(used_leftover), pic["months"])]
+                if used_leftover > 0 else []) + [
         "%s %s vähemmän" % (_label_fi(c["label"]).lower(), _eur_fi(c["saves"])) for c in chosen]
     src_en = "It comes from " + ", ".join(parts_en) + "." if parts_en else ""
     src_fi = "Rahat tulevat näin: " + ", ".join(parts_fi) + "." if parts_fi else ""
     if deficit > 0 and chosen:
-        src_en += " Today about %s more goes out than comes in a month, so the cuts cover that first." % _eur(deficit)
-        src_fi += " Nyt kuussa menee noin %s enemmän kuin tulee, joten säästöt kattavat ensin sen." % _eur_fi(deficit)
+        src_en += (" Over the last %d months about %s a month more went out than came in, so the cuts cover that "
+                   "first." % (pic["months"], _eur(deficit)))
+        src_fi += (" Viimeisten %d kuukauden aikana kuussa meni noin %s enemmän kuin tuli, joten säästöt kattavat "
+                   "ensin sen." % (pic["months"], _eur_fi(deficit)))
 
     if monthly <= 0 or months is None:
         decision = ("%s Your usual month leaves nothing over and your spending has no flexible areas big enough "

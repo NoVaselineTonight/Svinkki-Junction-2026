@@ -36,15 +36,40 @@ _lock = threading.Lock()
 
 
 def _load_ledger():
-    try:
-        with open(LEDGER, encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
+    """The ledger, or a fresh one when it does not exist yet. A ledger that cannot be read stops everything:
+    starting again from zero would let the runs spend past the budget."""
+    if not os.path.exists(LEDGER):
         return {"total": 0.0, "by_run": {}}
+    for _ in range(50):
+        try:
+            with open(LEDGER, encoding="utf-8") as f:
+                return json.load(f)
+        except (OSError, ValueError):
+            time.sleep(0.1)       # another process is replacing it this instant
+    raise SystemExit("ledger %s cannot be read: fix it by hand before spending more" % LEDGER)
 
 
 def spent():
     return _load_ledger()["total"]
+
+
+class _FileLock:
+    """One process at a time updates the ledger (several runs may be going at once)."""
+    def __enter__(self):
+        self.path = LEDGER + ".lock"
+        for _ in range(600):
+            try:
+                self.fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                return self
+            except FileExistsError:
+                if time.time() - os.path.getmtime(self.path) > 30:
+                    os.remove(self.path)       # left behind by a killed process
+                time.sleep(0.05)
+        raise SystemExit("ledger lock %s is stuck" % self.path)
+
+    def __exit__(self, *exc):
+        os.close(self.fd)
+        os.remove(self.path)
 
 
 def charge(run, kind, model, usage):
@@ -52,13 +77,15 @@ def charge(run, kind, model, usage):
     u = usage or {}
     cost = (u.get("input_tokens", 0) * p[0] + u.get("output_tokens", 0) * p[1] +
             u.get("cache_read_input_tokens", 0) * p[2] + u.get("cache_creation_input_tokens", 0) * p[3]) / 1e6
-    with _lock:
+    with _lock, _FileLock():
         led = _load_ledger()
         led["total"] = round(led["total"] + cost, 6)
         r = led["by_run"].setdefault(run, {})
         r[kind] = round(r.get(kind, 0.0) + cost, 6)
-        with open(LEDGER, "w", encoding="utf-8") as f:
+        tmp = LEDGER + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(led, f, indent=1)
+        os.replace(tmp, LEDGER)        # atomic: a reader never sees half a file
     return cost
 
 
