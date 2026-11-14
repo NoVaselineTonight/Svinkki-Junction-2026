@@ -1,0 +1,66 @@
+# Builds the demo container and clicks through it, so the Dockerfile is known to work before a host builds it.
+# Run by hand (Actions > demo image > Run workflow), or when the Dockerfile or the data build changes.
+# It is not run on every push: a fresh build downloads the 363 MB dataset from the organisers' repository.
+name: demo image
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - deploy/build_data.py
+      - deploy/removed_customers.txt
+      - .github/workflows/deploy-image.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the image (the dataset download is cached between runs)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: svinkki-demo:check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start it without a key
+        run: |
+          docker run -d --name svinkki -p 10000:10000 -e SVINKKI_AI_DAILY_TURNS=0 svinkki-demo:check
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:10000/ >/dev/null && break; sleep 1; done
+          docker logs svinkki
+      - name: Click through it
+        run: |
+          set -e
+          base=http://127.0.0.1:10000
+          jar=$(mktemp)
+          curl -fsS "$base/api/demo/personas" -o personas.json
+          python3 - <<'EOF'
+          import json
+          p = json.load(open("personas.json"))
+          assert [x["name"] for x in p][:1] == ["Veeti, 32"], p
+          assert len(p) == 6, p
+          open("id.txt", "w").write(p[0]["id"])
+          EOF
+          post() { curl -fsS -b "$jar" -c "$jar" -H 'Content-Type: application/json' -d "$2" "$base$1"; }
+          post /api/demo/login "{\"id\": \"$(cat id.txt)\"}" >/dev/null
+          post /api/consent '{"analysis": true, "ai": true, "benchmarks": true, "suggestions": true}' >/dev/null
+          post /api/chat '{"message": "How much did I spend on taxis last month?"}' > chat.json
+          python3 - <<'EOF'
+          import json
+          r = json.load(open("chat.json"))
+          print(r["mode"], "|", r["reply"])
+          assert "92.85" in r["reply"], r["reply"]          # the demo figure: the database is the team's
+          assert r["mode"] == "offline", r["mode"]           # no key in the image
+          EOF
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST -b "$jar" -H 'Content-Type: application/json' -d '{}' "$base/api/demo/reset")
+          test "$code" = "404"                               # public mode: nobody can wipe the demo
+          docker exec svinkki id -un | grep -qx svinkki       # not root
+          docker image inspect svinkki-demo:check --format 'image size: {{.Size}} bytes'
