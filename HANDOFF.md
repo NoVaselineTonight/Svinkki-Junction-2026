@@ -32,7 +32,12 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
   silence (the release went through about 8 minutes after the REQUEST, not the full 10). Its branch
   `agent-c/start-page-layout` was never pushed; if it exists on the owner's machine it will conflict with
   `web/app.js` `showHome`. Keep main's version unless the owner prefers the other.
-- Tests: `Ran 685 tests ... OK`.
+- **Finnish without a model** now covers latest and biggest purchases, the last purchase, challenges, patterns,
+  the comparisons (when asked) and tool errors; no question in the Finnish "What can I ask?" list falls back to
+  English any more (`coach._fi_lead2`, `tests/test_finnish_replies.py`).
+- The start page greets with the customer's own month ("You kept €735 in August. What shall we look at?"), and
+  an answer of "nothing spent" no longer shows an empty €0 card.
+- Tests: `Ran 701 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 

@@ -93,6 +93,14 @@ class StartPageTests(unittest.TestCase):
         self.assertIn(".fold > summary::-webkit-details-marker { display: none; }", css)
         self.assertRegex(css, r"\.fold > summary \{[^}]*list-style: none")
 
+    def test_greeting_line_uses_the_customers_own_month(self):
+        self.assertIn("greetLine.textContent = sur >= 0", self.home)
+        self.assertIn("'You kept ' + money(sur) + ' in ' + when", self.home)
+        self.assertIn("more went out than came in", self.home)
+
+    def test_no_empty_card_when_nothing_was_spent(self):
+        self.assertIn("if (c.type === 'spend' && !num(d.total) && !num(d.count)) return null;", self.js)
+
     def test_house_rules_no_inner_html(self):
         self.assertNotRegex(self.js, r"\.(?:inner|outer)HTML\s*[+]?=|insertAdjacentHTML|document\.write")
 

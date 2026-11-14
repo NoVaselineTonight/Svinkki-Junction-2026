@@ -2129,6 +2129,8 @@
     var fn = CARDS[c.type];
     var d = c.data || {};
     if (!fn) return null;
+    // Nothing was spent: the sentence already says so, an empty card adds nothing.
+    if (c.type === 'spend' && !num(d.total) && !num(d.count)) return null;
     if (!d.evidence && c.evidence) d = Object.assign({}, d, { evidence: c.evidence });
     return fn(d);
   }
@@ -2453,9 +2455,10 @@
     var thingsBox = h('div', { class: 'home-sec', hidden: true });
     var convBox = h('div', { class: 'home-sec' });
     var acctBox = h('div', { class: 'acct-slot' });
+    var greetLine = h('p', { class: 'muted', 'aria-live': 'polite' }, 'Ask me anything about your money.');
     viewEl.appendChild(h('div', { class: 'home' },
       acctBox,
-      h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), h('p', { class: 'muted' }, 'Ask me anything about your money.')),
+      h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), greetLine),
       comp.el, toolsBox, forYou, convBox, thingsBox));
     api('/api/account').then(function (a) { if (alive(t) && a && a.current) acctBox.replaceChildren(accountCard(a)); }, function () {});
 
@@ -2471,6 +2474,12 @@
       if (!(r && r.due && r.checkin)) return;
       var c = r.checkin, sur = num(c.surplus);
       var when = fmtPeriod(c.period);
+      // One line that shows the coach has looked at this customer's own month.
+      if (alive(t) && when && (num(c.income) > 0 || num(c.spent) > 0)) {
+        greetLine.textContent = sur >= 0
+          ? 'You kept ' + money(sur) + ' in ' + when + '. What shall we look at?'
+          : 'In ' + when + ' ' + money(-sur) + ' more went out than came in. Shall we look at why?';
+      }
       place('checkin', fold('calendar', 'Your check-in',
         (sur >= 0 ? money(sur) + ' left over' : money(-sur) + ' more out than in') + (when ? ' · ' + when : ''), checkinCard(c)));
     }, function () {});

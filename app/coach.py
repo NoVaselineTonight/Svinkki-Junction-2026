@@ -2003,7 +2003,7 @@ def _hundreds_fi(x):
 def fi_lead(tool, res, args, hints):
     """The Finnish reply for a tool result (one or two sentences, the figures in Finnish format), else None."""
     if not isinstance(res, dict) or "error" in res:
-        return None
+        return _fi_error(tool, res)
     args = args or {}
     hints = hints or {}
     if tool == "get_spend":
@@ -2212,6 +2212,154 @@ def fi_lead(tool, res, args, hints):
         if hints.get("can_save"):
             out += " Tallennetaanko se tavoitteeksesi?"
         return out
+    return _fi_lead2(tool, res, args, hints)
+
+
+_FI_LABEL_NOM = {"Taxi": "taksi", "Bar": "baari", "Restaurant": "ravintola", "Dining out": "ulkona syöminen",
+                 "Groceries": "ruokaostokset", "Night out": "ilta ulkona", "Fast food": "pikaruoka",
+                 "Fuel": "polttoaine", "Public transport": "joukkoliikenne", "Pharmacy": "apteekki",
+                 "Clothing": "vaatteet", "Cinema": "elokuvat", "Gym & sports": "kuntoilu", "Housing": "asuminen",
+                 "Utilities": "laskut", "Travel": "matkailu", "Parking": "pysäköinti", "Electronics": "elektroniikka",
+                 "Furniture": "huonekalut", "Hobbies": "harrastukset", "Books": "kirjat", "Shopping": "ostokset",
+                 "Events": "tapahtumat", "Entertainment": "viihde", "Flights": "lennot", "Hotels": "hotellit",
+                 "Doctor": "lääkäri", "Dentist": "hammaslääkäri", "Home improvement": "kodin kunnostus",
+                 "Savings & investments": "säästöt ja sijoitukset", "Car rental": "autonvuokraus",
+                 "Travel agency": "matkatoimisto", "Other health": "muu terveys"}
+_FI_METRIC = {"income": "tulosi", "regular": "perusmenosi", "unexpected": "odottamattomat menosi",
+              "everyday": "arkikulutuksesi", "savings": "säästösi", "spent": "kulutuksesi"}
+
+
+def _fi_item(label):
+    lab = str(label or "")
+    return _FI_LABEL_NOM.get(lab) or _FI_LABEL_NOM.get(lab.capitalize()) or lab.lower().replace("_", " ")
+
+
+def _fi_day(d):
+    """'2026-09-24' -> '24.9.2026'; the current year is taken out when the reply is finished."""
+    return _date_fi(str(d or "")[:10])
+
+
+def _fi_who(group):
+    d = str(_g(group, "description", "") or "") + " " + str(_g(group, "key", "") or "")
+    return "useimmat ikäisesi" if re.search(r"age", d, re.I) else "useimmat kaltaisesi"
+
+
+def _fi_error(tool, res):
+    """Finnish wording for a tool that could not answer, else None."""
+    err = str(_g(res, "error", "") or "")
+    if tool in ("explain_text", "read_receipt", "propose_money_move", "remember_category", "can_i_afford"):
+        return None
+    if "consent" in err:
+        return "Vertailu on pois päältä. Voit ottaa sen käyttöön asetuksista ja kysyä sitten uudelleen."
+    if tool == "get_area_context":
+        return "Minulla ei ole avointa tietoa asuinalueestasi."
+    return "En saanut tätä selville tiedoistasi, joten en arvaa. Kokeile kysyä tietystä kuukaudesta tai kulutuksen lajista."
+
+
+def _fi_lead2(tool, res, args, hints):
+    """Finnish replies for the remaining tools (latest and biggest purchases, last purchase, challenge,
+    patterns, comparisons). None where no Finnish wording exists yet."""
+    if tool == "list_transactions":
+        rows = (res.get("rows") or [])[:3]
+        if not rows:
+            return "En löytänyt siihen sopivia tapahtumia."
+        items = ["%s %s (%s)" % (_fi_item(r.get("display_label") or r.get("label") or r.get("category")),
+                                 _eur_fi_x(abs(r.get("amount") or 0)), _fi_day(r.get("d"))) for r in rows]
+        return "Viimeisimmät: %s." % _join(items, "ja")
+    if tool == "explore_my_data" and hints.get("biggest"):
+        rows = [r for r in (res.get("rows") or []) if isinstance(r, (list, tuple)) and len(r) >= 3][:3]
+        pw = _period_fi({"period": hints.get("period", "last_month")})
+        if not rows:
+            return "Sinulla ei ollut ostoksia %s." % pw
+        items = []
+        for r in rows:
+            m = re.fullmatch(r"(\d{1,2}) ([A-Z][a-z]{2})(?: (\d{4}))?", str(r[0]))
+            when = ("%d.%d.%s" % (int(m.group(1)), _MON_ABBR.index(m.group(2)), m.group(3) or "")) if m and m.group(2) in _MON_ABBR \
+                else _fi_day(r[0])
+            items.append("%s %s (%s)" % (_fi_item(r[1]), _eur_fi_x(r[2]), when))
+        return "Suurimmat ostoksesi %s: %s." % (pw, _join(items, "ja"))
+    if tool == "get_purchase_insight":
+        tx = res.get("tx") if isinstance(res.get("tx"), dict) else None
+        if not tx:
+            return "Minulla ei ole tuoretta ostosta, josta kertoa."
+        out = "Viimeisin ostoksesi: %s, %s." % (_fi_item(tx.get("display_label") or tx.get("label")),
+                                               _eur_fi_x(abs(tx.get("amount") or 0)))
+        h = res.get("habit") if isinstance(res.get("habit"), dict) else {}
+        if res.get("every_weeks") and h.get("yearly"):
+            ew = res["every_weeks"]
+            out += (" Teet tällaisen ostoksen suunnilleen joka viikko, eli noin %s vuodessa." % _eur_fi(h["yearly"])
+                    if ew <= 1 else
+                    " Teet tällaisen ostoksen noin %s viikon välein, eli noin %s vuodessa." % (ew, _eur_fi(h["yearly"])))
+        return out
+    if tool == "get_challenge":
+        mode = res.get("mode")
+        if mode == "active":
+            return "Haasteesi on käynnissä. Näet sen etusivulta kohdasta Omat asiasi."
+        if mode == "options":
+            opts = [o for o in (res.get("options") or []) if isinstance(o, dict)]
+            if not opts:
+                return "En löytänyt vielä tapaa, jonka varaan rakentaa helppo haaste. Kokeile muutaman viikon päästä."
+
+            def what(o):
+                k = o.get("kind")
+                if k == "none_this_week" and o.get("label"):
+                    part = _FI_LABEL_PART.get(o["label"]) or {"Dining out": "ulkona syömistä"}.get(o["label"])
+                    return ("viikko ilman %s" % part) if part else "viikko ilman kategoriaa %s" % _fi_item(o["label"])
+                if k == "free_days" and o.get("target"):
+                    return "%s päivää ilman arkikulutusta" % o["target"]
+                return "viikon haaste omasta kulutuksestasi"
+            if len(opts) == 1:
+                return "Yksi helppo haaste ensi viikolle: %s. Aloita napauttamalla sitä." % what(opts[0])
+            return "Kaksi helppoa haastetta ensi viikolle: %s tai %s. Aloita napauttamalla toista." % (
+                what(opts[0]), what(opts[1]))
+        return "Haasteet ovat pois päältä. Voit ottaa ne käyttöön asetuksista."
+    if tool == "get_patterns":
+        if not (res.get("patterns") or []):
+            return ("Kävin läpi viimeiset 12 viikkoa, eikä kulutuksestasi erotu selvää kuviota, kuten tiettyä iltaa, "
+                    "palkkapäivän jälkeisiä päiviä tai pienten ostosten ryppäitä.")
+        return None
+    if tool == "get_quiz_stats":
+        if not res.get("count"):
+            return "Et ole vielä vastannut visaan, joten pisteitä ei ole. Kokeile etusivun viikkovisaa."
+        if res.get("awareness_score") is not None:
+            return "Olet vastannut %s kysymykseen, ja tietoisuuspisteesi ovat %s/100." % (
+                res.get("count"), "{:.0f}".format(float(res["awareness_score"])))
+        return None
+    if tool == "get_benchmarks":
+        rows = [r for r in (res.get("rows") or []) if isinstance(r, dict)]
+        who = _fi_who(res.get("group"))
+        inc = next((r for r in rows if r.get("metric") == "income"), None)
+        odd = next((r for r in rows if r is not inc and r.get("position") in ("above", "below")
+                    and r.get("metric") in _FI_METRIC), None)
+        if inc is None and odd is None:
+            return "Kulutuksesi on suunnilleen samaa tasoa kuin %s." % who.replace("useimmat", "useimmilla").replace(
+                "ikäisesi", "ikäisilläsi").replace("kaltaisesi", "kaltaisillasi")
+        whom = who.replace("useimmat", "useimmilla").replace("ikäisesi", "ikäisilläsi").replace("kaltaisesi", "kaltaisillasi")
+        out = ""
+        if inc is not None:
+            pos = {"typical": "suunnilleen samaa tasoa kuin", "above": "suuremmat kuin", "below": "pienemmät kuin"}
+            out = "Tulosi ovat %s %s" % (pos.get(inc.get("position"), pos["typical"]), whom)
+        if odd is not None:
+            tail = "%s ovat %s: %s kuukaudessa, kun tyypillinen on %s" % (
+                _FI_METRIC[odd["metric"]], "suuremmat" if odd.get("position") == "above" else "pienemmät",
+                _eur_fi(odd.get("you")), _eur_fi(odd.get("median")))
+            out = (out + ", mutta " + tail) if out else _cap1(tail)
+        return out + "."
+    if tool == "get_averages":
+        rows = [r for r in (res.get("rows") or []) if isinstance(r, dict)]
+        r0 = rows[0] if rows else None
+        if r0 and r0.get("unit") == "eur_per_month" and r0.get("you") is not None and r0.get("typical") is not None \
+                and ":" in str(r0.get("metric")):
+            lab = str(r0["metric"]).split(":", 1)[-1]
+            obj = _FI_LABEL_ILL.get(lab) or "kategoriaan %s" % _fi_item(lab)
+            d = str(r0.get("direction") or "")
+            who = _fi_who(res.get("group"))
+            if d.startswith("about") or not d:
+                tail = "suunnilleen saman verran kuin %s" % who
+            else:
+                tail = "%s kuin %s (noin %s)" % ("enemmän" if "more" in d else "vähemmän", who, _eur_fi(r0["typical"]))
+            return "Käytät %s noin %s kuukaudessa, %s." % (obj, _eur_fi(r0["you"]), tail)
+        return None
     return None
 
 
