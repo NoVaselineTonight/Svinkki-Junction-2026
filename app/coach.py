@@ -27,7 +27,7 @@ DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 # ------------------------------------------------------------------ prompt
 SYSTEM_PROMPT = """You are Svinkki, this customer's personal money coach inside their bank's app. You are an AI, and you give guidance, not decisions.
-You know this customer: after these rules comes a section "What you know about this customer" with checked figures from their own account (income, spending, biggest categories, balance, payday, goal, saving opportunities). Use it. A generic answer that would fit anyone is a failed answer.
+You know this customer: after these rules comes a section "What you know about this customer" with checked figures from their own account (income, spending, biggest categories, balance, payday, goal, saving opportunities, spending habits, repeating charges, what their grocery receipts show). Use it. A generic answer that would fit anyone is a failed answer.
 How a good answer is built:
 - First sentence: the direct answer to what was asked, with its key figure.
 - Then, when it helps, one sentence on what that means for THIS customer: tie it to their own numbers (their income, their usual month, their goal, their payday, a change from their own earlier months).
@@ -3729,6 +3729,7 @@ def _gemini_available(ctx):
 
 # ------------------------------------------------------------------ what the coach knows about the customer
 SNAPSHOT_TOOLS = ("get_overview", "get_spender_type", "get_safe_to_spend", "get_save_more")
+SNAPSHOT_EXTRA = ("find_leaks", "receipt_insights")   # habits and grocery receipts: used when they answer
 SNAPSHOT_TITLE = "What you know about this customer (checked figures from their own account; use them to make the answer personal):"
 
 
@@ -3745,13 +3746,13 @@ def customer_snapshot(ctx):
     tools it could call itself. Aggregates only: no ids, no merchants, no single purchases, and nothing about
     other people. `data` is what the lines were written from, so their figures count as verified."""
     data, lines = {}, []
-    for name in SNAPSHOT_TOOLS:
+    for name in SNAPSHOT_TOOLS + SNAPSHOT_EXTRA:
         try:
             r = tools.call(name, {}, ctx)
         except Exception:
             continue
         if isinstance(r, dict) and "error" not in r:
-            data[name] = _model_view(r)
+            data[name] = _snapshot_view(name, _model_view(r))
     ov = data.get("get_overview") or {}
     if ov.get("income") is not None and ov.get("spent") is not None:
         month = (_month(str(ov.get("month") or "")).split(" ")[0]) or "the last full month"
@@ -3793,6 +3794,33 @@ def customer_snapshot(ctx):
     if ideas:
         lines.append("Saving opportunities found in their data: %s." % "; ".join(
             "%s (about %s a month)" % (_low1(str(i["title"])), _snap_money(i["saved_monthly"])) for i in ideas))
+    lk = data.get("find_leaks") or {}
+    habits = [str(x.get("text")).strip() for x in (lk.get("peak"), lk.get("payday_week"))
+              if isinstance(x, dict) and x.get("text") and (x is lk.get("peak") or (x.get("total") or 0) > 0)]
+    subs = [str(x.get("text")).strip() for x in (lk.get("subscriptions") or [])[:2] if isinstance(x, dict) and x.get("text")]
+    if habits:
+        lines.append("Spending habits: %s" % " ".join(habits))
+    if subs:
+        lines.append("Charges that repeat every month: %s" % " ".join(subs))
+    rc = data.get("receipt_insights") or {}
+    if rc.get("receipt_count"):
+        bits = []
+        grp = next((g for g in (rc.get("by_group") or []) if isinstance(g, dict) and g.get("name")), None)
+        if grp and grp.get("share") is not None:
+            bits.append("biggest group %s (%s of the total)" % (_low1(str(grp["name"])), _pct_whole(grp["share"])))
+        tr = rc.get("treats") or {}
+        if tr.get("monthly"):
+            kinds = ", ".join(str(g).lower() for g in (tr.get("groups") or [])[:4])
+            bits.append("treats%s about %s a month" % ((" (%s)" % kinds) if kinds else "", _snap_money(tr["monthly"])))
+        top = next((t for t in (rc.get("top_products") or []) if isinstance(t, dict) and t.get("name")), None)
+        if top and top.get("times"):
+            bits.append("bought most often: %s (%s times)" % (top["name"], top["times"]))
+        fu = rc.get("fuel") or {}
+        if fu.get("monthly"):
+            bits.append("fuel about %s a month" % _snap_money(fu["monthly"]))
+        if bits:
+            lines.append("From their grocery receipts %s (the receipt lines are simulated for the demo; say so once if "
+                         "you use this): %s." % (str((rc.get("period") or {}).get("label") or "recently"), "; ".join(bits)))
     goal = _ctx_get(ctx, "goal")
     if isinstance(goal, dict) and goal.get("name") and goal.get("target"):
         g = {"name": str(goal["name"])[:60], "target": goal.get("target"), "saved": goal.get("saved") or 0}
@@ -3814,6 +3842,22 @@ def customer_snapshot(ctx):
         data["challenge"] = {"title": str(ch["title"])[:80]}
         lines.append("Active challenge they accepted: %s." % anonymise(str(ch["title"])[:80]))
     return [_finish_snapshot(x) for x in lines], data
+
+
+def _snapshot_view(name, view):
+    """Only the parts of a habit or receipt result the customer picture is written from."""
+    if name == "find_leaks":
+        out = {k: view.get(k) for k in ("small", "peak", "payday_week") if view.get(k) is not None}
+        # repeating charges: the category and the amounts, never which merchant
+        out["subscriptions"] = [{k: v for k, v in x.items() if k != "merchant_ref"}
+                                for x in (view.get("subscriptions") or [])[:2] if isinstance(x, dict)]
+        return out
+    if name == "receipt_insights":
+        out = {k: view.get(k) for k in ("period", "receipt_count", "treats", "fuel") if view.get(k) is not None}
+        out["by_group"] = (view.get("by_group") or [])[:3]
+        out["top_products"] = (view.get("top_products") or [])[:3]
+        return out
+    return view
 
 
 def _finish_snapshot(line):

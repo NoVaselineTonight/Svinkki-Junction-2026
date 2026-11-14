@@ -76,6 +76,44 @@ class SnapshotTests(_Base):
         self.assertIn("No taxis this week", text)
         self.assertEqual(data["goal"]["target"], 3000.0)
 
+    def test_habits_and_grocery_receipts_are_part_of_the_picture(self):
+        ctx = self.ctx()
+        ctx.cid = A                      # the server passes this as the seed of the simulated receipts
+        lines, data = self.coach.customer_snapshot(ctx)
+        text = "\n".join(lines)
+        self.assertRegex(text, r"Spending habits: Most of your everyday spending happens on \w+days")
+        self.assertRegex(text, r"Charges that repeat every month: €\d+")
+        rc = next(l for l in lines if l.startswith("From their grocery receipts"))
+        self.assertIn("simulated for the demo; say so once", rc)
+        self.assertRegex(rc, r"biggest group [a-z ]+ \(\d{1,2}% of the total\)")
+        self.assertRegex(rc, r"treats \([a-z, ]+\) about €\d+ a month")
+        self.assertRegex(rc, r"bought most often: .+ \(\d+ times\)")
+        self.assertLessEqual(len(data["receipt_insights"]["top_products"]), 3)
+        self.assertNotIn("by_hour", data["find_leaks"])
+        self.assertNotIn("merchant_ref", json.dumps(data), "never which merchant, not even as a reference")
+        self.assertLess(len(text), 2400, "the picture stays short")
+
+    def test_receipt_figures_from_the_picture_pass_the_number_check(self):
+        ctx = self.ctx()
+        ctx.cid = A
+        lines, data = self.coach.customer_snapshot(ctx)
+        rc = next(l for l in lines if l.startswith("From their grocery receipts"))
+        m = re.search(r"about (€\d+) a month", rc)
+        say = "Treats come to about %s a month on your receipts, which are simulated for this demo." % m.group(1)
+        self.assertTrue(self.coach.numbers_grounded(say, [data], "where can I save on groceries?"), say)
+
+    def test_no_receipt_line_without_receipts_and_no_empty_habit(self):
+        lines, data = self.coach.customer_snapshot(self.ctx())     # no receipt seed on this context
+        text = "\n".join(lines)
+        if "receipt_insights" not in data:
+            self.assertNotIn("grocery receipts", text)
+        for c in fx.CUSTOMERS:
+            ctx = self.ctx(c["cid"])
+            ctx.cid = c["cid"]
+            t = "\n".join(self.coach.customer_snapshot(ctx)[0])
+            self.assertNotIn("(nothing) lands", t)
+            self.assertNotRegex(t, r"\d{3,}% of the total")
+
     def test_snapshot_survives_a_broken_connection(self):
         ctx = self.ctx(conn=fx.closed_conn())
         lines, data = self.coach.customer_snapshot(ctx)

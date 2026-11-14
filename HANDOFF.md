@@ -48,7 +48,10 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
   figure you lack. Tests pin that the example and five typical personal sentences pass the check.
 - Overdrawn accounts are worded ("Your account is €3,800.00 overdrawn", no "minus", no "-2.7 months");
   "how much do I have left", "how much have I saved" are understood; "move up to €0" is gone.
-- Tests: `Ran 724 tests ... OK`.
+- The coach's picture of the customer also holds their spending habits (busiest weekday, the days after
+  payday), charges that repeat every month (category and amount, never the merchant) and what the grocery
+  receipts show (biggest group, treats a month, most-bought product; marked as simulated).
+- Tests: `Ran 727 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 
