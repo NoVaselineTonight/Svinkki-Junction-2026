@@ -98,6 +98,23 @@ class StartPageTests(unittest.TestCase):
         self.assertIn("'You kept ' + money(sur) + ' in ' + when", self.home)
         self.assertIn("more went out than came in", self.home)
 
+    def test_a_checkin_without_income_shows_what_was_spent_not_a_shortfall(self):
+        card = self.js[self.js.index("function checkinCard(c)"):]
+        card = card[:card.index("function suggestionBlock")]
+        self.assertIn("if (num(c.income) > 0) {", card)
+        self.assertIn("keyFig(sec, money(c.spent), 'spent');", card)
+        self.assertIn("num(c.income) <= 0 ? money(c.spent) + ' spent'", self.home)
+        self.assertIn("if (alive(t) && when && num(c.income) > 0) {", self.home)
+
+    def test_welcome_does_not_claim_money_never_moves(self):
+        """Money can move inside S-mobiili after approval, so the welcome must not say it never does."""
+        self.assertNotIn("I never move money", self.js)
+        self.assertIn("Money only moves when you approve it", self.js)
+
+    def test_the_sheet_is_named_like_the_link_that_opens_it(self):
+        self.assertIn("'Everything I can do');", self.home)
+        self.assertIn("openSheet('Everything I can do'", self.js)
+
     def test_no_empty_card_when_nothing_was_spent(self):
         self.assertIn("if (c.type === 'spend' && !num(d.total) && !num(d.count)) return null;", self.js)
 

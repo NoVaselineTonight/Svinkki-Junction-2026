@@ -65,6 +65,12 @@ questions.
 
 ### Minor
 
+Status on `main`, checked again on 14 Nov 2026 by running each case against the test data:
+fixed: D6, D7, D9, D10, D11, D12, D16, D17 (the aliased column; a `WITH` query typed into the chat is still
+not run, which is fine for customers), D18, D20. Still open: D13 (an accepted challenge stays visible after
+challenges are switched off; it can be stopped from its card), D14, D15 (the cookie gets no `Secure` flag;
+needed only behind HTTPS).
+
 - D6. `insights._norm_pct`: a what-if percentage between 0 and 1 is read as a fraction
   (`0.5` saves 50 %), and a negative one is silently treated as 0.
 - D7. `insights.what_if`: `saved_total` is computed from the rounded monthly figure (6 cents off
