@@ -1,15 +1,33 @@
 # Pitch deck: status and cost slides
 
-The deck is a claude.ai artifact owned by the team lead; it has 4 slides. These are the
-current texts for the two slides that change as the build moves. Re-check the bracketed facts
+## Ready-made decks (14 Nov 2026)
+
+`submission/deck/` holds two short decks built from real screenshots of the app on the synthetic
+data (Veeti, 32; Mikko, 54 for the consent screen). Open the HTML in a browser: arrow keys or click
+to move, F for full screen. The PDFs are the same slides, one per page.
+
+| File | Slides | Story |
+|---|---|---|
+| `index.html`, `Svinkki-deck.pdf` | 6 | Not a chatbot · the problem (a statement vs an answer) · proves / acts / teaches · trust (the AI explains, code counts) · cost and fit · the four brief questions |
+| `lightning.html`, `Svinkki-60s.pdf` | 3 | Ask your money anything · proves / acts / teaches · why it can ship |
+
+Facts on the slides to re-check before the pitch: the test count (765 on `main` on 14 Nov), the
+cost figures below, and that the screenshots still match the app. To refresh a screenshot, replace the PNG in
+`submission/deck/img/` (390 px wide phone at 2x) and re-export the PDF with Chrome's print to PDF.
+
+## Older text deck
+
+The first deck was a claude.ai artifact owned by the team lead; it has 4 slides. These are the
+texts for the two slides that change as the build moves. Re-check the bracketed facts
 just before the pitch and do not round them up.
 
 ## Slide: Status (what works today)
 
 **Works today**
-- A front page with "+ New", previous conversations and "Your things" (savings goal, challenge,
-  kept answers); everything else is asked in a conversation, with a "What can I ask?" page.
-  [Confirm the chat-first build is merged.]
+- A start page with the account card (balance, safe to spend until payday), four example
+  questions, last month in the three baskets, the check-in and the quiz; earlier conversations and
+  "Your things" (goal, challenge, notes, kept answers) when they exist. Two follow-up questions under
+  each answer; "Everything I can do" lists every topic.
 - Chat with your own money, three baskets, safe to spend, what-if, payday forecast, goals,
   benchmarks, quiz, check-in, consent, "What the AI saw".
 - Receipt-level questions ("How much do I spend on beer?") on simulated receipt lines.
@@ -18,8 +36,9 @@ just before the pitch and do not round them up.
 **Verified**
 - Live with Claude: on 13 Nov 2026, Claude Haiku 5.5 answered "How much did I spend on taxis last
   month?" through the app's own tool: €92.85, two transactions shown, on the merged code.
-- [N] automated tests pass (419 on `main` on 13 Nov; 600 on the chat-first branch while in
-  progress). Tests never see a real key.
+- [N] automated tests pass (765 on `main` on 14 Nov). Tests never see a real key.
+- Live with Claude on 14 Nov 2026 on the real dataset: personal answers with the numbers right, but
+  too long (up to 7 sentences); agent-d is shortening them.
 - Two independent evaluations; [N of 15] major findings fixed. [List any that remain open.]
 
 **Not yet**
