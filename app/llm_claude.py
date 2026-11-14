@@ -19,6 +19,7 @@ _RETRY_STATUS = (429, 500, 502, 503, 529)
 MAX_RETRIES = 2
 MAX_RETRY_AFTER = 5.0
 RETRY_PAUSE = 0.6
+MIN_REQUEST_SECONDS = 3.0   # with less time than this left before the deadline, a request is not started
 
 
 class ClaudeError(Exception):
@@ -75,15 +76,22 @@ def _error_type(raw):
     return ""
 
 
+def _time_left(deadline):
+    return None if deadline is None else deadline - time.monotonic()
+
+
 def create(system, messages, tools, api_key, model, http_post=None, timeout=TIMEOUT,
-           allow_tools=True, max_tokens=MAX_TOKENS, effort=EFFORT):
+           allow_tools=True, max_tokens=MAX_TOKENS, effort=EFFORT, deadline=None):
     """POST /v1/messages and return the parsed message dict.
 
     system: text, or a list of texts (the first is the part that is the same for everyone; it is
     marked cacheable). messages: list of {"role", "content"}. tools: list of {"name", "description",
     "parameters"} declarations (may be empty); "parameters" is sent as `input_schema`.
     allow_tools=False keeps the declarations (the history may hold tool calls) but tells the model
-    to answer in text. Raises ClaudeError on any failure, a refusal or a cut-off reply.
+    to answer in text. deadline: an absolute time.monotonic() value. Each attempt then waits at most the
+    time left (never more than timeout), a retry that would end after it is not made, and with less than
+    MIN_REQUEST_SECONDS left no request is started. Raises ClaudeError on any failure, a refusal or a
+    cut-off reply, and when the deadline is reached.
     """
     if not api_key:
         raise ClaudeError("No API key")
@@ -111,8 +119,14 @@ def create(system, messages, tools, api_key, model, http_post=None, timeout=TIME
     status, raw = 0, b""
     for attempt in range(MAX_RETRIES + 1):
         _LAST_RETRY_AFTER[0] = None
+        wait = timeout
+        left = _time_left(deadline)
+        if left is not None:
+            if left < MIN_REQUEST_SECONDS:
+                raise ClaudeError("Claude turn took too long")
+            wait = min(timeout, left)
         try:
-            res = post(API_URL, headers, payload, timeout)
+            res = post(API_URL, headers, payload, wait)
             status, raw = res[0], res[1]
             if len(res) > 2 and isinstance(res[2], dict):      # a transport may also hand back the headers
                 _LAST_RETRY_AFTER[0] = {str(k).lower(): v for k, v in res[2].items()}.get("retry-after")
@@ -122,7 +136,11 @@ def create(system, messages, tools, api_key, model, http_post=None, timeout=TIME
             raise ClaudeError("Claude request failed")
         if status not in _RETRY_STATUS or attempt >= MAX_RETRIES:
             break
-        time.sleep(_retry_pause({"retry-after": _LAST_RETRY_AFTER[0]}))
+        pause = _retry_pause({"retry-after": _LAST_RETRY_AFTER[0]})
+        left = _time_left(deadline)
+        if left is not None and left - pause < MIN_REQUEST_SECONDS:
+            break                               # no time for another try: report the busy status
+        time.sleep(pause)
     if status != 200:
         kind = _error_type(raw)
         raise ClaudeError("Claude returned HTTP %s%s" % (status, (" (%s)" % kind) if kind else ""))
