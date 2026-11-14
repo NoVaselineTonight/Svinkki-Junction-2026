@@ -66,6 +66,9 @@ CREATE TABLE IF NOT EXISTS turns(conv_id TEXT NOT NULL, n INTEGER NOT NULL, data
 CREATE TABLE IF NOT EXISTS pins(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL, title TEXT NOT NULL,
                                 card TEXT NOT NULL, created REAL);
 CREATE INDEX IF NOT EXISTS pins_cid ON pins(cid);
+CREATE TABLE IF NOT EXISTS notes(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL, text TEXT NOT NULL,
+                                 created REAL);
+CREATE INDEX IF NOT EXISTS notes_cid ON notes(cid);
 CREATE TABLE IF NOT EXISTS money_proposals(id TEXT PRIMARY KEY, cid TEXT NOT NULL, data TEXT NOT NULL,
                                            status TEXT NOT NULL, created REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS money_proposals_cid ON money_proposals(cid);
@@ -184,7 +187,7 @@ def get_intents(cid) -> dict:
 def erase(cid) -> None:
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results", "pins", "money_proposals", "money_moves"):
+                  "quiz_results", "pins", "notes", "money_proposals", "money_moves"):
             conn.execute(f"DELETE FROM {t} WHERE cid=?", (cid,))
         conn.execute("DELETE FROM turns WHERE conv_id IN (SELECT id FROM conversations WHERE cid=?)",
                      (cid,))
@@ -199,7 +202,7 @@ def reset_all() -> None:
     The AI key and the chosen model are not app state and are kept."""
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results", "conversations", "turns", "pins", "money_proposals", "money_moves"):
+                  "quiz_results", "conversations", "turns", "pins", "notes", "money_proposals", "money_moves"):
             conn.execute(f"DELETE FROM {t}")
     _run(go)
 
@@ -675,3 +678,43 @@ def list_moves(cid) -> list:
     rows = _run(lambda c: c.execute("SELECT id, d, ts, amount, dest FROM money_moves WHERE cid=? ORDER BY ts, id",
                                     (cid,)).fetchall())
     return [{"id": r[0], "d": r[1], "ts": r[2], "amount": r[3], "dest": r[4]} for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Notes the customer asked the coach to remember
+# ---------------------------------------------------------------------------
+MAX_NOTES = 20
+NOTE_CHARS = 200
+_NOTE_ID_RE = re.compile(r"note:(\d{1,12})")
+
+
+def add_note(cid, text) -> dict:
+    """Keep one short note in the customer's own words. The newest MAX_NOTES are kept."""
+    if not isinstance(text, str):
+        raise ValueError("invalid note")
+    text = " ".join("".join(ch if ch.isprintable() else " " for ch in text).split())
+    if not 3 <= len(text) <= NOTE_CHARS:
+        raise ValueError("a note is 3 to %d characters" % NOTE_CHARS)
+
+    def go(conn):
+        now = _now()
+        cur = conn.execute("INSERT INTO notes(cid, text, created) VALUES(?,?,?)", (cid, text, now))
+        conn.execute("DELETE FROM notes WHERE cid=? AND id NOT IN "
+                     "(SELECT id FROM notes WHERE cid=? ORDER BY id DESC LIMIT ?)", (cid, cid, MAX_NOTES))
+        return {"id": "note:%d" % cur.lastrowid, "text": text, "created": iso_time(now)}
+    return _run(go)
+
+
+def list_notes(cid) -> list:
+    """Newest first."""
+    rows = _run(lambda c: c.execute("SELECT id, text, created FROM notes WHERE cid=? ORDER BY id DESC",
+                                    (cid,)).fetchall())
+    return [{"id": "note:%d" % r[0], "text": r[1], "created": iso_time(r[2]), "created_ts": r[2]} for r in rows]
+
+
+def remove_note(cid, note_id) -> bool:
+    m = _NOTE_ID_RE.fullmatch(note_id) if isinstance(note_id, str) else None
+    if not m:
+        return False
+    rid = int(m.group(1))
+    return bool(_run(lambda c: c.execute("DELETE FROM notes WHERE id=? AND cid=?", (rid, cid)).rowcount))

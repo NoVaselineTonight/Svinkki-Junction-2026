@@ -54,7 +54,11 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
 - The welcome screen no longer says "I never move money" (untrue since in-app moves); a check-in for a week
   without a payday shows what was spent instead of "€0 in"; the status of the minor evaluation findings is
   written at the top of the Minor list in `docs/EVALUATION.md` (open: D13, D14, D15).
-- Tests: `Ran 730 tests ... OK`.
+- **Notes (new):** "Remember that ..." / "Muista, että ..." is kept by the app itself (no model call), listed
+  under "Your things" as a Note with "Forget this", and the newest six go into the coach's picture of the
+  customer, labelled as the customer's own words and never instructions. A note that trips the prompt guardrail
+  is refused; "remember I pay my mum 100 a month" is a note, not a refused payment. `tests/test_notes.py`.
+- Tests: `Ran 748 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 

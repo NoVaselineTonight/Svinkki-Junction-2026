@@ -1060,6 +1060,10 @@ def ep_chat(req):
         return state.set_goal(req.cid, {"name": name, "target": target, "saved": 0, "deadline": deadline,
                                         "monthly_needed": monthly_needed})
 
+    def save_note(text):
+        """'Remember that ...' in the chat: kept in the customer's own words, shown under Your things."""
+        return state.add_note(req.cid, text)
+
     ctx = SimpleNamespace(cid=req.cid,   # only the seed of the simulated receipts; no tool returns it
                           conn=req.conn, today=req.today, profile=db.profile(req.cid),
                           consent=dict(req.consent), settings=dict(req.settings),
@@ -1068,7 +1072,8 @@ def ep_chat(req):
                           challenge=state.get_challenge(req.cid),
                           area_lookup=area_lookup, remember=remember,
                           explain=explain, save_goal=save_goal, memory=memory,
-                          propose_money=propose_money, holdings=money.holdings(req.cid))
+                          propose_money=propose_money, holdings=money.holdings(req.cid),
+                          save_note=save_note, notes=[n["text"] for n in state.list_notes(req.cid)])
     result = coach.chat(msg, history, ctx)
     session["ai_payload"] = result.pop("ai_payload", None)
     conn = req.conn
@@ -1138,6 +1143,9 @@ def ep_home(req):
         things.append({"id": "money:" + hd["id"], "kind": "money", "title": hd["name"],
                        "summary": "%s %s in S-mobiili" % (_money_text(hd["amount"]),
                                                           "saved" if hd["kind"] == "savings" else "invested")})
+    for n in state.list_notes(cid):
+        things.append({"id": n["id"], "kind": "note", "title": n["text"],
+                       "summary": "You asked me to remember this", "updated": n["created"]})
     for p in state.list_pins(cid):
         things.append({"id": p["id"], "kind": "pin", "title": p["title"],
                        "summary": "Kept " + state.human_date(p["created_ts"]),
@@ -1199,6 +1207,20 @@ def ep_pin(req):
     if pin is None:
         raise ApiError(404, "not_found")
     return pin
+
+
+def ep_notes(req):
+    """The notes the customer asked the coach to remember (their own words)."""
+    return {"notes": [{"id": n["id"], "text": n["text"], "created": n["created"]} for n in state.list_notes(req.cid)]}
+
+
+def ep_notes_remove(req):
+    nid = req.body.get("id")
+    if not isinstance(nid, str) or not nid:
+        raise ApiError(400, "invalid_id")
+    if not state.remove_note(req.cid, nid):
+        raise ApiError(404, "not_found")
+    return {"ok": True}
 
 
 def ep_pins_remove(req):
@@ -1483,6 +1505,8 @@ ROUTES = {
     "/api/pins": ("POST", ep_pins),
     "/api/pin": ("GET", ep_pin),
     "/api/pins/remove": ("POST", ep_pins_remove),
+    "/api/notes": ("GET", ep_notes),
+    "/api/notes/remove": ("POST", ep_notes_remove),
     "/api/afford": ("POST", ep_afford),
     "/api/goal": ("GET|POST", ep_goal),
     "/api/explain": ("POST", ep_explain),
