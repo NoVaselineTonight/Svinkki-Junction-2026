@@ -84,8 +84,8 @@ def create(system, messages, tools, api_key, model, http_post=None, timeout=TIME
            allow_tools=True, max_tokens=MAX_TOKENS, effort=EFFORT, deadline=None):
     """POST /v1/messages and return the parsed message dict.
 
-    system: text, or a list of texts (the first is the part that is the same for everyone; it is
-    marked cacheable). messages: list of {"role", "content"}. tools: list of {"name", "description",
+    system: text, or a list of texts (the first is the part that is the same for everyone, the last
+    the per-customer part; both are marked cacheable, see below). messages: list of {"role", "content"}. tools: list of {"name", "description",
     "parameters"} declarations (may be empty); "parameters" is sent as `input_schema`.
     allow_tools=False keeps the declarations (the history may hold tool calls) but tells the model
     to answer in text. deadline: an absolute time.monotonic() value. Each attempt then waits at most the
@@ -97,9 +97,15 @@ def create(system, messages, tools, api_key, model, http_post=None, timeout=TIME
         raise ClaudeError("No API key")
     parts = [str(p) for p in ([system] if isinstance(system, str) else list(system)) if p]
     blocks = [{"type": "text", "text": p} for p in parts]
-    if blocks:
-        # Tools and the first block are the same for every customer, so that prefix is cacheable.
-        blocks[0]["cache_control"] = {"type": "ephemeral"}
+    # Prompt caching, 5-minute entries, at most 3 of the 4 breakpoints the API allows:
+    # 1. tools + the first system block, the same for every customer;
+    # 2. the last system block (the per-customer lines, thousands of tokens), read again on every
+    #    round of a turn and on the next turn. It also survives the last round's tool_choice "none",
+    #    which invalidates only the messages cache;
+    # 3. top-level automatic caching for the message history (below), so each round reads what the
+    #    round before sent. Markers never go inside `messages`, so they cannot pile up past 4.
+    for i in {0, len(blocks) - 1} if blocks else ():
+        blocks[i]["cache_control"] = {"type": "ephemeral"}
     body = {
         "model": model,
         "max_tokens": max_tokens,
@@ -108,6 +114,9 @@ def create(system, messages, tools, api_key, model, http_post=None, timeout=TIME
         "output_config": {"effort": effort},
     }
     if tools:
+        # A conversation with tools runs several rounds. A one-off request (no tools, such as explaining
+        # a pasted text) would only pay the cache-write premium on a tail nobody reads again.
+        body["cache_control"] = {"type": "ephemeral"}
         body["tools"] = [{"name": t["name"], "description": t.get("description", ""),
                           "input_schema": t.get("parameters") or {"type": "object", "properties": {}}}
                          for t in tools]

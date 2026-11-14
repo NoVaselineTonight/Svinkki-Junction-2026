@@ -141,7 +141,8 @@ class ClientTests(unittest.TestCase):
             self.assertNotIn(gone, body, "%s must not be sent" % gone)
         self.assertEqual([b["text"] for b in body["system"]], ["Rules.", "Customer profile: age band 25-34."])
         self.assertEqual(body["system"][0].get("cache_control"), {"type": "ephemeral"})
-        self.assertNotIn("cache_control", body["system"][1])
+        self.assertEqual(body["system"][1].get("cache_control"), {"type": "ephemeral"})   # per customer
+        self.assertEqual(body.get("cache_control"), {"type": "ephemeral"})              # the history
         self.assertEqual(body["tools"], [{"name": "get_spend", "description": "Total spending.",
                                           "input_schema": self.TOOLS[0]["parameters"]}])
         self.assertNotIn(fc.FAKE_KEY, fake.all_text(), "the key travels in the header only")
@@ -288,7 +289,7 @@ class ClaudeCoachTests(unittest.TestCase):
         self.assertEqual(system[0]["text"], self.coach.SYSTEM_PROMPT)
         self.assertIn("cache_control", system[0])
         self.assertIn("age band", system[1]["text"])
-        self.assertNotIn("cache_control", system[1])
+        self.assertIn("cache_control", system[1])     # cached per customer, across the rounds of a turn
 
     def test_comparison_tools_are_hidden_without_benchmark_consent(self):
         ctx = fx.make_ctx(A, consent={"analysis": True, "ai": True, "benchmarks": False, "suggestions": True})
