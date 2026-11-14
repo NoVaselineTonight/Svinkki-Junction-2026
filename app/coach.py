@@ -1559,6 +1559,17 @@ def _route_en(message, ctx):
             args = {"type": "other_income", "from_date": day_dates[0], "to_date": day_dates[1]}
         return "list_transactions", args, dict({"payback": name or ""}, **(span_words or {}))
 
+    # "did I pay 12 for a ticket to the airport?": look for payments near that amount, not a month total
+    pm = re.search(r"^\s*(?:did|have|was|were)\s+i\s+(?:pay|paid|spend|spent|charged|been charged|get charged)\s+"
+                   r"(?:€\s*)?" + _NUM + r"\s*(?:€|e\b|eur\b|euros?\b)?", s)
+    if pm:
+        amt = _parse_amount(pm.group(1))
+        if amt and 0 < amt < 100000:
+            tol = round(max(1.0, amt * 0.1), 2)
+            sql = ("SELECT d, label, ROUND(-amount, 2) AS spent FROM tx WHERE amount < 0 AND d >= date('%s', '-12 months') "
+                   "AND ABS(-amount - %.2f) <= %.2f ORDER BY ABS(-amount - %.2f), d DESC LIMIT 5" % (today, amt, tol, amt))
+            return "explore_my_data", {"sql": sql}, {"near_amount": amt}
+
     # explicit SQL
     if re.match(r"^\s*select\s", message, re.I):
         return "explore_my_data", {"sql": message.strip().rstrip(";")}, {}
@@ -3180,6 +3191,15 @@ def _render(tool, res, args=None, hints=None):
             when = "today" if d == today else "on %s" % _day(d)
             return "%s: %s, all %s." % (what, _join(items), when)
         return "%s: %s." % (what, _join(["%s (%s)" % (it, _day(r.get("d"))) for it, r in zip(items, rows)]))
+
+    if tool == "explore_my_data" and hints.get("near_amount"):
+        rows = [r for r in (res.get("rows") or []) if isinstance(r, (list, tuple)) and len(r) >= 3][:3]
+        amt = _eur(hints["near_amount"])
+        if not rows:
+            return "I found no payment of about %s in the last 12 months." % amt
+        return ("Payments close to %s in the last 12 months: %s. Your data shows the type of purchase, not what it "
+                "was for, so check which one it was." % (amt, _join(["%s %s on %s" % (
+                    _item(r[1]), _eur_x(r[2]), _day(r[0])) for r in rows])))
 
     if tool == "explore_my_data":
         rows = res.get("rows") or []

@@ -193,6 +193,18 @@ class Bitcoin(Base):
         self.assertNotIn("of bitcoin can", r["reply"])
 
 
+class DidIPayAmount(Base):
+    def test_did_i_pay_an_amount_looks_for_that_amount(self):
+        r = self.ask("did I pay 12 for a ticket to the airport?")
+        self.assertEqual(r["tools_used"], ["explore_my_data"], r["reply"])
+        self.assertRegex(r["reply"], r"^(Payments close to €12 in the last 12 months: |I found no payment of about €12)")
+        self.assertNotIn("last month", r["reply"])
+
+    def test_nothing_near_the_amount(self):
+        r = self.ask("did I pay 98765 for a boat?")
+        self.assertEqual(r["reply"], "I found no payment of about €98,765 in the last 12 months.")
+
+
 class PaidMeBack(Base):
     def test_anna_is_a_name_in_english(self):
         self.assertFalse(self.coach.is_finnish("Did Anna pay me back?"))
