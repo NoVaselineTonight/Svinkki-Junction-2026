@@ -233,6 +233,8 @@
     var inApp = screen === 'home' || screen === 'conv';
     document.getElementById('top-actions').hidden = !inApp;
     document.getElementById('back-btn').hidden = screen !== 'conv';
+    // On the start page the question box is the way to start; "New" is only needed inside a conversation.
+    document.getElementById('new-btn').hidden = screen !== 'conv';
     document.body.classList.toggle('chat-screen', screen === 'conv');
     document.body.classList.toggle('home-screen', screen === 'home');
     document.getElementById('topbar-sub').textContent = inApp ? '' : (sub || '');
@@ -572,6 +574,7 @@
       return box;
     }
     var list = h('div', { role: 'list', class: 'tx-list' });
+    var hasFix = false;
     rows.forEach(function (r) {
       var amt = num(r.amount);
       // The row is named by what it was (Bar, Taxi, Groceries), not by the merchant's internal id.
@@ -580,20 +583,26 @@
       var sub = h('span', { class: 'tx-sub' }, fmtDate(r.d || r.ts) + (time ? ', ' + time : '') +
         (r.context === 'night_out' ? ' · Night out' : ''));
       var main = h('div', { class: 'tx-main' }, h('span', { class: 'tx-title' }, title), sub);
-      var line = h('div', { class: 'tx-line' }, main, h('span', { class: 'tx-amt' + (amt > 0 ? ' in' : '') }, money(amt, { plus: true, exact: true })));
+      var amtNode = h('span', { class: 'tx-amt' + (amt > 0 ? ' in' : '') }, money(amt, { plus: true, exact: true }));
+      // A purchase that can be recategorised is itself the button: no "Change category" link on every row.
+      var fixable = canRelabel(r);
+      var line = fixable
+        ? h('button', { type: 'button', class: 'tx-line tx-tap', 'aria-expanded': 'false', 'aria-label': title + ', ' + fmtDate(r.d || r.ts) + ', ' + money(amt, { exact: true }) + '. Change category' }, main, amtNode)
+        : h('div', { class: 'tx-line' }, main, amtNode);
       var item = h('div', { class: 'tx', role: 'listitem' }, line);
-      if (canRelabel(r)) {
+      if (fixable) {
         var holder = h('div', { class: 'tx-extra' });
-        var btn = h('button', { type: 'button', class: 'link-btn tx-fix', 'aria-label': 'Change category for ' + title + ' ' + fmtDate(r.d || r.ts) }, 'Change category');
-        btn.addEventListener('click', function () {
-          if (holder.firstChild) { holder.replaceChildren(); return; }
+        line.addEventListener('click', function () {
+          if (holder.firstChild) { holder.replaceChildren(); line.setAttribute('aria-expanded', 'false'); return; }
           categoryPicker(r, holder, opts);
+          line.setAttribute('aria-expanded', 'true');
         });
-        main.appendChild(btn);
         item.appendChild(holder);
+        hasFix = true;
       }
       list.appendChild(item);
     });
+    if (hasFix && !opts.bare) box.appendChild(h('p', { class: 'tiny' }, 'Wrong category? Tap the purchase to fix it.'));
     box.appendChild(list);
     return box;
   }
@@ -882,6 +891,33 @@
     return { main: main, more: extra };
   }
 
+  // The start page's view of last month: one split bar and the three baskets, each named with what goes in it.
+  // A basket with nothing in it still shows, because knowing the three kinds is the lesson.
+  function monthBaskets(d) {
+    var items = (d.baskets || []).filter(function (b) { return ['regular', 'unexpected', 'everyday'].indexOf(String(b.key)) >= 0; });
+    var total = items.reduce(function (s, b) { return s + Math.max(0, num(b.total)); }, 0);
+    if (!items.length || total <= 0) return null;
+    var stack = h('div', { class: 'stack', role: 'img', 'aria-label': items.map(function (b) {
+      return (b.name || BASKET_NAMES[basketKeyOf(b)]) + ' ' + pct(Math.max(0, num(b.total)) / total * 100);
+    }).join(', ') });
+    var list = h('div', { class: 'month-rows' });
+    items.forEach(function (b) {
+      var k = basketKeyOf(b);
+      var share = Math.max(0, num(b.total)) / total * 100;
+      var seg = h('span', { class: 'b-' + k });
+      seg.style.width = share + '%';
+      stack.appendChild(seg);
+      var name = b.name || BASKET_NAMES[k];
+      var row = h('button', { type: 'button', class: 'month-row', 'aria-label': name + ', ' + money(b.total) + '. See the transactions.' },
+        h('span', { class: 'dot b-' + k, 'aria-hidden': 'true' }),
+        h('span', { class: 'thing-text' }, h('b', null, name), h('span', { class: 'tiny' }, BASKET_BLURB[k] || '')),
+        h('span', { class: 'month-amt' }, euros(b.total)));
+      row.addEventListener('click', function () { openEvidence(b.evidence, name); });
+      list.appendChild(row);
+    });
+    return h('div', { class: 'month-card' }, stack, list);
+  }
+
   function animateNumber(el, to, ms) {
     var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) { el.textContent = money(to); return; }
@@ -1004,13 +1040,13 @@
   function accountCard(a) {
     var cur = a.current || {}, sav = a.savings || {};
     var btn = h('button', { type: 'button', class: 'acct-card', 'aria-label': 'Your accounts: current account balance ' + money(cur.balance, { exact: true }) },
-      h('span', { class: 'acct-top' }, h('span', { class: 'acct-name' }, cur.name || 'Current account'), h('span', { class: 'acct-num' }, cur.number || '')),
+      h('span', { class: 'acct-top' }, h('span', { class: 'acct-name' }, cur.name || 'Current account'), icon('chev', 18)),
       h('span', { class: 'acct-bal' }, money(cur.balance, { exact: true })),
       h('span', { class: 'acct-rows' },
-        h('span', { class: 'acct-row' }, h('span', null, sav.name || 'Savings and investments'), h('b', null, money(sav.balance, { exact: true }))),
-        a.safe_to_spend != null ? h('span', { class: 'acct-row' }, h('span', null, 'Safe to spend' + (a.next_payday ? ' until ' + fmtDate(a.next_payday) : '')),
-          h('b', null, num(a.safe_to_spend) > 0 ? money(a.safe_to_spend) : 'Nothing')) : null),
-      h('span', { class: 'acct-demo' }, 'Demo account · synthetic data'));
+        num(sav.balance) > 0 ? h('span', { class: 'acct-row' }, h('span', null, sav.name || 'Savings and investments'), h('b', null, money(sav.balance, { exact: true }))) : null,
+        // The coach's key number: what can go out before payday without missing a bill.
+        a.safe_to_spend != null ? h('span', { class: 'acct-row acct-safe' }, h('span', null, 'Safe to spend' + (a.next_payday ? ' until ' + fmtDate(a.next_payday) : '')),
+          h('b', null, num(a.safe_to_spend) > 0 ? money(a.safe_to_spend) : 'Nothing')) : null));
     btn.addEventListener('click', function () { openAccount(); });
     return btn;
   }
@@ -1300,7 +1336,7 @@
     var id = 'used-' + Math.random().toString(36).slice(2, 8);
     var body = h('div', { class: 'used-body', id: id, hidden: true });
     var btn = h('button', { type: 'button', class: 'act-btn', 'aria-expanded': 'false', 'aria-controls': id },
-      icon('list', 16), h('span', null, 'Transactions used (' + n + ')'), icon('chev', 16));
+      icon('list', 16), h('span', null, 'From ' + plural(n, 'transaction', 'transactions')), icon('chev', 16));
     used.forEach(function (g) {
       if (!g || typeof g !== 'object') return;
       var rows = Array.isArray(g.rows) ? g.rows : [];
@@ -2152,13 +2188,13 @@
     var head = node.querySelector('.card-head');
     if (!head) return;
     var title = cardTitleOf(node).slice(0, 80);
-    var b = h('button', { type: 'button', class: 'keep-btn', 'aria-label': 'Keep in Your things: ' + title }, icon('pin', 16), h('span', null, 'Keep'));
+    var b = h('button', { type: 'button', class: 'keep-btn', 'aria-label': 'Keep in Your things: ' + title, title: 'Keep in Your things' }, icon('pin', 18));
     b.addEventListener('click', function () {
       b.disabled = true;
       var data = c.data || {};
       if (!data.evidence && c.evidence) data = Object.assign({}, data, { evidence: c.evidence });
       api('/api/pins', { method: 'POST', body: { title: title, card: { type: c.type, data: data } } }).then(function (r) {
-        b.replaceWith(h('span', { class: 'kept-tag' }, icon('pin', 16), 'Kept'));
+        b.replaceWith(h('span', { class: 'kept-tag', title: 'Kept in Your things' }, icon('pin', 16), 'Kept'));
         var chip = thingChip({ id: r && r.id, kind: 'pin', title: (r && r.title) || title });
         if (after && after.parentNode) after.parentNode.insertBefore(chip, after.nextSibling);
         thingsChanged();
@@ -2405,15 +2441,54 @@
   }
 
   // ---------- HOME ----------
-  // What Svinkki can do, shown on the start page. q: asked right away. act: a tool. fill: starts the sentence for you.
-  var HOME_TOOLS = [
-    { label: 'Can I afford it?', hint: 'Check before you buy', act: 'afford', icon: 'wallet' },
-    { label: 'Where can I save?', hint: 'Ideas from your spending', q: 'How can I save more?', icon: 'coin' },
-    { label: 'Analyse receipts', hint: 'Down to single products', q: 'What do I buy most?', icon: 'receipt' },
-    { label: 'Plan a goal', hint: 'A trip, a home, a buffer', fill: 'I want to save for ', icon: 'target' },
-    { label: 'Until payday', hint: 'Your balance day by day', q: 'Will I make it to payday?', icon: 'calendar' },
-    { label: 'Explain a contract', hint: 'A loan or fund text', act: 'explain', icon: 'doc' }
+  // Example questions under the question box: written the way a customer would ask, so they show that a real
+  // question works. q: asked right away. act: a tool. fill: starts the sentence for you.
+  var SUGGEST = [
+    { label: 'What can I spend this week?', q: 'What is safe for me to spend this week?' },
+    { label: 'What kind of spender am I?', q: 'What kind of spender am I?' },
+    { label: 'Can I afford it?', act: 'afford' },
+    { label: 'How can I save more?', q: 'How can I save more?' }
   ];
+  // Short follow-ups after an answer, chosen by the answer's card. Every question is understood without a model.
+  var FOLLOW = {
+    spend: ['Where did my money go?', 'How can I save more?'],
+    overview: ['Where is my money leaking?', 'How can I save more?'],
+    baskets: ['Where is my money leaking?', 'What kind of spender am I?'],
+    safe_to_spend: ['Will I make it to payday?', 'Can I afford a 50 euro dinner?'],
+    forecast: ['What is safe for me to spend this week?', 'How should I split my next salary?'],
+    spender_type: ['How can I save more?', 'Where is my money leaking?'],
+    save_more: ['How much could I save if I reduced dining out by 20%?', 'Give me a challenge'],
+    what_if: ['How can I save more?', 'Give me a challenge'],
+    leaks: ['How can I save more?', 'Give me a challenge'],
+    afford: ['What is safe for me to spend this week?', 'Will I make it to payday?'],
+    goal_plan: ['How can I save more?', 'What is safe for me to spend this week?'],
+    receipts: ['What do I buy most?', 'How much do I spend on energy drinks?'],
+    receipt_insights: ['How much do I spend on energy drinks?', 'Show my receipts'],
+    mortgage: ['How can I save more?', 'What kind of spender am I?'],
+    invest: ['How can I save more?', 'What is safe for me to spend this week?']
+  };
+  var FOLLOW_DEFAULT = ['Where did my money go?', 'What is safe for me to spend this week?'];
+
+  // Two next questions for an answer: by its first card, never the question just asked. None for an answer
+  // without a card that only asks something back (a goal plan waiting for a yes, an amount to fill in).
+  function followUps(res, asked) {
+    var cards = (res && res.cards) || [];
+    var reply = String((res && res.reply) || '').trim();
+    if (!cards.length && /\?$/.test(reply)) return [];
+    var type = cards.length ? cards[0].type : '';
+    if (type === 'money_proposal' || type === 'help') return [];
+    // The examples are in English; a customer writing Finnish gets none rather than a language switch.
+    if (/[äöå]|\b(paljonko|mitä|mita|miten|onko|kuinka|voinko|minulla|minun|käytin|kaytin|entä|enta)\b/i.test(String(asked || ''))) return [];
+    var a =String(asked || '').toLowerCase().replace(/[?!.\s]+$/, '');
+    return (FOLLOW[type] || FOLLOW_DEFAULT).filter(function (q) { return q.toLowerCase().replace(/[?!.\s]+$/, '') !== a; }).slice(0, 2);
+  }
+
+  function suggestChips(list, onPick) {
+    return h('div', { class: 'chips suggest', role: 'group', 'aria-label': 'Example questions' }, list.map(function (it) {
+      if (typeof it === 'string') it = { label: it, q: it };
+      return h('button', { type: 'button', class: 'chip ready', onclick: function () { onPick(it); } }, it.label);
+    }));
+  }
 
   // A closed row on the start page that opens in place: title, one line of summary, the card inside.
   function fold(ico, title, summary, node) {
@@ -2467,35 +2542,44 @@
     setChrome('home');
     var t = token;
     var first = firstName();
-    var comp = composer('Ask Svinkki', 'Ask Svinkki a question', function (text) { openConversation({ message: text }); });
-    var askLink = h('button', { type: 'button', class: 'link-btn ask-link', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, icon('help', 18), 'Everything I can do');
-    var toolGrid = h('div', { class: 'tool-grid home-tools' }, HOME_TOOLS.map(function (it) {
-      return h('button', { type: 'button', class: 'tool', onclick: function () {
+    var comp = composer('Ask anything about your money', 'Ask Svinkki a question', function (text) { openConversation({ message: text }); });
+    var askLink = h('button', { type: 'button', class: 'link-btn ask-link', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, 'Goals, receipts, contracts and more', icon('chev', 16));
+    var suggest = h('div', { class: 'suggest-box' },
+      suggestChips(SUGGEST, function (it) {
         if (it.fill) { comp.set(it.fill); return; }
         openConversation({ entry: it });
-      } },
-        h('span', { class: 'tool-ico' }, icon(it.icon, 20)),
-        h('span', { class: 'tool-text' }, h('b', null, it.label), h('span', { class: 'tool-hint' }, it.hint)));
-    }));
-    var toolsBox = h('div', { class: 'home-sec' }, sectionHead('I can help with'), toolGrid, askLink);
-    var forYou = h('div', { class: 'for-you-cards', role: 'group', 'aria-label': 'Ready for you' });
+      }), askLink);
+    var monthBox = h('div', { class: 'home-sec', hidden: true });
+    var forYouList = h('div', { class: 'list-card for-you-list' });
+    var forYou = h('div', { class: 'home-sec for-you-cards', role: 'group', 'aria-label': 'Ready for you', hidden: true },
+      sectionHead('For you'), forYouList);
     var thingsBox = h('div', { class: 'home-sec', hidden: true });
     var convBox = h('div', { class: 'home-sec' });
     var acctBox = h('div', { class: 'acct-slot' });
-    var greetLine = h('p', { class: 'muted', 'aria-live': 'polite' }, 'Ask me anything about your money.');
+    var greetLine = h('p', { class: 'muted', 'aria-live': 'polite' }, 'Ask me anything about your money, even the hard questions.');
     viewEl.appendChild(h('div', { class: 'home' },
       acctBox,
       h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), greetLine),
-      comp.el, toolsBox, forYou, convBox, thingsBox));
+      comp.el, suggest, monthBox, forYou, convBox, thingsBox));
     api('/api/account').then(function (a) { if (alive(t) && a && a.current) acctBox.replaceChildren(accountCard(a)); }, function () {});
 
-    // Ready for you: the check-in, this week's quiz and anything worth a look, each closed until tapped.
+    // The brief's core lesson, always in view: last month in the three baskets. A row opens its transactions.
+    api('/api/baskets').then(function (d) {
+      if (!alive(t) || !d) return;
+      var node = monthBaskets(d);
+      if (!node) return;
+      monthBox.replaceChildren(sectionHead('Where your money went' + (d.period ? ' in ' + fmtPeriod(d.period) : '')), node);
+      monthBox.hidden = false;
+    }, function () {});
+
+    // Ready for you: the check-in, this week's quiz and anything worth a look, rows of one list, closed until tapped.
     var slots = { checkin: h('div'), quiz: h('div'), alerts: h('div') };
-    forYou.appendChild(slots.checkin); forYou.appendChild(slots.quiz); forYou.appendChild(slots.alerts);
     function place(key, node) {
       if (!alive(t) || !node) return;
       slots[key].replaceChildren(node);
-      if (!forYou.querySelector('.sec-head')) forYou.insertBefore(sectionHead('For you'), forYou.firstChild);
+      // Only filled rows are in the list, always in the same order, so the dividers sit between rows.
+      forYouList.replaceChildren.apply(forYouList, ['checkin', 'quiz', 'alerts'].map(function (k) { return slots[k]; }).filter(function (s) { return s.firstChild; }));
+      forYou.hidden = false;
     }
     api('/api/checkin').then(function (r) {
       if (!(r && r.due && r.checkin)) return;
@@ -2612,56 +2696,55 @@
     else if (opts.focus) chat.focus();
   }
 
-  // "What can I ask?": questions and tools. q: sent to the chat. act: something Svinkki does instead.
-  var ASK_TOOLS = [
-    { label: 'This week\'s quiz', act: 'quiz', icon: 'help' },
-    { label: 'My check-in', act: 'checkin', icon: 'calendar' },
-    { label: 'Can I afford it?', act: 'afford', icon: 'wallet' },
-    { label: 'What if I spent less?', act: 'whatif', icon: 'sliders' },
-    { label: 'Compare with others', act: 'typical', icon: 'people' },
-    { label: 'Browse transactions', act: 'browse', icon: 'list' },
-    { label: 'Read a receipt', act: 'receipt', icon: 'receipt' },
-    { label: 'Explain a text', act: 'explain', icon: 'doc' }
-  ];
+  // "What can I ask?": topics that open to example questions and tools. q: sent to the chat. act: something
+  // Svinkki does instead. The questions match coach.help_groups (a test checks it); each tool sits in its topic.
   var ASK_GROUPS = [
-    { title: 'My spending', items: [
+    { title: 'My spending', icon: 'list', hint: 'Where it went, in your three baskets', items: [
       { q: 'How much did I spend on taxis last month?' },
       { q: 'Where did my money go?' },
       { q: 'Show my three baskets for last month' },
-      { q: 'What was my latest purchase?' }
+      { q: 'What was my latest purchase?' },
+      { label: 'Browse my transactions', act: 'browse' }
     ] },
-    { title: 'Can I afford it?', items: [
+    { title: 'Can I afford it?', icon: 'wallet', hint: 'Before you buy, and until payday', items: [
       { q: 'What is safe for me to spend this week?' },
       { q: 'Can I afford a 300 euro jacket?' },
       { q: 'Will I make it to payday?' },
-      { q: 'How should I split my next salary?' }
+      { q: 'How should I split my next salary?' },
+      { label: 'Check a purchase of my own', act: 'afford' }
     ] },
-    { title: 'Save and plan', items: [
+    { title: 'Save and plan', icon: 'coin', hint: 'Saving, a home loan, investing', items: [
       { q: 'How can I save more?' },
       { q: 'How much could I save if I reduced dining out by 20%?' },
       { q: 'What kind of mortgage can I get approved for?' },
-      { q: 'What should I invest in?' }
+      { q: 'What should I invest in?' },
+      { label: 'Try cutting a category with sliders', act: 'whatif' }
     ] },
-    { title: 'Set something up', items: [
+    { title: 'Set something up', icon: 'target', hint: 'A goal, a challenge, a note, the quiz', items: [
       { q: 'I am saving 4000 euros for Japan by June 2027' },
       { q: 'Give me a challenge' },
-      { q: 'Remember that my rent goes up in January' }
+      { q: 'Remember that my rent goes up in January' },
+      { label: 'This week\'s quiz', act: 'quiz' },
+      { label: 'My monthly check-in', act: 'checkin' }
     ] },
-    { title: 'Compared with others', items: [
+    { title: 'Compared with others', icon: 'people', hint: 'Only when you ask', items: [
       { q: 'What kind of spender am I?' },
       { q: 'Is my taxi spending normal?' },
       { q: 'How do I compare with people my age?' },
-      { q: 'What is my area like?' }
+      { q: 'What is my area like?' },
+      { label: 'Compare a category with others', act: 'typical' }
     ] },
-    { title: 'Leaks and habits', items: [
+    { title: 'Leaks and habits', icon: 'flag', hint: 'Small costs that add up', items: [
       { q: 'Where is my money leaking?' },
       { q: 'Anything unusual this month?' },
       { q: 'Any spending patterns?' }
     ] },
-    { title: 'My receipts', items: [
+    { title: 'My receipts', icon: 'receipt', hint: 'Single products, and loan or fund texts', items: [
       { q: 'What do I buy most?' },
       { q: 'How much do I spend on energy drinks?' },
-      { q: 'Show my receipts' }
+      { q: 'Show my receipts' },
+      { label: 'Read a receipt I paste', act: 'receipt' },
+      { label: 'Explain a loan or fund text', act: 'explain' }
     ] }
   ];
 
@@ -2818,8 +2901,18 @@
     var msgs = h('div', { class: 'msgs', role: 'log', 'aria-label': 'Conversation' });
     var busy = false;
     var shown = {};    // key -> thread message already holding that card
-    var comp = composer('Ask Svinkki', 'Your question', function (text) { send(text); });
-    var askBtn = h('button', { type: 'button', class: 'link-btn ask-link', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, icon('help', 18), 'What can I ask?');
+    var comp = composer('Ask anything about your money', 'Your question', function (text) { send(text); });
+    var askBtn = h('button', { type: 'button', class: 'icon-btn ask-btn', 'aria-haspopup': 'dialog', 'aria-label': 'What can I ask?', title: 'What can I ask?', onclick: function () { openAsk(); } }, icon('help', 22));
+    comp.el.insertBefore(askBtn, comp.el.firstChild);
+    var follow = null;   // the follow-up chips under the latest answer; only one set at a time
+    function dropFollow() { if (follow) { follow.remove(); follow = null; } }
+    function addFollow(m, list) {
+      dropFollow();
+      if (!list || !list.length) return;
+      follow = suggestChips(list, function (it) { dropFollow(); ask(it.q); });
+      follow.classList.add('follow');
+      m.appendChild(follow);
+    }
 
     function toBottom() { msgs.scrollTop = msgs.scrollHeight; }
     // Show the START of a message, not the end of a long card.
@@ -2841,6 +2934,7 @@
       if (!text || busy) return;
       if (isHelpRequest(text)) { openAsk(); return; }
       busy = true; comp.setBusy(true);
+      dropFollow();
       // A pasted receipt shows as one short line, not the whole text.
       userBubble(/^Receipt:\n/.test(text) ? 'Read this receipt (' + plural(text.split('\n').length - 1, 'line', 'lines') + ')' : text);
       var wait = h('div', { class: 'msg bot' }, h('div', { class: 'bot-text' }, h('span', { class: 'typing', role: 'status', 'aria-label': 'Svinkki is thinking' }, h('i'), h('i'), h('i'))));
@@ -2860,7 +2954,9 @@
           localConv.turns.push({ user: text, reply: res.reply, cards: res.cards, used: res.used, mode: res.mode, notice: res.notice });
           localConv.updated = new Date().toISOString();
         }
-        toStartOf(botReply(res));
+        var m = botReply(res);
+        addFollow(m, followUps(res, text));
+        toStartOf(m);
       }, function (e) {
         wait.remove();
         if (e.handled) return;
@@ -2902,6 +2998,7 @@
 
     // A card the coach "sends" on request. key: one copy per card; asking again scrolls back to it.
     function insertCard(key, build) {
+      dropFollow();
       var old = shown[key];
       if (old && document.contains(old)) { toStartOf(old); return old; }
       var holder = h('div', { class: 'msg-cards' });
@@ -2972,8 +3069,18 @@
 
     function start() {
       var first = firstName();
-      botText(h('div', { class: 'rich intro' },
-        h('p', null, 'Hi' + (first ? ' ' + first : '') + '! I\'m Svinkki, your money coach. Ask me anything, or tell me about a goal.')));
+      var m = botText(h('div', { class: 'rich intro' },
+        h('p', null, 'Hi' + (first ? ' ' + first : '') + '! Ask me anything about your money, or tell me about a goal. I answer from your own transactions.')));
+      // An empty conversation shows the same examples as the start page, so it is clear what to ask.
+      if (!opts.message && !opts.entry && !opts.insert) {
+        follow = suggestChips(SUGGEST, function (it) {
+          dropFollow();
+          if (it.fill) { comp.set(it.fill); return; }
+          runAsk(it);
+        });
+        follow.classList.add('follow');
+        m.appendChild(follow);
+      }
     }
 
     function renderTurns(turns) {
@@ -3002,7 +3109,7 @@
     }
 
     var el = h('div', { class: 'chat' }, h('h1', { class: 'sr-only' }, 'Conversation with Svinkki'), msgs,
-      h('div', { class: 'chat-foot' }, askBtn, comp.el));
+      h('div', { class: 'chat-foot' }, comp.el));
     return {
       el: el, start: start, send: send, ask: ask, insert: insert, openExplain: openExplain, loadHistory: loadHistory,
       focus: function () { comp.input.focus(); }, setAiHint: function () {}
@@ -3022,21 +3129,18 @@
 
   function openAsk() {
     var body = openSheet('Everything I can do', { full: true });
-    body.appendChild(h('p', { class: 'muted' }, 'Tap one to start. Or type your own question, in English or Finnish.'));
-    var tools = h('div', { class: 'tool-grid' });
-    ASK_TOOLS.forEach(function (it) {
-      tools.appendChild(h('button', { type: 'button', class: 'tool', onclick: function () { closeSheet(); runAsk(it); } },
-        h('span', { class: 'tool-ico' }, icon(it.icon, 20)), h('span', null, it.label)));
-    });
-    body.appendChild(h('div', { class: 'ask-sec' }, h('h3', null, 'Tools'), tools));
+    body.appendChild(h('p', { class: 'muted' }, 'These are examples. Ask in your own words, in English or Finnish.'));
+    // One closed row per topic; opening one shows its questions, so the sheet starts short.
+    var topics = h('div', { class: 'list-card ask-topics' });
     ASK_GROUPS.forEach(function (g) {
-      var list = h('div', { class: 'list-card' });
+      var list = h('div', { class: 'ask-list' });
       g.items.forEach(function (it) {
-        list.appendChild(h('button', { type: 'button', class: 'ask-entry', onclick: function () { closeSheet(); runAsk(it); } },
+        list.appendChild(h('button', { type: 'button', class: 'ask-entry' + (it.act ? ' ask-tool' : ''), onclick: function () { closeSheet(); runAsk(it); } },
           h('span', null, it.label || it.q), icon('chev', 16)));
       });
-      body.appendChild(h('div', { class: 'ask-sec' }, h('h3', null, g.title), list));
+      topics.appendChild(fold(g.icon || 'help', g.title, g.hint, list));
     });
+    body.appendChild(topics);
   }
 
   // ---------- transactions browser ----------
@@ -3240,7 +3344,7 @@
         flash('Saved.');
       }, function (e) { if (!e.handled) flash(e.message, true); });
     });
-    var ck = sec('How often I check in', true);
+    var ck = sec('How often I check in');
     ck.appendChild(pc.el);
     ck.appendChild(saved);
 
