@@ -22,7 +22,7 @@ from pathlib import Path
 from app import classify
 
 _REPO = Path(__file__).resolve().parent.parent
-DEFAULT_DATA_DIR = "C:/Users/onnik/Desktop/Junction-2026-S-pankki-filtered"
+DEFAULT_DATA_DIR = "dataset"  # same default as app.config; relative to the repository root
 DEFAULT_TODAY = "2026-09-26"
 BATCH = 50_000
 MIN_GROUP = 20
@@ -58,7 +58,8 @@ def _cfg(fn: str, env: str, default: str) -> str:
 
 
 def _data_dir() -> str:
-    return _cfg("data_dir", "SVINKKI_DATA_DIR", DEFAULT_DATA_DIR)
+    p = Path(_cfg("data_dir", "SVINKKI_DATA_DIR", DEFAULT_DATA_DIR))
+    return str(p if p.is_absolute() else _REPO / p)
 
 
 def _today() -> str:
@@ -774,7 +775,13 @@ def main(argv=None) -> int:
     ap.add_argument("--out", default=None)
     ap.add_argument("--customers", type=int, default=None, help="only the first N customers")
     args = ap.parse_args(argv)
-    result = build(args.data_dir or _data_dir(), args.out or _default_out(), args.customers)
+    data_dir = args.data_dir or _data_dir()
+    if not os.path.isdir(data_dir):
+        print(f"[ingest] dataset folder not found: {data_dir}\n"
+              "Put the challenge CSV files there, or point SVINKKI_DATA_DIR (environment or .env) "
+              "or --data-dir at the folder that holds them.", file=sys.stderr, flush=True)
+        return 2
+    result = build(data_dir, args.out or _default_out(), args.customers)
     print(result)
     return 0
 

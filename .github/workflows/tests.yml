@@ -1,0 +1,27 @@
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # No dataset and no key in CI: the suite builds its own invented data, the coach uses the built-in rules.
+      ANTHROPIC_API_KEY: ""
+      GEMINI_API_KEY: ""
+      SVINKKI_AI_KEY_FILE: /nonexistent
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Run the test suite
+        run: python -m unittest discover -s tests

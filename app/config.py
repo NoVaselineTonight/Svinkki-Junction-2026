@@ -6,7 +6,7 @@ import re
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 DEFAULTS = {
-    "SVINKKI_DATA_DIR": "C:/Users/onnik/Desktop/Junction-2026-S-pankki-filtered",
+    "SVINKKI_DATA_DIR": "dataset",
     "SVINKKI_DB": "data/svinkki.db",
     "SVINKKI_STATE_DB": "data/state.db",
     "SVINKKI_TODAY": "2026-09-26",
