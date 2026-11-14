@@ -820,7 +820,7 @@
     viewEl.appendChild(h('div', { class: 'welcome' },
       h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'),
       h('p', null, 'I\'m Svinkki, your money coach. I read your own transactions to answer your questions. An AI helps with the wording; it never sees your name or account.'),
-      h('p', { class: 'muted' }, 'I never move money. You can change these choices any time in Settings.'),
+      h('p', { class: 'muted' }, 'Money only moves when you approve it, and only to your own S-Bank savings or funds. You can change these choices any time in Settings.'),
       go, hint, status, choose.el));
   }
 
@@ -958,8 +958,13 @@
 
   function checkinCard(c) {
     var sec = cardShell('Your check-in', fmtPeriod(c.period));
-    keyFig(sec, money(c.surplus), num(c.surplus) >= 0 ? 'left over' : 'more out than in');
-    addRows(sec, [['Money in', money(c.income)], ['Spent', money(c.spent)]]);
+    // A week without a payday has no "money in": show what was spent, not a shortfall against nothing.
+    if (num(c.income) > 0) {
+      keyFig(sec, money(c.surplus), num(c.surplus) >= 0 ? 'left over' : 'more out than in');
+      addRows(sec, [['Money in', money(c.income)], ['Spent', money(c.spent)]]);
+    } else {
+      keyFig(sec, money(c.spent), 'spent');
+    }
     var sug = c.suggestions || [];
     if (sug.length) sec.appendChild(suggestionBlock(sug[0]));
     var hl = (c.highlights || []).filter(Boolean);
@@ -2480,13 +2485,14 @@
       var c = r.checkin, sur = num(c.surplus);
       var when = fmtPeriod(c.period);
       // One line that shows the coach has looked at this customer's own month.
-      if (alive(t) && when && (num(c.income) > 0 || num(c.spent) > 0)) {
+      if (alive(t) && when && num(c.income) > 0) {
         greetLine.textContent = sur >= 0
           ? 'You kept ' + money(sur) + ' in ' + when + '. What shall we look at?'
           : 'In ' + when + ' ' + money(-sur) + ' more went out than came in. Shall we look at why?';
       }
       place('checkin', fold('calendar', 'Your check-in',
-        (sur >= 0 ? money(sur) + ' left over' : money(-sur) + ' more out than in') + (when ? ' · ' + when : ''), checkinCard(c)));
+        (num(c.income) <= 0 ? money(c.spent) + ' spent' : (sur >= 0 ? money(sur) + ' left over' : money(-sur) + ' more out than in')) +
+        (when ? ' · ' + when : ''), checkinCard(c)));
     }, function () {});
     api('/api/quiz').then(function (q) {
       if (q && q.quiz_id) place('quiz', fold('help', 'Weekly quiz', 'One guess about your own spending', quizCard(q)));
@@ -2997,7 +3003,7 @@
   }
 
   function openAsk() {
-    var body = openSheet('What can I ask?', { full: true });
+    var body = openSheet('Everything I can do', { full: true });
     body.appendChild(h('p', { class: 'muted' }, 'Tap one to start. Or type your own question, in English or Finnish.'));
     var tools = h('div', { class: 'tool-grid' });
     ASK_TOOLS.forEach(function (it) {

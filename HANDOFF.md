@@ -51,7 +51,10 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
 - The coach's picture of the customer also holds their spending habits (busiest weekday, the days after
   payday), charges that repeat every month (category and amount, never the merchant) and what the grocery
   receipts show (biggest group, treats a month, most-bought product; marked as simulated).
-- Tests: `Ran 727 tests ... OK`.
+- The welcome screen no longer says "I never move money" (untrue since in-app moves); a check-in for a week
+  without a payday shows what was spent instead of "€0 in"; the status of the minor evaluation findings is
+  written at the top of the Minor list in `docs/EVALUATION.md` (open: D13, D14, D15).
+- Tests: `Ran 730 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 
