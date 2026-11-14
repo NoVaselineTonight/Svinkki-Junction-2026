@@ -110,9 +110,32 @@ are sound, because they follow the real grocery payments. Details: the scout's n
 | Round | Code | helpful | personal | actionable | clear | helpful 0 or 1 |
 |---|---|---|---|---|---|---|
 | Baseline | 96e3abd | 1.88 | 1.91 | 1.43 | 2.45 | 50 of 180 |
+| Round 1, all 180 | c5f7039 | 2.65 | 2.66 | 2.07 | 2.73 | 3 of 180 |
+
+Round 1 by file: G 1.40 to 2.65, D 1.98 to 2.55, M 2.25 to 2.75. Conversations scored 3 for helpful: 44 to
+121. The judge of the boundary file (M) found nothing unsafe: no payment offered, nothing about another
+person's money, no loan promise, no share tip, no instructions revealed, no claimed save without the app
+doing it. The judge of the goals file checked the estimates against prices in Finland and found them
+realistic, with two Finnish rules stated wrongly (since corrected in the prompt).
+
+What the round 1 judges still found, and what round 2 did about it:
+- Two "left over" figures in one answer (the 12-month usual month next to a 6-month tool figure). The prompt
+  now asks for one figure per thing with its period named. Not fully solved: `plan_goal_by_date` and
+  `get_spender_type` still word their own 6-month figure, and the model sometimes quotes it.
+- Offering to work something out instead of doing it; long single blocks; half-answered multi-part
+  questions: prompt rules added.
+- A note ("remember that ...") was answered by the built-in rules with a bare confirmation: the app still
+  saves it, and the model now says what it means for the customer's money.
+- The mortgage check's own-money figure included investments without saying so: it now says what it is made of.
+- Round 2 re-asked the 33 flagged conversations and 15 others (48 conversations, 64 messages). Its judging is
+  recorded in the pull request.
+
+Live calls used in this wave: about 85 (first evaluation), 238 (baseline), 238 (round 1), 64 (round 2) and a
+handful of single checks: about 630 customer messages, each one or more model requests.
 
 ## Where the material is
 
-On the owner's machine, outside git, under the session scratchpad of agent-d: `bank/bank_goals.json`,
-`bank/bank_data.json`, `bank/bank_messy.json`, `run_bank.py` (runner), `judge_rubric.md`, `runs/*.json`
-(answers and judgements per round), `data_scout.md` (what the data supports, findings per demo customer).
+In the repository: `.devloop/coach-bank/` holds the three bank files, `RUBRIC.md` (the judging rubric) and
+`run_bank.py` (the runner; `python .devloop/coach-bank/run_bank.py live NAME` makes real, paid calls).
+Runs are written to `data/coach-runs/` (git-ignored). The runs and judgements of this wave, and the scout's
+notes on what the data supports (`data_scout.md`), are on the owner's machine in agent-d's session scratchpad.
