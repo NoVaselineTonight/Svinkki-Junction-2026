@@ -2558,6 +2558,8 @@
   // Two next questions for an answer: by its first card, never the question just asked. None for an answer
   // without a card that only asks something back (a goal plan waiting for a yes, an amount to fill in).
   function followUps(res, asked) {
+    if (res && Array.isArray(res.followups) && res.followups.length) return res.followups.slice(0, 3);
+    // Fallback when the server sends none (the built-in rules): a fixed table by the answer's first card.
     var cards = (res && res.cards) || [];
     var reply = String((res && res.reply) || '').trim();
     if (!cards.length && /\?$/.test(reply)) return [];

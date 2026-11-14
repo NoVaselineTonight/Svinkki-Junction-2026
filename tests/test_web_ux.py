@@ -208,5 +208,17 @@ class ExactAmountTests(unittest.TestCase):
         self.assertIn("exact ? money(v, EXACT) : null", body)
 
 
+class ServerFollowUpTests(unittest.TestCase):
+    """The model writes 0-3 follow-ups in the customer's language (/api/chat `followups`, PR 32); they win."""
+
+    def test_server_followups_come_first_and_the_table_is_the_fallback(self):
+        js = _read("app.js")
+        fu = _fn(js, "function followUps(res, asked)")
+        first = fu.splitlines()[1].strip()
+        self.assertEqual(first, "if (res && Array.isArray(res.followups) && res.followups.length) return res.followups.slice(0, 3);")
+        self.assertIn("FOLLOW[type] || FOLLOW_DEFAULT", fu, "the static table stays as the fallback")
+        self.assertLess(fu.index("res.followups"), fu.index("paljonko"), "Finnish follow-ups from the server pass")
+
+
 if __name__ == "__main__":
     unittest.main()
