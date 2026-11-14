@@ -77,10 +77,22 @@ class NoteChatTests(unittest.TestCase):
         self.assertTrue(r["reply"].startswith("Selvä, pidän mielessä:"))
 
     def test_with_a_model_the_app_still_keeps_the_note_itself(self):
-        fake = fc.FakeClaude([fc.cl_text("should not be asked")])
+        """The app saves the note itself, before and whatever the model does. The model is then asked what the
+        note means for the customer's money, and is told that the note is already saved."""
+        fake = fc.FakeClaude([fc.cl_text("I'll keep that in mind. A December bonus could cover your winter gap.")])
         with fc.patched_claude(fake):
             r = self.coach.chat("Remember that I get a bonus in December", [], self.ctx(ai=True))
-        self.assertEqual(fake.calls, 0, "no model call is needed to keep a note")
+        self.assertEqual(self.saved, ["I get a bonus in December"])
+        self.assertEqual(fake.calls, 1)
+        system = fake.requests[0]["system"][1]["text"]
+        self.assertIn("the app has ALREADY saved it", system)
+        self.assertIn("I get a bonus in December", system)       # the new note is in the customer picture
+        self.assertEqual(r["reply"], "I'll keep that in mind. A December bonus could cover your winter gap.")
+        # the model fails: the note is still saved and the app's own confirmation is shown
+        self.saved.clear()
+        fake = fc.FakeClaude([fc.http_error(500)] * 5)
+        with fc.patched_claude(fake):
+            r = self.coach.chat("Remember that I get a bonus in December", [], self.ctx(ai=True))
         self.assertEqual(self.saved, ["I get a bonus in December"])
         self.assertIn("Noted", r["reply"])
 

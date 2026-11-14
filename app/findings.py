@@ -15,7 +15,8 @@ _MONEY = re.compile(r"€\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?")
 # (source, weights for its sentences in order). Higher = said earlier. Chosen so that what threatens the
 # customer's balance comes first, then what changed, then habits and receipts.
 _WEIGHTS = {
-    "season": (5.5, 3.6, 3.3),
+    "season": (5.5, 3.6, 3.3),             # the coming months cost more than came in last year: a warning
+    "season_ok": (2.4, 2.0, 1.8),          # the same view when those months went fine: good to know, not urgent
     "long_view": (5.0, 4.4, 3.4, 3.0, 2.8),
     "low_points": (4.8, 4.0, 3.1, 2.9),
     "cushion": (2.6, 2.3, 2.0),            # the same view for someone who never goes below zero
@@ -93,7 +94,11 @@ def pool(conn, today, habit_seed=None, goal=None):
     if trends is not None:
         so = _safe(trends.season_outlook, conn, today)
         if so.get("relevant", True):
-            add("season", _sentences(so))
+            try:
+                gap = float((so.get("last_year") or {}).get("gap") or 0)
+            except (TypeError, ValueError):
+                gap = 0.0
+            add("season" if gap > 0 else "season_ok", _sentences(so))
         add("long_view", _sentences(_safe(trends.money_story, conn, today)))
         add("unusual_month", _sentences(_safe(trends.explain_month, conn, today)))
     if receipts is not None:

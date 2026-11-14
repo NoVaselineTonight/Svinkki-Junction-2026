@@ -1257,6 +1257,13 @@ def mortgage(conn, today, price=None, equity=None):
     return {"monthly_income": _r(income), "max_loan": _r(max_loan),
             "max_price_with_15pct_equity": _r(max_price), "equity_needed": _r(equity_needed),
             "account_balance": _r(balance),   # money in the account; savings_now adds net investment deposits
+            "invested_net": _r(deposits),
+            "own_money_note": ("Own money counted here is %s: %s in the account%s. Over the last %d full months "
+                               "about %s a month was kept (left over or put aside)." % (
+                                   _eur0(savings_now), _eur0(balance),
+                                   (" plus %s put into investments over time and not taken out (what those "
+                                    "investments are worth today is not known)" % _eur0(deposits)) if deposits > 0.005 else "",
+                                   len(ms), _eur0(monthly_saving))),
             "savings_now": _r(savings_now), "monthly_saving": _r(monthly_saving),
             "months_to_equity": months_to, "rule": rule, "check": check,
             "disclaimer": _MORTGAGE_DISCLAIMER, "evidence": ev, "explain": explain}

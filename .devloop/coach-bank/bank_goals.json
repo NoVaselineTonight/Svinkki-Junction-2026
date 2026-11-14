@@ -1,0 +1,679 @@
+[
+ {
+  "id": "G-001",
+  "category": "trip_unknown_price",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "I'd like to travel to China with my family. What would a 4 person trip cost?",
+   "ok and what if we only go for 10 days and skip the expensive hotels?"
+  ],
+  "needs": "A rough total for 4 people for ~2 weeks (flights, hotels, food, local travel, visas/insurance) with a low-high range, then compared to Mikko's usual monthly leftover and how to fund it. Must not just ask the customer for the price.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-002",
+  "category": "trip_unknown_price",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "how much would a week in Thailand cost me",
+   "and if I go for two weeks instead?"
+  ],
+  "needs": "A rough per-person cost for a week (flights from Helsinki, accommodation, food, activities) then the two-week figure with what changes (flight cost stays, daily costs double), tied to how fast Veeti could save it given he spends nearly all he earns.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-003",
+  "category": "trip_unknown_price",
+  "lang": "fi",
+  "persona": "Aino",
+  "turns": [
+   "Haluaisin lähteä Japaniin kolmeksi viikoksi ensi keväänä. Paljonko se maksaa ja onko mulla siihen varaa?"
+  ],
+  "needs": "Karkea hinta-arvio (lennot, majoitus, ruoka, junalippu) vaihteluvälinä ja kuukausisäästö jonka Ainon tavanomainen säästämisvauhti riittää kattamaan ennen kevättä.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-004",
+  "category": "trip_unknown_price",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "My wife and I would like a Mediterranean cruise next summer. We have never done one. What does it usually cost and can we manage it on our pension?"
+  ],
+  "needs": "Typical price range for a 7-night cruise for two (cabin, extras, flights, travel insurance) and a comparison against Pentti's careful monthly surplus, with a gentle suggestion of how to set aside money.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-005",
+  "category": "trip_unknown_price",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "me and 3 friends want to do interrailing for 2 weeks after graduation. how much money do I need to save"
+  ],
+  "needs": "Rough budget per person (Interrail pass, hostels, food, extras) with low-high range, and a realistic plan given Joonas often has near-zero balance before payday, e.g. a small monthly amount into a separate pot.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-006",
+  "category": "trip_unknown_price",
+  "lang": "fi",
+  "persona": "Helmi",
+  "turns": [
+   "Jos haluaisin viedä lapset Lappiin joulun alla viikoksi, paljonko se tulis maksamaan? Ollaan 3 henkeä."
+  ],
+  "needs": "Arvio viikon Lapin-matkasta kolmelle (majoitus mökki/hotelli, ohjelmapalvelut, ruoka, matka) vaihteluvälinä ja miten se sopii Helmin asuntohaaveen rinnalle.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-007",
+  "category": "big_purchase_unknown_price",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "I want to buy a used car. No idea what's reasonable. What should I expect to pay and what will it cost to run per month?",
+   "ok so is it actually cheaper than taxis for me? be honest"
+  ],
+  "needs": "Typical used-car price bands (e.g. 6-15k), plus monthly running cost in Finland (insurance, fuel, tax, inspection, tyres, depreciation) and whether Veeti's taxi/fuel spending suggests a car would pay off.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-008",
+  "category": "big_purchase_unknown_price",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Thinking about an e-bike for commuting. What do they cost and would it pay for itself vs my current transport spending?"
+  ],
+  "needs": "Price range for decent e-bikes (about 1,500-3,500 euros) plus lock/service costs, compared against Aino's actual monthly transport spend to give a payback period.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-009",
+  "category": "big_purchase_unknown_price",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "My daughter is getting married next year and we will pay for most of it. What does a wedding in Finland cost these days?",
+   "And how should I fund that without touching our savings?"
+  ],
+  "needs": "Typical Finnish wedding cost range for ~60-100 guests with main components, then a funding plan based on Mikko's monthly surplus and timeline, with a note on options like saving monthly versus a small loan.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-010",
+  "category": "big_purchase_unknown_price",
+  "lang": "fi",
+  "persona": "Mikko",
+  "turns": [
+   "Meillä pitäis remontoida kylpyhuone. Mitä se yleensä maksaa ja kannattaako ottaa laina vai maksaa säästöistä?"
+  ],
+  "needs": "Kylpyhuoneremontin tyypillinen hintahaarukka Suomessa (n. 8000-20000 e, märkätilaremontti vaatii pätevän tekijän), ja vertailu Mikon tulojen ja säästöjen valossa lainan ja säästöistä maksamisen välillä.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-011",
+  "category": "big_purchase_unknown_price",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "We want a dog. How much does it really cost per month and per year, and can I fit it in?"
+  ],
+  "needs": "Realistic dog costs in Finland (food, insurance, vet, registration, gear, one-off purchase) as monthly/yearly figures, then how that sits against Helmi's current budget given her home-saving goal.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-012",
+  "category": "big_purchase_unknown_price",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "How much does it cost to move out of my parents place? I am 18 and have no idea"
+  ],
+  "needs": "Breakdown of first-move costs (deposit around 1-2 months rent, furniture, internet, electricity, home insurance, moving) and monthly costs for a small rental, compared to Joonas's income, with an honest note on what is not yet affordable.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-013",
+  "category": "big_purchase_unknown_price",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "I'm considering a masters year abroad, maybe Netherlands or Sweden. What would it cost in total and how long would I need to save?"
+  ],
+  "needs": "Rough annual cost (tuition for non-EU/EU status, rent, food, travel) with ranges for both countries, noting grants such as Finnish student financial aid abroad, then how many months of Aino's savings pace that equals.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-014",
+  "category": "big_purchase_unknown_price",
+  "lang": "fi",
+  "persona": "Veeti",
+  "turns": [
+   "Me odotetaan tyttöystävän kanssa vauvaa. Paljonko vauvan ensimmäinen vuosi maksaa ja miten mun pitäis valmistautua kun mä en oo säästänyt mitään"
+  ],
+  "needs": "Realistic estimate of first-year baby costs in Finland (hankinnat, vaipat, ruoka, vaatteet, vanhempainvapaan tulonmenetys), ja konkreettinen suunnitelma jolla Veeti pystyy vähentämään menojaan ja säästämään ennen syntymää omien menojensa pohjalta. Sävy ei saa olla tuomitseva.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-015",
+  "category": "big_purchase_unknown_price",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "Should I get a new heat pump for the summer cottage? What does one cost and what does it save?"
+  ],
+  "needs": "Typical installed price of an air-to-air heat pump in Finland (about 1,500-3,000 euros), typical running savings, and whether Pentti's careful finances can absorb it, with a payback estimate.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-016",
+  "category": "afford_tradeoff",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "Can I afford to buy a new iPhone? It's about 1100",
+   "ok do the saving plan then, how much per month"
+  ],
+  "needs": "A direct answer based on Veeti's actual leftover, balance and tendency to spend everything, with options (instalments vs saving 2-3 months vs cheaper phone) and the true cost of instalment payments.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-017",
+  "category": "afford_tradeoff",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "Buy vs lease for a new car? We are looking at a 45,000 euro electric car. Which makes more sense for us?"
+  ],
+  "needs": "A plain comparison of buying (depreciation, loan interest) versus leasing/subscription in Finland (monthly cost, mileage limits, no ownership) with approximate monthly figures and a verdict tied to Mikko's income and existing big bills.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-018",
+  "category": "afford_tradeoff",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Should I pay down my student loan faster or put the money towards the down payment fund?"
+  ],
+  "needs": "A trade-off explanation comparing the student loan interest rate (typically low) versus the benefit of reaching the 10-15% down payment sooner, with an amount-based suggestion from Helmi's actual monthly leftover.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-019",
+  "category": "afford_tradeoff",
+  "lang": "fi",
+  "persona": "Aino",
+  "turns": [
+   "Pitäisikö mun maksaa opintolainaa pois vai sijoittaa ne rahat rahastoon?",
+   "Entä jos korot nousee?"
+  ],
+  "needs": "Selkeä vertailu: opintolainan korko verrattuna rahastojen pitkän aikavälin tuottoodotukseen ja riskiin, Ainon nykyinen säästö huomioiden; sitten miten koron nousu vaikuttaisi (vaihtuvakorkoinen laina vs. kiinteä).",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-020",
+  "category": "afford_tradeoff",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "Is it smarter to pay off the mortgage early or invest the extra money?"
+  ],
+  "needs": "A balanced comparison of guaranteed saving from mortgage interest versus expected investment return and risk, using Mikko's actual cash flow and an approximate break-even idea; not personalised regulated advice but clear reasoning.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-021",
+  "category": "afford_tradeoff",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Rent vs buy, I'm so confused. I pay rent now and everyone tells me renting is throwing money away. Is it?"
+  ],
+  "needs": "A myth-busting explanation (rent vs ownership costs: loan interest, maintenance charge, property transfer tax, repairs) with Helmi's real rent and an estimate of what owning a similar flat would cost per month.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-022",
+  "category": "afford_tradeoff",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "got offered a cheaper phone plan but a 24 month contract. worth it?",
+   "what about buying the phone in installments instead?"
+  ],
+  "needs": "A short plain answer on contract versus no-contract costs over 24 months, then why instalments on a phone are costly for someone often near zero before payday, with a concrete cheaper alternative.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-023",
+  "category": "afford_tradeoff",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "My son says I should take a reverse mortgage on the house to help him buy a flat. What do you think?"
+  ],
+  "needs": "A cautious plain explanation of what a reverse mortgage / home-based loan means in Finland, risks and costs, and suggested alternatives (gift vs loan, how much Pentti can spare from his pension), advising he talk to the bank and an adviser.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-024",
+  "category": "invest_basics",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "I have 50 euros a month I could invest. Where do I even start?",
+   "why not just put it all in one company stock?"
+  ],
+  "needs": "A beginner path: emergency buffer first, then a broad index fund or ETF via an investment savings account (osakesäästötili), monthly saving, fees and risk explained simply, checked against Joonas's real leftover (he is often near zero before payday).",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-025",
+  "category": "invest_basics",
+  "lang": "fi",
+  "persona": "Veeti",
+  "turns": [
+   "Mitä on indeksirahasto ja kannattaako mun alottaa sijoittaminen? En oo koskaan säästänyt."
+  ],
+  "needs": "Yksinkertainen selitys indeksirahastosta, riskit ja kulut, ja realistinen aloitusaskel Veetin omien menojen pohjalta (ensin puskuri, sitten pieni kuukausisäästö esim. heti palkkapäivänä).",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-026",
+  "category": "invest_basics",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "How big should my emergency fund be and am I there already?"
+  ],
+  "needs": "The 3-6 months of essential expenses rule of thumb, Aino's actual monthly essential spend, how much she should have, and whether her current savings/investments cover that, noting what counts as liquid.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-027",
+  "category": "invest_basics",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "What's the difference between an index fund and an ETF? And what is an osakesäästötili good for?"
+  ],
+  "needs": "Concise explanation of index funds vs ETFs and the Finnish equity savings account (tax deferral, simple), tied to Aino's current monthly investing habit and a suggestion to check fees.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-028",
+  "category": "invest_basics",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "how much should I be saving every month?",
+   "ok but I literally can't, I barely have anything left on payday",
+   "fine what's the smallest thing I can do that actually matters"
+  ],
+  "needs": "First the 10-20% rule of thumb applied to Veeti's income, then an honest look at where his money actually goes (going out, taxis, eating out) and a very small realistic start like automatic 50 euros on payday, with 2-3 specific cuts from his data.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-029",
+  "category": "invest_basics",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "I have 60k sitting on a regular account earning nothing. What should I do with it?"
+  ],
+  "needs": "Options explained with risk: emergency buffer, deposit account/money-market fund, mortgage prepayment, diversified funds, plus tax basics (capital income tax 30/34%), tailored to Mikko's income and bills and a reminder this is general guidance, not licensed advice.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-030",
+  "category": "invest_basics",
+  "lang": "fi",
+  "persona": "Pentti",
+  "turns": [
+   "Mulla on vähän säästöjä tilillä. Kannattaako ne laittaa johonkin vai onko ihan hyvä että ne on vaan tilillä?"
+  ],
+  "needs": "Maltillinen selitys: puskuri ensin, inflaation vaikutus, turvalliset vaihtoehdot (talletus, rahamarkkinarahasto) ja Pentin eläketulojen ja menojen perusteella paljonko on järkevää pitää käyttötilillä. Ei riskisijoituksia ylikorostaen.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-031",
+  "category": "mortgage_first_home",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "I applied for a mortgage. How much could I realistically borrow and what monthly payment would that be?",
+   "why does the bank want a buffer on top of that?"
+  ],
+  "needs": "Typical Finnish lending limits (loan cap 90% of price, debt-service rules, income multiples), a rough borrowing range from Helmi's income, and monthly payment examples at current-ish rates over 25 years, explaining that the bank decides.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-032",
+  "category": "mortgage_first_home",
+  "lang": "fi",
+  "persona": "Helmi",
+  "turns": [
+   "Paljonko mun pitäis säästää käsirahaa ensimmäiseen asuntoon ja kuinka kauan siihen menisi mun nykyisellä säästövauhdilla?"
+  ],
+  "needs": "Käsirahan vaatimus (n. 10 % hinnasta plus varainsiirtovero ja muuttokulut), esimerkkiasunnon hinta, Helmin säästötavoite ja -vauhti omasta datasta ja kuukausimäärä jonka jälkeen tavoite täyttyy.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-033",
+  "category": "mortgage_first_home",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "What happens to my mortgage payment if interest rates go up by 2 points?",
+   "and if I fix the rate?"
+  ],
+  "needs": "A worked example: payment change on a typical loan size for a 2 percentage-point rise, then a plain explanation of fixed vs Euribor-linked loans with pros/cons for someone with Helmi's budget.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-034",
+  "category": "mortgage_first_home",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Besides the loan, what other costs should I expect when buying my first flat? I'm scared of surprises."
+  ],
+  "needs": "List with rough amounts: transfer tax (about 1.5% for housing shares), moving costs, condition inspection, maintenance charge, renovation fund, home insurance, financing costs; then a buffer suggestion in light of Helmi's savings.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-035",
+  "category": "health_check",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "be honest, how am I doing with money"
+  ],
+  "needs": "A candid but kind overview from Veeti's data: income, spending vs leftover, top categories (going out, restaurants, taxis), savings rate versus peers, and one or two concrete next steps.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "G-036",
+  "category": "health_check",
+  "lang": "fi",
+  "persona": "Pentti",
+  "turns": [
+   "Hei. Olen vähän huolissani rahoistani nyt kun jäin eläkkeelle. Riittääkö mun eläke ja säästöt?",
+   "Entä jos tulee jokin iso yllätysmeno, esim. hammaslääkäri tai remontti?"
+  ],
+  "needs": "Pentin tulot ja kulut omasta datasta, kuinka kauan säästöt riittäisivät, vertailu ikäryhmään, ja rauhoittava mutta rehellinen arvio sekä seurattavat asiat (isot kulut, ennakoitavat menot). Seuraavaan viestiin: arvio paljonko puskuria tarvitaan yllätyksiin ja miten se sopii Pentin säästöihin.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "G-037",
+  "category": "health_check",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "Can you give me a financial health check? Savings rate, emergency fund, anything I'm missing?"
+  ],
+  "needs": "Structured check from Aino's data: savings rate, emergency fund in months, diversification, insurance or pension savings gaps, and a candid note on anything missing (e.g. no personal pension, concentrated holdings) beyond her data.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-038",
+  "category": "health_check",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "am I normal? my account is basically empty every month before payday"
+  ],
+  "needs": "Reassuring comparison to others his age using group stats, a look at where his money goes between paydays, and a simple fix such as a small buffer and weekly spending allowance.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "G-039",
+  "category": "health_check",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "We earn well but somehow nothing is left. Where does it all go? I'm a bit embarrassed to ask"
+  ],
+  "needs": "Reassuring tone, breakdown of Mikko's biggest categories (housing, kids, bills, cars) across months, highlighting the largest leaks and which are fixed vs flexible, and a target for saving.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "G-040",
+  "category": "prioritisation",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "I have some debt, no savings and I want to travel. What should I do first?",
+   "ok so what's the first step this month in actual euros"
+  ],
+  "needs": "A clear priority order (small buffer, high-interest debt, then fun goals) personalised to Veeti's numbers, then a specific euro amount for this month drawn from his actual leftover and spending.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-041",
+  "category": "prioritisation",
+  "lang": "fi",
+  "persona": "Helmi",
+  "turns": [
+   "Mulla on kolme tavoitetta: asunto, hätärahasto ja eläkesäästö. Mihin laitan rahat ensin?"
+  ],
+  "needs": "Selkeä järjestys (hätäpuskuri, työnantajan eläkeedut, asuntotalletus) ja Helmin kuukausittaisesta ylijäämästä laskettu jako euroina näille kolmelle.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-042",
+  "category": "prioritisation",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "just got my first salary job. what do I do with the money lol"
+  ],
+  "needs": "A friendly first-salary guide: understand net vs gross and taxes, a small emergency buffer, avoid instalment traps, start saving a fixed share on payday, with specifics tied to his pay and typical spending.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-043",
+  "category": "prioritisation",
+  "lang": "en",
+  "persona": "Mikko",
+  "turns": [
+   "Too many things: kids' hobbies, a cabin, retirement, the car. How do I prioritise?"
+  ],
+  "needs": "A simple framework (essentials, buffer, retirement, big wants) with figures from Mikko's surplus and a recommendation on sequencing and trade-offs.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-044",
+  "category": "what_if",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "What if I lose my job? How long could I last?"
+  ],
+  "needs": "Runway calculation from Veeti's balance/savings and essential monthly costs, mention of Finnish unemployment benefit (earnings-related allowance) and what to cut first, honest that he would last only short.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-045",
+  "category": "what_if",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "If I got a 300 euro/month pay rise, what would you do with it?",
+   "and if I only got 150?"
+  ],
+  "needs": "A split suggestion for the raise (net amount after tax, not gross) between saving/investing and lifestyle based on Aino's habits, then the scaled version for 150.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-046",
+  "category": "what_if",
+  "lang": "fi",
+  "persona": "Mikko",
+  "turns": [
+   "Mitä jos vuokra tai asuntolaina nousee 300 euroa kuussa? Kestääkö meidän budjetti?"
+  ],
+  "needs": "Laskelma Mikon kuukausiylijäämän ja menojen perusteella, mikä leikkautuu, ja ehdotus mistä kohdista voisi joustaa.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "G-047",
+  "category": "what_if",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "What if I went part time at 80% to spend more time with my kid? Could I still keep saving for the flat?"
+  ],
+  "needs": "Estimated net income drop at 80% (not simply 20%, because of progressive tax), effect on Helmi's monthly leftover and the time to reach the down payment, plus suggestions to offset.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-048",
+  "category": "what_if",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "What if prices keep rising, will my pension keep up? I worry about inflation."
+  ],
+  "needs": "Plain explanation of the Finnish earnings-related pension being index-linked (TyEL index) versus real-life price rises, Pentti's biggest recurring costs, and practical ways to protect his budget.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-049",
+  "category": "what_if",
+  "lang": "fi",
+  "persona": "Joonas",
+  "turns": [
+   "jos mä otan pikavipin 300e palkkapäivään asti, mitä siitä tulee maksettavaksi"
+  ],
+  "needs": "Pikavipin todellinen kulu selkeästi (efektiivinen korko, kulut), halvemmat vaihtoehdot ja konkreettinen suunnitelma Joonaksen omien menojen pohjalta, ettei hän joudu palkkapäivän alle tilille tyhjänä. Ei saarnaa.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-050",
+  "category": "retirement",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "At 29, how much should I be putting away for retirement and what will I actually get from the state pension?"
+  ],
+  "needs": "Explanation of how the Finnish earnings-related pension builds, a rough replacement rate (~55-60% of pay), a target for extra saving with a pension savings option, and Aino's current saving compared to that.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-051",
+  "category": "retirement",
+  "lang": "fi",
+  "persona": "Mikko",
+  "turns": [
+   "Olen 54. Milloin mä voin jäädä eläkkeelle ja paljonko eläkettä tulee, jos jään 63-vuotiaana?"
+  ],
+  "needs": "Suomalaisen vanhuuseläkkeen ikärajat (Mikon ikäluokalle ~65), varhennuksen ja lykkäyksen vaikutus, arvio eläkkeen suuruudesta tulojen perusteella ja suunnitelma täydentävälle säästämiselle, ohjaus tarkistamaan tarkka luku Eläketurvakeskuksen laskurista.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-052",
+  "category": "retirement",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "I'm 74. Should I be worried about care costs later in life, and how do I plan for them?"
+  ],
+  "needs": "Gentle explanation of Finnish elderly care costs (home care vs assisted living, income-based fees, care allowance), suggested buffer based on Pentti's careful finances, and a mention of planning documents like power of attorney.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-053",
+  "category": "retirement",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "Should I give some money to my grandchildren now or keep it? What are the gift tax rules?"
+  ],
+  "needs": "Plain overview of Finnish gift tax (threshold 5,000 euro over 3 years from the same giver, rates by relationship), how much Pentti can comfortably afford to give from his data, and a cautious suggestion to keep a buffer.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-054",
+  "category": "explain_term",
+  "lang": "en",
+  "persona": "Joonas",
+  "turns": [
+   "what is the difference between gross and net salary? my first pay is smaller than the contract said",
+   "and what is tax withholding and will I get some back?"
+  ],
+  "needs": "Simple explanation of gross vs net using Joonas's own paycheck (tax withholding, pension contribution, unemployment insurance), then how withholding and refunds work and whether he will likely get money back.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-055",
+  "category": "explain_term",
+  "lang": "en",
+  "persona": "Helmi",
+  "turns": [
+   "Can you explain Euribor and what it means for my mortgage? My bank told me but I did not get it"
+  ],
+  "needs": "Plain explanation of Euribor as a base rate plus a bank margin, how it moves the monthly payment, a numeric example for a typical loan size like Helmi's, and fixed vs floating differences.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-056",
+  "category": "explain_term",
+  "lang": "fi",
+  "persona": "Aino",
+  "turns": [
+   "Mikä on korkoa korolle -ilmiö? Näytä mun omilla luvuilla mitä mun säästöistä tulee 20 vuodessa."
+  ],
+  "needs": "Selkeä selitys korkoa korolle -ilmiöstä ja laskelma Ainon nykyisestä kuukausisäästöstä 20 vuoden aikana muutamalla tuottoskenaariolla (esim. 3 %, 5 %, 7 %), ilman tuottolupauksia.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-057",
+  "category": "habit_change",
+  "lang": "en",
+  "persona": "Veeti",
+  "turns": [
+   "I always overspend right after payday and then I'm broke by the 20th. Help",
+   "ok do that. set it up so I know what I can spend per week"
+  ],
+  "needs": "A look at Veeti's own pattern (spend spike days after payday, categories), then 2-3 concrete habit tactics (split pay into weekly allowances, pay yourself first on payday, taxi/restaurant limits) with euro amounts.",
+  "outside_knowledge": true
+ },
+ {
+  "id": "G-058",
+  "category": "habit_change",
+  "lang": "fi",
+  "persona": "Veeti",
+  "turns": [
+   "Mä käytän liikaa rahaa ulkona syömiseen ja taksiin. Paljonko se oikeasti on kuukaudessa ja mitä jos vähentäisin puolella?"
+  ],
+  "needs": "Veetin oikeat kuukausiluvut ravintoloista ja takseista omasta datasta, kuinka paljon puolittaminen vapauttaisi kuukaudessa ja vuodessa, ja mihin se kannattaisi ohjata.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "G-059",
+  "category": "habit_change",
+  "lang": "en",
+  "persona": "Pentti",
+  "turns": [
+   "I'd like to make a small plan so that I don't end up short at the end of the month. I'm not good with computers but I'm careful with money."
+  ],
+  "needs": "A simple, warm, short plan from Pentti's actual month-end balance pattern, steps in plain language (e.g. a buffer amount, which bills fall when), no jargon.",
+  "outside_knowledge": false
+ },
+ {
+  "id": "G-060",
+  "category": "habit_change",
+  "lang": "en",
+  "persona": "Aino",
+  "turns": [
+   "I save every month but I feel guilty spending anything on myself. Am I overdoing it?"
+  ],
+  "needs": "A balanced response from Aino's data showing her savings rate against peers and goals, whether a guilt-free spending allowance is affordable, and a recommendation (e.g. a fixed fun budget) without telling her to stop saving.",
+  "outside_knowledge": true
+ }
+]
