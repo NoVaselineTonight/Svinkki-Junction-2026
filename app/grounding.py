@@ -69,7 +69,7 @@ _MON_FI_P = r"(?:tammi|helmi|maalis|huhti|touko|kesä|heinä|elo|syys|loka|marra
 
 # what a money figure measures, grouped: money coming in, money going out, money kept
 _METRIC_WORDS = [
-    ("in", r"\bincome\w*|\bearn\w*|\bsalar\w*|\bwages?\b|\bcame in\b|\bcomes in\b|\bcome in\b|\byour pay\b|"
+    ("in", r"\bincome\w*|\bbring(?:s|ing)? in\b|\bbrought in\b|\btake home\b|\bget paid\b|\bearn\w*|\bsalar\w*|\bwages?\b|\bcame in\b|\bcomes in\b|\bcome in\b|\byour pay\b|"
            r"\bpaycheck|\btulo(?:t|si|jen|ja|ihin|istasi|nne)?\b|\bpalk(?!kapäiv)\w*|\bansai\w*|\btienaa\w*|\btienas\w*|"
            r"\btilille tul\w*|\btuli tilille\b|\btulee tilille\b"),
     ("out", r"\bspen[dt]\w*|\bpaid\b|\bpay for\b|\bcost\w*|\bbought\b|\bpurchas\w*|\bwent on\b|\bgoes on\b|"
@@ -578,6 +578,10 @@ class FigureTable:
                 if hit:
                     f["source"].update(hit)
             out.append(tagged)
+        # the figures of the data the picture was written from count too (they are checked), untagged
+        for name, view in (data or {}).items() if isinstance(data, dict) else ():
+            if isinstance(view, (dict, list)) and not str(name).startswith("_"):
+                self.add_result(str(name), {}, view, raw=view)
         return out
 
     def add_earlier(self, answers):

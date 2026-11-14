@@ -134,6 +134,13 @@ class WhatTheRealDataNeeds(unittest.TestCase):
         self.assertEqual(g.render("Saldosi on 31 469,30 €.", t, lang="fi")["text"], "Saldosi on 31 469,30 €.")
 
 
+class SnapshotData(unittest.TestCase):
+    def test_figures_of_the_data_behind_the_picture_count_and_bring_in_is_income(self):
+        data = {"receipt_insights": {"treats": {"monthly": 27.4}}, "get_overview": OVERVIEW[2]}
+        self.assertTrue(ok("Treats come to about €27 a month on your receipts.", [], snapshot_data=data))
+        self.assertTrue(ok("You bring in about €2,336 a month and spend around €1,571.", [], snapshot_data=data))
+
+
 class Tokens(unittest.TestCase):
     def test_kinds(self):
         kinds = [(k, v) for k, v, _ in g.tokens("€1,107.64 and 1 107,64 € and 450 euroa, 45%, 12 % and 15.10. "
