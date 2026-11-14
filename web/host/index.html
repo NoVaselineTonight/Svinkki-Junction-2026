@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>S-mobiili (demo host) with Svinkki</title>
+  <link rel="icon" type="image/svg+xml" href="s-mark.svg">
+  <link rel="stylesheet" href="host.css">
+</head>
+<body>
+  <p class="note">Demo stand-in for S-mobiili. The customer is already signed in to the bank app;
+    Svinkki gets the identity from the host, not from its own picker.</p>
+  <div class="phone">
+    <header class="bar">
+      <img src="s-mark.svg" alt="" height="26">
+      <span class="title">S-mobiili</span>
+      <label class="who">Signed in as
+        <select id="who" aria-label="Customer signed in to S-mobiili (demo)"></select>
+      </label>
+    </header>
+    <main class="screen">
+      <section id="tab-home" class="pane" hidden>
+        <h2>Accounts</h2>
+        <p class="card">Current account<br><span class="muted">(host app content)</span></p>
+      </section>
+      <section id="tab-pay" class="pane" hidden>
+        <h2>Payments</h2>
+        <p class="card">Pay a bill<br><span class="muted">(host app content)</span></p>
+      </section>
+      <section id="tab-svinkki" class="pane frame-pane">
+        <p id="status" class="status">Opening Svinkki...</p>
+        <iframe id="svinkki" title="Svinkki money coach" referrerpolicy="no-referrer"></iframe>
+      </section>
+    </main>
+    <nav class="tabs" aria-label="S-mobiili">
+      <button type="button" data-tab="home">Accounts</button>
+      <button type="button" data-tab="pay">Payments</button>
+      <button type="button" data-tab="svinkki" class="on" aria-current="page">Svinkki</button>
+    </nav>
+  </div>
+  <script src="host.js"></script>
+</body>
+</html>
