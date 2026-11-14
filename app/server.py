@@ -1057,7 +1057,8 @@ def ep_chat(req):
 
     def save_goal(name, target, deadline=None, monthly_needed=None):
         """'Yes, save it' after a goal plan in the chat: the same validation as POST /api/goal."""
-        return state.set_goal(req.cid, {"name": name, "target": target, "saved": 0})
+        return state.set_goal(req.cid, {"name": name, "target": target, "saved": 0, "deadline": deadline,
+                                        "monthly_needed": monthly_needed})
 
     ctx = SimpleNamespace(cid=req.cid,   # only the seed of the simulated receipts; no tool returns it
                           conn=req.conn, today=req.today, profile=db.profile(req.cid),
@@ -1092,13 +1093,26 @@ def ep_chat(req):
     return result
 
 
+_MONTH_NAMES = ("", "January", "February", "March", "April", "May", "June", "July", "August", "September",
+                "October", "November", "December")
+
+
+def _by_month(deadline):
+    """', by June 2027' for a stored goal date, else ''."""
+    d = str(deadline or "")
+    if len(d) >= 7 and d[:4].isdigit() and d[5:7].isdigit() and 1 <= int(d[5:7]) <= 12:
+        return ", by %s %s" % (_MONTH_NAMES[int(d[5:7])], d[:4])
+    return ""
+
+
 def ep_home(req):
     cid = req.cid
     things = []
     goal = state.get_goal(cid)
     if goal:
         things.append({"id": "goal", "kind": "goal", "title": goal["name"],
-                       "summary": "%s of %s saved" % (_money_text(goal["saved"]), _money_text(goal["target"])),
+                       "summary": "%s of %s saved%s" % (_money_text(goal["saved"]), _money_text(goal["target"]),
+                                                        _by_month(goal.get("deadline"))),
                        "updated": state.iso_time(state.goal_updated(cid))})
     stored = state.get_challenge(cid)
     if stored:
@@ -1143,6 +1157,24 @@ def ep_conversation(req):
     if conv is None:
         raise ApiError(404, "not_found")
     return conv
+
+
+# Tool cards the customer can open in a conversation without typing: name -> the conversation's title.
+CONVERSATION_TOOLS = {"quiz": "Weekly quiz", "checkin": "My check-in", "afford": "Can I afford it?",
+                      "whatif": "What if I spent less?", "typical": "Compare with others",
+                      "challenge": "My challenge", "alerts": "Worth a look"}
+
+
+def ep_conversation_tool(req):
+    """Remember that a tool card was opened, so a conversation holding only such cards is kept and listed.
+    Only the tool's name is stored; the card is drawn fresh from the customer's data when reopened."""
+    tool = req.body.get("tool")
+    if not isinstance(tool, str) or tool not in CONVERSATION_TOOLS:
+        raise ApiError(400, "invalid_tool")
+    conv_id = req.body.get("conversation_id")
+    turn = {"user": "", "reply": "", "cards": [], "used": [], "mode": None, "notice": None, "tool": tool}
+    new_id = state.add_turn(req.cid, conv_id if isinstance(conv_id, str) else None, turn, CONVERSATION_TOOLS[tool])
+    return {"conversation_id": new_id}
 
 
 def ep_conversation_delete(req):
@@ -1245,6 +1277,12 @@ def ep_goal(req):
     d = {k: req.body.get(k) for k in ("name", "target", "saved")}
     if d["saved"] is None:
         d["saved"] = 0
+    # Editing the name or the amounts keeps the date the goal was planned with, unless a new one is sent.
+    before = state.get_goal(req.cid) or {}
+    for k in ("deadline", "monthly_needed"):
+        d[k] = req.body.get(k) if k in req.body else before.get(k)
+    if "monthly_needed" not in req.body and (d["target"] != before.get("target") or d["saved"] != before.get("saved")):
+        d["monthly_needed"] = None     # the old monthly amount no longer fits the new figures
     try:
         return {"goal": state.set_goal(req.cid, d)}
     except ValueError:
@@ -1441,6 +1479,7 @@ ROUTES = {
     "/api/money/confirm": ("POST", ep_money_confirm),
     "/api/conversation": ("GET", ep_conversation),
     "/api/conversation/delete": ("POST", ep_conversation_delete),
+    "/api/conversation/tool": ("POST", ep_conversation_tool),
     "/api/pins": ("POST", ep_pins),
     "/api/pin": ("GET", ep_pin),
     "/api/pins/remove": ("POST", ep_pins_remove),

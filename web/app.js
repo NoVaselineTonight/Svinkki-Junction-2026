@@ -2254,6 +2254,11 @@
       var fill = h('div', { class: 'prog-fill' });
       fill.style.width = (tg > 0 ? Math.min(100, sv / tg * 100) : 0) + '%';
       box.appendChild(h('div', { class: 'prog-track', role: 'img', 'aria-label': pct(tg > 0 ? sv / tg * 100 : 0) + ' of the goal' }, fill));
+      // A goal planned with a date shows the date and what it needs each month.
+      if (g.deadline) {
+        addRows(box, [['By', fmtMonth(String(g.deadline).slice(0, 7))],
+          num(g.monthly_needed) > 0 ? ['Needs about', euros(g.monthly_needed) + ' a month'] : null]);
+      }
       var name = h('input', { type: 'text', class: 'input', id: 'goal-name', maxlength: '40', autocomplete: 'off' });
       var target = h('input', { type: 'number', class: 'input', id: 'goal-target', min: '0', step: '100', inputmode: 'decimal' });
       var saved = h('input', { type: 'number', class: 'input', id: 'goal-saved', min: '0', step: '50', inputmode: 'decimal' });
@@ -2817,9 +2822,11 @@
       var wait = h('div', { class: 'msg bot' }, h('div', { class: 'bot-text' }, h('span', { class: 'typing', role: 'status', 'aria-label': 'Svinkki is thinking' }, h('i'), h('i'), h('i'))));
       msgs.appendChild(wait);
       toBottom();
-      var body = { message: text };
-      if (conv.id) body.conversation_id = conv.id;
-      api('/api/chat', { method: 'POST', body: body }).then(function (res) {
+      storing.then(function () {
+        var body = { message: text };
+        if (conv.id) body.conversation_id = conv.id;
+        return api('/api/chat', { method: 'POST', body: body });
+      }).then(function (res) {
         res = res || {};
         wait.remove();
         if (res.conversation_id) { conv.id = res.conversation_id; convApi = true; }
@@ -2882,7 +2889,22 @@
       return m;
     }
 
-    function insert(name, pre) {
+    // A tool card opened in this conversation is remembered by name, so the conversation is kept and listed.
+    var STORED_TOOLS = { quiz: 1, checkin: 1, afford: 1, whatif: 1, typical: 1, challenge: 1, alerts: 1 };
+    var storing = Promise.resolve();
+    function rememberTool(name) {
+      if (!STORED_TOOLS[name] || conv.local || convApi === false) return;
+      storing = storing.then(function () {
+        var body = { tool: name };
+        if (conv.id) body.conversation_id = conv.id;
+        return api('/api/conversation/tool', { method: 'POST', body: body }).then(function (r) {
+          if (r && r.conversation_id) { conv.id = r.conversation_id; convApi = true; }
+        }, function () {});
+      });
+    }
+
+    function insert(name, pre, stored) {
+      if (!stored && !(shown[name] && document.contains(shown[name]))) rememberTool(name);
       function src(path) { return pre ? function () { return Promise.resolve(pre); } : function () { return api(path); }; }
       if (name === 'afford') return insertCard('afford', function (hd) { hd.appendChild(affordCard()); });
       if (name === 'whatif') return insertCard('whatif', function (hd) { whatIfBlock(hd, t); });
@@ -2932,6 +2954,7 @@
 
     function renderTurns(turns) {
       (turns || []).forEach(function (tn) {
+        if (tn.tool) { insert(tn.tool, null, true); return; }    // drawn fresh from today's data
         if (tn.user) userBubble(/^Receipt:\n/.test(tn.user) ? 'Read this receipt' : tn.user);
         botReply(tn);
       });

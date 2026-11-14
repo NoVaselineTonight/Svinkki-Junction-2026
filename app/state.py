@@ -252,8 +252,17 @@ def get_goal(cid):
     stored = _run(lambda c: _load(c, "goal", cid))
     if not stored:
         return None
-    return {"name": stored.get("name", ""), "target": stored.get("target", 0.0),
+    goal = {"name": stored.get("name", ""), "target": stored.get("target", 0.0),
             "saved": stored.get("saved", 0.0)}
+    # A goal planned with a date keeps the date and the monthly amount it needs.
+    if stored.get("deadline"):
+        goal["deadline"] = stored["deadline"]
+    if stored.get("monthly_needed"):
+        goal["monthly_needed"] = stored["monthly_needed"]
+    return goal
+
+
+_DEADLINE_RE = re.compile(r"\d{4}-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?")
 
 
 def set_goal(cid, d):
@@ -267,6 +276,13 @@ def set_goal(cid, d):
             "saved": _money(d.get("saved", 0), "saved")}
     if not goal["name"] or goal["target"] <= 0:
         raise ValueError("goal needs a name and a target above zero")
+    deadline = d.get("deadline")
+    if deadline not in (None, ""):
+        if not isinstance(deadline, str) or not _DEADLINE_RE.fullmatch(deadline):
+            raise ValueError("deadline must be YYYY-MM or YYYY-MM-DD")
+        goal["deadline"] = deadline
+        if d.get("monthly_needed") not in (None, ""):
+            goal["monthly_needed"] = _money(d.get("monthly_needed"), "monthly_needed")
     _run(lambda c: c.execute("INSERT OR REPLACE INTO goal VALUES(?,?,?)",
                              (cid, json.dumps(goal), time.time())))
     return goal
@@ -458,6 +474,8 @@ def conversation_history(cid, conv_id, turns=20):
     out = []
     for (raw,) in reversed(rows):
         t = json.loads(raw)
+        if t.get("tool"):      # a tool card the customer opened: nothing was said, so nothing for the model
+            continue
         out.append({"role": "user", "content": t.get("h") or t.get("user") or ""})
         out.append({"role": "assistant", "content": str(t.get("reply", ""))})
     return out
@@ -524,9 +542,12 @@ def get_conversation(cid, conv_id):
     turns = []
     for raw, ts in rows:
         t = json.loads(raw)
-        turns.append({"user": t.get("user", ""), "reply": t.get("reply", ""), "cards": t.get("cards") or [],
-                      "used": t.get("used") or [], "mode": t.get("mode"), "notice": t.get("notice"),
-                      "ts": iso_time(ts)})
+        turn = {"user": t.get("user", ""), "reply": t.get("reply", ""), "cards": t.get("cards") or [],
+                "used": t.get("used") or [], "mode": t.get("mode"), "notice": t.get("notice"),
+                "ts": iso_time(ts)}
+        if t.get("tool"):
+            turn["tool"] = t["tool"]
+        turns.append(turn)
     return {"id": head[0], "title": head[1], "created": iso_time(head[2]), "updated": iso_time(head[3]),
             "turns": turns}
 
