@@ -1,0 +1,113 @@
+/* Svinkki pitch decks. 1920x1080 slides, scaled to the window; print gives one slide per page.
+   No external resources. Colours are the S-Pankki tokens used in web/styles.css. */
+:root {
+  --ink: #04140C;
+  --deep: #004628;
+  --green: #007841;
+  --leaf: #00AA46;
+  --neon: #91FA9B;
+  --mint: #EAFEEC;
+  --paper: #F5F7F5;
+  --grey: #5E6B63;
+  --amber: #CF8300;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; }
+body { font-family: "S Bonus UX", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; color: var(--ink); overflow: hidden; }
+
+.deck { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+.slide {
+  position: absolute; width: 1920px; height: 1080px; overflow: hidden;
+  transform-origin: center center; display: none;
+  padding: 110px 130px; background: var(--paper);
+}
+.slide.on { display: block; }
+.slide.dark { background: radial-gradient(1200px 900px at 85% 30%, #0B5E37 0%, var(--deep) 45%, #012817 100%); color: #fff; }
+.slide.neon { background: var(--neon); }
+
+/* type */
+.kicker { font-size: 30px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--leaf); margin: 0 0 28px; }
+.dark .kicker { color: var(--neon); }
+h1, h2 { margin: 0; font-family: "S Bonus Display", "Segoe UI", system-ui, sans-serif; font-weight: 800; letter-spacing: -.035em; line-height: .98; }
+h1 { font-size: 150px; }
+.cover h1 { font-size: 118px; max-width: 1150px; }
+.cover .lead { max-width: 1000px; }
+h2 { font-size: 104px; }
+.dark h1 em, .dark h2 em { font-style: normal; color: var(--neon); }
+h1 em, h2 em { font-style: normal; color: var(--green); }
+.lead { font-size: 44px; line-height: 1.3; margin: 40px 0 0; max-width: 1000px; color: var(--grey); font-weight: 500; }
+.dark .lead { color: rgba(255, 255, 255, .78); }
+.foot { position: absolute; left: 130px; right: 130px; bottom: 56px; display: flex; justify-content: space-between; font-size: 22px; color: var(--grey); }
+.dark .foot { color: rgba(255, 255, 255, .55); }
+.brand { display: inline-flex; align-items: flex-end; gap: 10px; font-size: 54px; font-weight: 800; color: var(--leaf); letter-spacing: -.02em; line-height: 1; }
+.brand img { height: 66px; }
+.dark .brand { color: var(--neon); }
+
+/* phones */
+.phone {
+  width: 380px; border-radius: 58px; padding: 14px; background: #0A0F0C;
+  box-shadow: 0 50px 120px rgba(0, 0, 0, .35), 0 0 0 2px rgba(255, 255, 255, .06) inset;
+}
+.phone img { display: block; width: 100%; border-radius: 44px; }
+.phones { position: absolute; display: flex; gap: 46px; align-items: flex-end; }
+.tilt-l { transform: rotate(-4deg); }
+.tilt-r { transform: rotate(4deg); }
+.lift { transform: translateY(-40px); }
+
+/* chips and tags */
+.chips { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 48px; max-width: 1100px; }
+.chip { font-size: 34px; font-weight: 600; padding: 18px 32px; border-radius: 60px; background: #fff; color: var(--deep); border: 2px solid rgba(0, 70, 40, .12); }
+.dark .chip { background: rgba(255, 255, 255, .08); color: #fff; border-color: rgba(145, 250, 155, .35); }
+
+/* the "more than a chatbot" columns */
+.slide.tight { padding-top: 80px; }
+.tight .kicker { margin-bottom: 18px; }
+.tight h2 { font-size: 88px; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 70px; margin-top: 40px; }
+.col { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.col .phone { width: 250px; border-radius: 40px; padding: 10px; }
+.col .phone img { border-radius: 30px; }
+.col h3 { font-size: 46px; margin: 26px 0 6px; letter-spacing: -.02em; }
+.col p { font-size: 28px; line-height: 1.3; margin: 0; color: var(--grey); max-width: 480px; }
+.dark .col p { color: rgba(255, 255, 255, .75); }
+.dark .col h3 { color: var(--neon); }
+.num { font-size: 26px; font-weight: 800; color: var(--deep); background: var(--neon); border-radius: 30px; padding: 6px 18px; margin-bottom: 26px; }
+
+/* contrast: a statement vs an answer */
+.versus { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: center; margin-top: 70px; }
+.stmt { background: #fff; border-radius: 30px; padding: 34px 40px; font-size: 30px; color: var(--grey); box-shadow: 0 10px 40px rgba(0, 0, 0, .06); }
+.stmt div { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #E6E9E7; font-variant-numeric: tabular-nums; }
+.stmt div:last-child { border-bottom: 0; }
+.arrow { font-size: 90px; color: var(--leaf); text-align: center; font-weight: 800; }
+.answer { background: var(--deep); color: #fff; border-radius: 30px; padding: 44px 48px; font-size: 44px; line-height: 1.25; font-weight: 600; }
+.answer b { color: var(--neon); }
+.answer small { display: block; margin-top: 22px; font-size: 26px; font-weight: 500; color: rgba(255, 255, 255, .7); }
+
+/* rules list */
+.rules { list-style: none; padding: 0; margin: 60px 0 0; display: grid; gap: 30px; max-width: 1060px; }
+.rules li { font-size: 40px; line-height: 1.25; display: flex; gap: 28px; align-items: baseline; }
+.rules li::before { content: ""; flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--neon); transform: translateY(-4px); }
+.rules b { color: var(--neon); font-weight: 700; }
+
+/* big figures */
+.figs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 50px; margin-top: 80px; }
+.fig { background: #fff; border-radius: 34px; padding: 50px 46px; }
+.fig b { display: block; font-size: 96px; letter-spacing: -.04em; color: var(--deep); line-height: 1; font-weight: 800; }
+.fig span { display: block; font-size: 30px; color: var(--grey); margin-top: 18px; line-height: 1.3; }
+.neon .fig { background: rgba(255, 255, 255, .7); }
+
+/* baskets bar on the cover of the problem slide */
+.bar { display: flex; height: 34px; border-radius: 20px; overflow: hidden; margin-top: 30px; }
+.bar span:nth-child(1) { background: var(--deep); }
+.bar span:nth-child(2) { background: var(--amber); }
+.bar span:nth-child(3) { background: var(--leaf); }
+
+.hint { position: fixed; right: 18px; bottom: 12px; color: rgba(255, 255, 255, .35); font: 13px system-ui, sans-serif; }
+
+@media print {
+  @page { size: 1920px 1080px; margin: 0; }
+  html, body { background: none; overflow: visible; height: auto; }
+  .deck { position: static; display: block; }
+  .slide { display: block !important; position: relative; transform: none !important; page-break-after: always; break-after: page; }
+  .hint { display: none; }
+}

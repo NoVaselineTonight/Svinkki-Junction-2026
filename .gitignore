@@ -26,5 +26,7 @@ __pycache__/
 # Local files
 *.png
 !web/**/*.png
+# Pitch deck screenshots of the app on synthetic data (UI only, no dataset rows exported)
+!submission/deck/img/*.png
 .DS_Store
 Thumbs.db
