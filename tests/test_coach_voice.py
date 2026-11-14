@@ -159,7 +159,7 @@ class ModelTurnTests(_Base):
         self.assertNotIn("€3,000", system[0]["text"])
         self.assertIn(self.coach.SNAPSHOT_TITLE, system[1]["text"])
         self.assertIn("income €3,000", system[1]["text"])
-        self.assertNotIn("cache_control", system[1])
+        self.assertIn("cache_control", system[1])     # its own cache entry, after the shared rules
         self.assertNotRegex(fake.all_text(), r"CUST\d{5}")
 
     def test_coach_turn_asks_for_medium_effort(self):
