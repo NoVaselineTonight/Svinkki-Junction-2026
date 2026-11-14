@@ -47,7 +47,12 @@ class SnapshotTests(_Base):
         self.assertIn("spending €1,571", text)
         self.assertIn("housing €900", text)
         self.assertIn("next payday 15 Oct", text)
-        self.assertIn("Saving opportunities", text)
+        self.assertIn("Saving ideas", text)
+        # the picture is in groups: core, findings not yet mentioned, findings already told, background
+        sec = data["_sections"]
+        self.assertEqual(sec["core"] + sec["fresh"] + sec["told"] + sec["background"], len(lines))
+        self.assertGreater(sec["fresh"], 0)
+        self.assertEqual(sec["told"], 0)
         self.assertIn("not set a savings goal", text)
         self.assertEqual(set(data) & set(self.coach.SNAPSHOT_TOOLS), set(self.coach.SNAPSHOT_TOOLS))
 
@@ -118,8 +123,9 @@ class SnapshotTests(_Base):
         ctx = self.ctx(goal={"name": "Japan", "target": 3000.0, "saved": 400.0, "deadline": "2027-06", "monthly_needed": 289.0})
         lines, data = self.coach.customer_snapshot(ctx)
         text = "\n".join(lines)
-        ov = data["get_overview"]
-        left = round(ov["income"] - ov["vs_average"]["spent"]["average"])
+        um = data["usual_month"]      # income and spending over the same 12 full months
+        self.assertEqual(um["months"], 12)
+        left = round(um["income"] - um["spending"])
         self.assertIn("which leaves about €{:,} a month".format(left), text)
         self.assertIn("€400 set aside so far, by June 2027, so €2,600 still to go; it needs about €289 a month", text)
         months = -(-2600 // left)
@@ -232,16 +238,20 @@ class PromptTests(_Base):
     def test_prompt_asks_for_a_personal_answer_and_a_concrete_step(self):
         p = self.coach.SYSTEM_PROMPT
         for bit in ("personal money coach", "What you know about this customer", "one concrete next step",
-                    "Two to four short sentences", "never lecture", "no generic tips",
-                    "grocery receipts", "Never compare the customer with other people unless they ask"):
+                    "Length follows the question", "never lecture", "no generic tips",
+                    "grocery and fuel receipts", "Never compare the customer with other people unless they ask",
+                    # the coach uses what it knows of the world and never hands a cost question back
+                    "general_estimate", "Never answer that you cannot estimate", "Do not repeat yourself"):
             self.assertIn(bit, p)
+        self.assertNotIn("never suggest a number", p)
+        self.assertNotIn("never estimate", p.lower().replace("never answer that you cannot estimate", ""))
         self.assertNotIn("Stay under about 45 words", p)
         self.assertNotIn("Keep replies to one or two sentences", p)
 
     def test_the_prompts_own_example_tip_would_pass_the_number_check(self):
         """The example in the prompt must not teach the model a sentence the app would delete."""
         p = self.coach.SYSTEM_PROMPT
-        self.assertIn("never halve, divide, add up or otherwise work out a new amount", p)
+        self.assertIn("never halve, divide or add up in your head", p)
         self.assertNotIn("skipping one of your three taxi rides", p)
         ctx = self.ctx(goal={"name": "Japan", "target": 3000.0, "saved": 0.0})
         _, snap = self.coach.customer_snapshot(ctx)

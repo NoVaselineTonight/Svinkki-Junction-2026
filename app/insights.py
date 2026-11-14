@@ -781,8 +781,14 @@ def baskets(conn, today, period="last_month"):
 # --------------------------------------------------------------------------- safe to spend
 
 def _usual_payday(conn, t):
-    """'eom', a day of month (int), or None when no salary has been seen."""
-    since = _add_months(t, -6).isoformat()
+    """'eom', a day of month (int), or None when no salary has been seen.
+
+    The most common day over the last 12 months of salaries (all of them when there are none that
+    recent). Month end wins only when MORE THAN HALF of the salaries came in the last four days of a
+    month; otherwise it is the most common ordinary day (a customer paid on the 15th in 18 of 24
+    months is "the 15th", even when the last two salaries came at month end). When that day has passed
+    and the salary has not come, `_next_payday` expects it at month end, see there."""
+    since = _add_months(t, -12).isoformat()
     rows = conn.execute("SELECT d FROM tx WHERE type='salary' AND d>=? AND d<=? ORDER BY d",
                         (since, t.isoformat())).fetchall()
     if not rows:
@@ -792,9 +798,9 @@ def _usual_payday(conn, t):
         return None
     ds = [_d(r[0]) for r in rows]
     eom = sum(1 for x in ds if x.day >= _last_day(x.year, x.month) - 3)
-    if eom * 2 > len(ds) or (eom * 3 >= len(ds) and (len(ds) - eom) * 3 >= len(ds)):
-        return "eom"
     cnt = Counter(x.day for x in ds if x.day < _last_day(x.year, x.month) - 3)
+    if eom * 2 > len(ds) or not cnt:
+        return "eom"
     return sorted(cnt.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
 
 
@@ -804,14 +810,28 @@ def _payday_on(y, m, pay):
 
 
 def _next_payday(t, pay, conn=None):
-    """Next payday after t. With `conn`, a salary already received this month moves it to next month."""
+    """Next payday after t. With `conn`: a salary already received this month moves it to next month,
+    and when the usual day has passed without salary the pay is expected at the end of this month
+    (pay comes late now and then, almost never a whole month late)."""
     cand = _payday_on(t.year, t.month, pay)
     paid = conn is not None and _scalar(conn, "SELECT COUNT(*) FROM tx WHERE type='salary' AND d>=? AND d<=?",
                                         (_month_start(t).isoformat(), t.isoformat()), default=0) > 0
+    if conn is not None and not paid and pay != "eom" and cand <= t:
+        eom = _payday_on(t.year, t.month, "eom")
+        if eom > t:
+            return eom
     if cand <= t or paid:
         nm = _add_months(_month_start(t), 1)
         cand = _payday_on(nm.year, nm.month, pay)
     return cand
+
+
+def _payday_latest(nxt, pay):
+    """The latest likely date for a payday that is a day of month: the end of that month; else None."""
+    if nxt is None or pay in (None, "eom"):
+        return None
+    last = _payday_on(nxt.year, nxt.month, "eom")
+    return last if last > nxt else None
 
 
 def _expected_events(conn, t, where, months, win_end):
@@ -929,6 +949,7 @@ def safe_to_spend(conn, today, monthly_saving_target=0):
         "upcoming_bills": bills, "bills_total": _r(bills_total), "unexpected_buffer": _r(buffer),
         "planned_savings": _r(planned), "safe_total": _r(safe_total), "per_day": _r(per_day),
         "per_week": _r(per_week), "status": status, "working": working,
+        "payday_may_be_late_days": (lambda x: (x - nxt).days if x else 0)(_payday_latest(nxt, pay)),
         "evidence": ev, "explain": explain,
     }
 

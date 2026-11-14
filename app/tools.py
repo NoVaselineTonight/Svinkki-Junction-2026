@@ -276,13 +276,15 @@ TOOLS = [
     {
         "name": "plan_goal_by_date",
         "description": "Work out the monthly saving needed for a goal with a name, a price and a deadline (for "
-                       "example a trip in 2027). Pass only what the customer said; if the price or the deadline is "
-                       "missing, leave it out and ask the customer: never suggest a price. Deadline as YYYY, "
-                       "YYYY-MM or YYYY-MM-DD. It never saves the goal: the customer saves it with a button.",
+                       "example a trip in 2027). If the customer gave no price, first make a rough estimate with "
+                       "general_estimate and pass its `mid` as the target, and say it is an estimate they can "
+                       "change. If there is no date, pick a sensible one from what they said (next summer, in two "
+                       "years) or ask by when. Deadline as YYYY, YYYY-MM or YYYY-MM-DD. It never saves the goal: "
+                       "the customer saves it by saying yes.",
         "parameters": {"type": "object", "properties": {
             "name": {"type": "string", "description": "What the goal is, a few words, e.g. Japan."},
-            "target": {"type": "number", "description": "Price in euros, only if the user stated one."},
-            "deadline": {"type": "string", "description": "YYYY, YYYY-MM or YYYY-MM-DD, only if given."},
+            "target": {"type": "number", "description": "Price in euros: the figure they gave, or the `mid` of a general_estimate."},
+            "deadline": {"type": "string", "description": "YYYY, YYYY-MM or YYYY-MM-DD."},
         }, "required": ["name"]},
     },
     {
@@ -355,6 +357,187 @@ TOOLS = [
                        "app, how much can be moved now without touching money needed for bills, and the "
                        "destinations available. Read-only.",
         "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "general_estimate",
+        "description": "Register a rough euro estimate that comes from YOUR general knowledge of the world, not from "
+                       "the customer's account: what a trip, a car, a renovation, a wedding, a pet, a course, an "
+                       "insurance or anything else typically costs. Use it whenever the customer asks what something "
+                       "costs or wants to plan for something without knowing its price: never answer that you cannot "
+                       "estimate and never ask the customer for a price they asked you about. Give a realistic range "
+                       "for Finland (or for travel from Finland) in today's prices, say what it assumes, and split it "
+                       "into parts when that helps (flights, hotels, food). After this you may quote the figures it "
+                       "returns, always as a rough estimate, and pass `mid` (or a part) on to plan_goal_by_date, "
+                       "can_i_afford or calculate. Never use it for anything that is in the customer's own data.",
+        "parameters": {"type": "object", "properties": {
+            "what": {"type": "string", "description": "What is estimated, a few words, e.g. 'two weeks in China for a family of four'."},
+            "low": {"type": "number", "description": "Low end of the realistic range, euros."},
+            "high": {"type": "number", "description": "High end of the realistic range, euros."},
+            "basis": {"type": "string", "description": "One sentence: what the estimate assumes (when, how long, what standard, what is included)."},
+            "per": {"type": "string", "enum": ["total", "per person", "per month", "per year"], "description": "What the range is for. Default total."},
+            "parts": {"type": "array", "description": "Optional breakdown, at most 6 parts that add up to about the range.",
+                      "items": {"type": "object", "properties": {
+                          "label": {"type": "string"}, "low": {"type": "number"}, "high": {"type": "number"}},
+                          "required": ["label", "low", "high"]}},
+        }, "required": ["what", "low", "high", "basis"]},
+    },
+    {
+        "name": "calculate",
+        "description": "Do arithmetic by code, so you never calculate in your head. Each item is a label and an "
+                       "expression with numbers, + - * / and brackets, for example {label: 'months of usual leftover', "
+                       "expression: '7500 / 307'}. Use it to combine figures you already have from tool results, the "
+                       "customer section, the customer's message or general_estimate: months needed, a yearly total, "
+                       "a share, a per-person or per-day amount, a difference. Every amount in an expression must "
+                       "come from one of those sources (small whole numbers such as 2, 12, 52 or 365 are fine); an "
+                       "invented amount is rejected. You may quote the returned values.",
+        "parameters": {"type": "object", "properties": {
+            "items": {"type": "array", "description": "1 to 8 calculations.", "items": {"type": "object", "properties": {
+                "label": {"type": "string", "description": "What the result is, a few words."},
+                "expression": {"type": "string", "description": "Numbers with + - * / and brackets only."}},
+                "required": ["label", "expression"]}},
+        }, "required": ["items"]},
+    },
+    {
+        "name": "save_goal",
+        "description": "Save the goal most recently planned with plan_goal_by_date in this conversation as the "
+                       "person's savings goal (it then shows under Your things). Call it ONLY when they have agreed "
+                       "to saving it in their latest message (yes, save it, sounds good, do that, go ahead). It takes "
+                       "no arguments: it saves the last complete plan. Returns `saved: true` with what was saved.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "project_savings",
+        "description": "What regular saving or investing grows to: a monthly amount (and an optional starting sum) "
+                       "over a number of years at a yearly return you choose. Returns what was paid in, the value "
+                       "at the end and the growth, for the return you gave and for a zero-return comparison. Use it "
+                       "for 'what if I put 50 a month into a fund for 20 years', 'how long until I have 10,000', "
+                       "'is it worth starting small'. For a fund use a cautious long-run return (for a global index "
+                       "fund 4 to 6 percent a year after costs is a common planning figure) and always say it is an "
+                       "illustration, not a promise, and that the value goes up and down. Scenario numbers you choose "
+                       "here need no other source.",
+        "parameters": {"type": "object", "properties": {
+            "monthly": {"type": "number", "description": "Euros put in each month."},
+            "years": {"type": "number", "description": "How many years, 0.5 to 50."},
+            "annual_return_pct": {"type": "number", "description": "Yearly return in percent, 0 to 12. Default 0 (plain saving)."},
+            "start": {"type": "number", "description": "Money already set aside at the start. Default 0."},
+            "target": {"type": "number", "description": "Optional: an amount to reach; the result says after how many months it is reached."},
+        }, "required": ["monthly", "years"]},
+    },
+    {
+        "name": "loan_payment",
+        "description": "The monthly payment of a loan paid in equal instalments (an annuity loan): from the amount, "
+                       "the years and the yearly interest rate. Returns the monthly payment, the total interest, and "
+                       "the same at one or two other rates so a rate change can be compared. Use it for 'what would "
+                       "a 150,000 mortgage cost a month', 'what if rates rise by 2 points', 'how much is a car loan "
+                       "of 15,000 over 5 years', 'should I pay off my loan faster'. It is arithmetic, not a loan "
+                       "offer: say so, and that the bank decides. Scenario numbers you choose here need no other source.",
+        "parameters": {"type": "object", "properties": {
+            "amount": {"type": "number", "description": "Loan amount in euros."},
+            "years": {"type": "number", "description": "Loan time in years, 0.5 to 40."},
+            "rate_pct": {"type": "number", "description": "Yearly interest rate in percent, 0 to 25."},
+            "compare_rates_pct": {"type": "array", "items": {"type": "number"},
+                                  "description": "Optional: up to 2 other yearly rates to compare."},
+        }, "required": ["amount", "years", "rate_pct"]},
+    },
+    {
+        "name": "get_money_story",
+        "description": "The long view of this person's money over the last 12 or 24 months: where the balance was "
+                       "a year ago and is now, its highest and lowest point, in how many months more went out than "
+                       "came in, what was kept per year, and which spending categories rose or fell most (for "
+                       "groceries also trips a month and the average basket). Use it for 'how am I doing', 'am I "
+                       "better off than a year ago', 'is my spending going up', 'what has changed', and whenever a "
+                       "longer view makes the answer more useful than last month alone. Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {
+            "months": {"type": "integer", "enum": [12, 24], "description": "Window in months. Default 12."}}},
+    },
+    {
+        "name": "get_season_outlook",
+        "description": "What the coming months looked like a year ago (and the year before), and what a repeat "
+                       "would do to today's balance: spending, income and the gap for the same calendar months, and "
+                       "the category that swells in that season. Use it for 'what is coming', 'will winter / "
+                       "Christmas / summer be expensive', planning ahead, and before recommending a saving amount. "
+                       "It is a pace from their own past, not a forecast. Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {
+            "months_ahead": {"type": "integer", "description": "Months to look ahead, 1 to 6. Default 5."}}},
+    },
+    {
+        "name": "get_category_story",
+        "description": "One spending category over two years: month by month, now against a year earlier, the peak "
+                       "month, the season, and whether a change came from buying more often or from bigger "
+                       "purchases. Use it for 'why are my groceries so high', 'have I cut down on eating out', 'how "
+                       "has my fuel spending changed', 'is X going up'. Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {
+            "label": {"type": "string", "enum": LABEL_CHOICES, "description": "Spending label."},
+            "months": {"type": "integer", "enum": [12, 24], "description": "Window in months. Default 24."}},
+            "required": ["label"]},
+    },
+    {
+        "name": "explain_month",
+        "description": "Why one month was expensive (or cheap): what was above this person's own usual, the biggest "
+                       "single purchase, and whether a regular bill was missing that month. Without a month it "
+                       "explains the most unusual of the last 12 months. Use it for 'what happened in December', "
+                       "'why was last month so expensive', 'which month was my worst'. Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {
+            "month": {"type": "string", "description": "YYYY-MM. Leave out for the most unusual month."}}},
+    },
+    {
+        "name": "get_low_points",
+        "description": "How thin the cushion gets: days below zero in the last year, the lowest the account has "
+                       "been and how often it got there, where in the pay cycle the low point falls, how many "
+                       "months of usual spending the balance covers, and long gaps between paydays. Use it for 'why "
+                       "am I always broke before payday', 'do I have a buffer / emergency fund', 'how close to zero "
+                       "do I get', 'am I living paycheck to paycheck'. State facts, never shame. Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_income_profile",
+        "description": "Pay rhythm: the usual pay day and how often pay came on it, the range of the salary, whether "
+                       "it has grown or shrunk against the year before, the longest wait between paydays, other "
+                       "income, and the next payday. Use it for 'when do I get paid', 'is my income steady', 'how "
+                       "much do I earn', 'has my pay gone up'. Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "receipt_trends",
+        "description": "The grocery and fuel receipts over 12 or 24 months: euros and euros a month per product group "
+                       "(beer and cider, energy drinks, soft drinks, snacks and sweets, ready meals, meat, dairy, "
+                       "fruit and vegetables ...), how many receipts contain each, items bought, fuel litres and the "
+                       "average price per litre. Use it for a year's view of what they buy: 'how much do I spend on "
+                       "beer in a year', 'what are my grocery habits', 'how much fuel do I use'. The lines are "
+                       "SIMULATED for the demo: say so once. Never claim a price change or that a share is rising. "
+                       "Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {
+            "period": {"type": "string", "enum": ["last_12_months", "last_24_months"], "description": "Default last_12_months."}}},
+    },
+    {
+        "name": "grocery_basket_profile",
+        "description": "How this person shops for groceries, from the payments themselves (real, not simulated): "
+                       "trips a month, the average basket, big shops against small top-ups, the weekday and time of "
+                       "day they usually shop, the most expensive shop, the busiest and quietest months, and how the "
+                       "number of trips changed. Use it for 'how do I shop', 'how often do I go to the shop', 'why "
+                       "did my food bill grow', meal-planning questions. Quote the `highlights`.",
+        "parameters": {"type": "object", "properties": {
+            "period": {"type": "string", "enum": ["last_3_months", "last_12_months", "last_24_months"], "description": "Default last_12_months."}}},
+    },
+    {
+        "name": "grocery_cut_ideas",
+        "description": "Two to four concrete ways this person could spend less on groceries, worked out from their "
+                       "own receipts, each with what it costs now and what the change would free a month, and the "
+                       "assumption behind it. Use it for 'how can I cut my food bill', 'what could I drop without "
+                       "noticing', 'where can I save' when groceries matter for them. Receipt lines are SIMULATED "
+                       "for the demo: say so once. Quote the ideas; never invent one.",
+        "parameters": {"type": "object", "properties": {
+            "period": {"type": "string", "enum": ["last_3_months", "last_12_months"], "description": "Default last_3_months."}}},
+    },
+    {
+        "name": "get_findings",
+        "description": "A ranked list of the most important things this person's own data shows right now (balance "
+                       "path, a season that costs them, months in the red, categories that grew, low points, pay "
+                       "gaps, savings streak, what the receipts show), each one a ready sentence. Use it for 'tell "
+                       "me something I don't know', 'surprise me', 'what should I look at', 'where do I start', a "
+                       "vague 'help', or when you need a fresh, specific angle. Pick the one or two that fit.",
+        "parameters": {"type": "object", "properties": {
+            "limit": {"type": "integer", "description": "How many, 1 to 10. Default 6."}}},
     },
 ]
 
@@ -957,7 +1140,41 @@ def _t_goal_by_date(args, ctx, ins):
                                    "turn": mem.get("_turn", 0)}
         else:
             mem.pop("pending_goal", None)
+            if isinstance(res, dict) and res.get("target") and res.get("months_left"):
+                mem["plan_ready"] = {"name": res.get("name") or name, "target": res.get("target"),
+                                     "deadline": res.get("deadline"), "turn": mem.get("_turn", 0),
+                                     "monthly_needed": res.get("monthly_needed_up", res.get("monthly_needed"))}
     return res, "goal_plan"
+
+
+_MONTH_WORDS = ("", "January", "February", "March", "April", "May", "June", "July", "August", "September",
+                "October", "November", "December")
+PLAN_KEEP_TURNS = 6
+
+
+def _t_save_goal(args, ctx, ins):
+    mem = _memory(ctx)
+    plan = (mem or {}).get("plan_ready")
+    fn = getattr(ctx, "save_goal", None)
+    if not callable(fn):
+        raise _Unavailable("goals cannot be saved from here")
+    if not isinstance(plan, dict) or mem.get("_turn", 0) - plan.get("turn", 0) > PLAN_KEEP_TURNS:
+        return {"saved": False, "error": "there is no complete plan to save yet: call plan_goal_by_date with a "
+                                         "price and a date first"}, "error"
+    fn(name=plan.get("name"), target=plan.get("target"), deadline=plan.get("deadline"),
+       monthly_needed=plan.get("monthly_needed"))
+    mem.pop("plan_ready", None)
+    mem.pop("goal_offer", None)
+    dl = str(plan.get("deadline") or "")
+    by = ""
+    if len(dl) >= 7 and dl[5:7].isdigit() and 1 <= int(dl[5:7]) <= 12:
+        by = " by %s %s" % (_MONTH_WORDS[int(dl[5:7])], dl[:4])
+    elif len(dl) >= 4:
+        by = " by %s" % dl[:4]
+    return {"saved": True, "name": plan.get("name"), "target": plan.get("target"), "deadline": plan.get("deadline"),
+            "monthly_needed": plan.get("monthly_needed"),
+            "text": "Saved as your goal: %s, €%s%s. You'll find it under Your things." % (
+                plan.get("name"), _whole(plan.get("target") or 0), by)}, "goal_saved"
 
 
 # ---------------------------------------------------------------- receipts (simulated from grocery payments)
@@ -1036,6 +1253,281 @@ def _r2(v):
     return round(float(v), 2)
 
 
+# ---------------------------------------------------------------- outside knowledge and arithmetic
+ESTIMATE_SOURCE = "general knowledge, not your own data"
+_EST_MAX = 5_000_000
+
+
+def _nice(x):
+    """A round number near x: two significant digits (7,340 -> 7,300; 18 -> 18)."""
+    x = float(x)
+    if x < 100:
+        return float(round(x))
+    mag = 10 ** (len(str(int(x))) - 2)
+    return float(round(x / mag) * mag)
+
+
+def _whole(x):
+    return ("{:,.0f}".format(round(float(x))))
+
+
+def _t_estimate(args, ctx, ins):
+    what = re.sub(r"[\x00-\x1f]", " ", str(args.get("what") or "")).strip()[:120]
+    if len(what) < 2:
+        raise ValueError("say what is estimated")
+    low = _num(args.get("low"), 1, _EST_MAX, "low")
+    high = _num(args.get("high"), 1, _EST_MAX, "high")
+    if high < low:
+        low, high = high, low
+    if high > low * 6:
+        raise ValueError("the range is too wide to be useful: narrow it or split the estimate")
+    per = str(args.get("per") or "total").strip().lower()
+    if per not in ("total", "per person", "per month", "per year"):
+        per = "total"
+    basis = re.sub(r"[\x00-\x1f]", " ", str(args.get("basis") or "")).strip()[:300]
+    parts = []
+    for p in (args.get("parts") or [])[:6]:
+        if not isinstance(p, dict):
+            continue
+        lab = re.sub(r"[\x00-\x1f]", " ", str(p.get("label") or "")).strip()[:60]
+        try:
+            pl, ph = _num(p.get("low"), 0, _EST_MAX, "part low"), _num(p.get("high"), 0, _EST_MAX, "part high")
+        except (ValueError, TypeError):
+            continue
+        if lab:
+            parts.append({"label": lab, "low": _r2(min(pl, ph)), "high": _r2(max(pl, ph))})
+    mid = _nice((low + high) / 2.0)
+    unit = "" if per == "total" else " " + per
+    rng = ("about €%s" % _whole(low)) if round(low) == round(high) else "about €%s to €%s" % (_whole(low), _whole(high))
+    text = "Rough estimate for %s: %s%s (%s)." % (what, rng, unit, ESTIMATE_SOURCE)
+    mem = _memory(ctx)
+    if mem is not None:
+        mem["last_estimate"] = {"what": what, "low": _r2(low), "high": _r2(high), "mid": mid, "per": per,
+                                "turn": mem.get("_turn", 0)}
+    return {"what": what, "per": per, "low": _r2(low), "high": _r2(high), "mid": mid, "basis": basis,
+            "parts": parts, "source": ESTIMATE_SOURCE, "text": text, "no_card": True}, "estimate"
+
+
+_CALC_OK = re.compile(r"^[0-9eE.,+\-*/() \t%]*$")
+_CALC_NUM = re.compile(r"\d+(?:\.\d+)?")
+
+
+def _calc_eval(node):
+    import ast
+    if isinstance(node, ast.Expression):
+        return _calc_eval(node.body)
+    if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
+        return float(node.value)
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+        v = _calc_eval(node.operand)
+        return v if isinstance(node.op, ast.UAdd) else -v
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub, ast.Mult, ast.Div)):
+        a, b = _calc_eval(node.left), _calc_eval(node.right)
+        if isinstance(node.op, ast.Add):
+            return a + b
+        if isinstance(node.op, ast.Sub):
+            return a - b
+        if isinstance(node.op, ast.Mult):
+            return a * b
+        if b == 0:
+            raise ValueError("division by zero")
+        return a / b
+    raise ValueError("only numbers, + - * / and brackets are allowed")
+
+
+def calc_literals(expression):
+    """The numbers written in an expression (thousands separators removed), as floats."""
+    s = re.sub(r"(?<=\d),(?=\d{3}\b)", "", str(expression or ""))
+    return [float(m.group(0)) for m in _CALC_NUM.finditer(s)]
+
+
+def _t_calculate(args, ctx, ins):
+    import ast
+    items = args.get("items")
+    if not isinstance(items, list) or not items:
+        raise ValueError("items must be a list of calculations")
+    known = getattr(ctx, "calc_known", None)      # a function(value) -> bool set by the coach for this turn
+    out = []
+    for it in items[:8]:
+        if not isinstance(it, dict):
+            continue
+        label = re.sub(r"[\x00-\x1f]", " ", str(it.get("label") or "")).strip()[:80] or "result"
+        expr = str(it.get("expression") or "").strip()[:200]
+        if not expr or not _CALC_OK.match(expr):
+            out.append({"label": label, "expression": expr, "error": "only numbers, + - * / and brackets are allowed"})
+            continue
+        clean = re.sub(r"(?<=\d),(?=\d{3}\b)", "", expr).replace("%", "/100")
+        if callable(known):
+            bad = [v for v in calc_literals(clean) if not known(v)]
+            if bad:
+                out.append({"label": label, "expression": expr,
+                            "error": "%s is not a figure from the customer's data, their message or an estimate. "
+                                     "Get it from a tool or register it with general_estimate first."
+                                     % ", ".join(("%g" % b) for b in bad[:3])})
+                continue
+        try:
+            val = _calc_eval(ast.parse(clean, mode="eval"))
+        except (ValueError, SyntaxError, ZeroDivisionError, RecursionError, OverflowError) as e:
+            out.append({"label": label, "expression": expr, "error": str(e)[:80] or "could not be worked out"})
+            continue
+        if abs(val) > 1e12:
+            out.append({"label": label, "expression": expr, "error": "result out of range"})
+            continue
+        out.append({"label": label, "expression": expr, "value": _r2(val), "rounded": float(round(val)),
+                    "rounded_up": float(-(-val // 1))})
+    if not out:
+        raise ValueError("no calculation given")
+    return {"results": out, "no_card": True}, "calc"
+
+
+def _t_project_savings(args, ctx, ins):
+    monthly = _num(args.get("monthly"), 0, 1_000_000, "monthly")
+    years = _num(args.get("years"), 0.5, 50, "years")
+    rate = args.get("annual_return_pct")
+    rate = 0.0 if rate in (None, "") else _num(rate, 0, 12, "annual_return_pct")
+    start = args.get("start")
+    start = 0.0 if start in (None, "") else _num(start, 0, 100_000_000, "start")
+    target = args.get("target")
+    target = None if target in (None, "") else _num(target, 1, 1_000_000_000, "target")
+    months = int(round(years * 12))
+    r = rate / 100.0 / 12.0
+
+    def grow(rr, n):
+        v = start
+        for _ in range(n):
+            v = v * (1 + rr) + monthly
+        return v
+
+    end, plain = grow(r, months), start + monthly * months
+    res = {"monthly": _r2(monthly), "years": years, "months": months, "annual_return_pct": rate, "start": _r2(start),
+           "paid_in": _r2(plain), "value_at_end": _r2(end), "growth": _r2(end - plain),
+           "without_return": _r2(plain), "no_card": True}
+    if target is not None:
+        v, n = start, 0
+        while v < target and n < 1200 and (monthly > 0 or r > 0):
+            v = v * (1 + r) + monthly
+            n += 1
+        res["target"] = _r2(target)
+        res["months_to_target"] = n if v >= target else None
+        res["years_to_target"] = round(n / 12.0, 1) if v >= target else None
+    res["text"] = ("Putting in €%s a month for %s years adds up to about €%s paid in%s." % (
+        _whole(monthly), ("%g" % years), _whole(plain),
+        (", and at %s%% a year it would be worth about €%s (an illustration, not a promise)" % (("%g" % rate), _whole(end)))
+        if rate > 0 else ""))
+    return res, "savings_projection"
+
+
+def _annuity(amount, years, rate_pct):
+    n = max(1, int(round(years * 12)))
+    r = rate_pct / 100.0 / 12.0
+    pay = amount / n if r == 0 else amount * r / (1 - (1 + r) ** -n)
+    return {"rate_pct": rate_pct, "monthly_payment": _r2(pay), "total_paid": _r2(pay * n),
+            "total_interest": _r2(pay * n - amount)}
+
+
+def _t_loan_payment(args, ctx, ins):
+    amount = _num(args.get("amount"), 100, 50_000_000, "amount")
+    years = _num(args.get("years"), 0.5, 40, "years")
+    rate = _num(args.get("rate_pct"), 0, 25, "rate_pct")
+    base = _annuity(amount, years, rate)
+    others = []
+    for x in (args.get("compare_rates_pct") or [])[:2]:
+        try:
+            o = _annuity(amount, years, _num(x, 0, 25, "rate"))
+        except (ValueError, TypeError):
+            continue
+        o["difference_per_month"] = _r2(o["monthly_payment"] - base["monthly_payment"])
+        others.append(o)
+    res = dict(base)
+    res.update({"amount": _r2(amount), "years": years, "months": int(round(years * 12)), "compare": others,
+                "no_card": True,
+                "text": "A loan of €%s over %s years at %s%% is about €%s a month, with about €%s of interest in all "
+                        "(arithmetic, not a loan offer)." % (_whole(amount), ("%g" % years), ("%g" % rate),
+                                                              _whole(base["monthly_payment"]), _whole(base["total_interest"]))})
+    return res, "loan_payment"
+
+
+# ---------------------------------------------------------------- the long view (trends, cash flow, findings)
+def _mod(name):
+    try:
+        return __import__("app." + name, fromlist=[name])
+    except ImportError:
+        raise _Unavailable("this view is not available yet")
+
+
+def _months_arg(v, default, allowed=(12, 24)):
+    if v in (None, ""):
+        return default
+    v = int(_num(v, 1, 36, "months"))
+    return v if v in allowed else default
+
+
+def _t_money_story(args, ctx, ins):
+    return _mod("trends").money_story(ctx.conn, ctx.today, months=_months_arg(args.get("months"), 12)), "money_story"
+
+
+def _t_season(args, ctx, ins):
+    n = args.get("months_ahead")
+    n = 5 if n in (None, "") else int(_num(n, 1, 6, "months_ahead"))
+    return _mod("trends").season_outlook(ctx.conn, ctx.today, months_ahead=n), "season_outlook"
+
+
+def _t_category_story(args, ctx, ins):
+    lab = args.get("label")
+    if not isinstance(lab, str) or not lab.strip():
+        raise ValueError("label is required")
+    return _mod("trends").category_story(ctx.conn, ctx.today, lab.strip()[:40],
+                                         months=_months_arg(args.get("months"), 24)), "category_story"
+
+
+def _t_explain_month(args, ctx, ins):
+    m = args.get("month")
+    if m in (None, ""):
+        m = None
+    elif not (isinstance(m, str) and _MONTH_RE.match(m.strip())):
+        raise ValueError("month must be YYYY-MM")
+    else:
+        m = m.strip()
+    return _mod("trends").explain_month(ctx.conn, ctx.today, month=m), "explain_month"
+
+
+def _t_low_points(args, ctx, ins):
+    return _mod("cashflow").low_points(ctx.conn, ctx.today), "low_points"
+
+
+def _t_income_profile(args, ctx, ins):
+    return _mod("cashflow").income_profile(ctx.conn, ctx.today), "income_profile"
+
+
+def _long_period(v, default, allowed):
+    v = str(v or default).strip().lower()
+    return v if v in allowed else default
+
+
+def _t_receipt_trends(args, ctx, ins):
+    period = _long_period(args.get("period"), "last_12_months", ("last_12_months", "last_24_months"))
+    return _rcp().receipt_trends(ctx.conn, ctx.today, period=period, habit_seed=_seed(ctx)), "receipt_trends"
+
+
+def _t_basket_profile(args, ctx, ins):
+    period = _long_period(args.get("period"), "last_12_months", ("last_3_months", "last_12_months", "last_24_months"))
+    return _rcp().basket_profile(ctx.conn, ctx.today, period=period, habit_seed=_seed(ctx)), "basket_profile"
+
+
+def _t_cut_ideas(args, ctx, ins):
+    period = _long_period(args.get("period"), "last_3_months", ("last_3_months", "last_12_months"))
+    return _rcp().cut_ideas(ctx.conn, ctx.today, period=period, habit_seed=_seed(ctx)), "cut_ideas"
+
+
+def _t_findings(args, ctx, ins):
+    n = args.get("limit")
+    n = 6 if n in (None, "") else int(_num(n, 1, 10, "limit"))
+    mem = _memory(ctx)
+    said = list((mem or {}).get("said") or [])
+    return _mod("findings").findings(ctx.conn, ctx.today, limit=n, exclude=said, habit_seed=_seed(ctx),
+                                     goal=getattr(ctx, "goal", None)), "findings"
+
+
 _DISPATCH = {
     "get_receipts": _t_receipts, "receipt_insights": _t_receipt_insights, "product_habit": _t_product_habit,
     "read_receipt": _t_read_receipt,
@@ -1051,6 +1543,12 @@ _DISPATCH = {
     "get_balance_forecast": _t_forecast, "get_payday_plan": _t_payday_plan,
     "get_quiz_stats": _t_quiz_stats, "get_area_context": _t_area, "remember_category": _t_remember,
     "propose_money_move": _t_propose_money, "get_savings_and_investments": _t_money_holdings,
+    "general_estimate": _t_estimate, "calculate": _t_calculate,
+    "project_savings": _t_project_savings, "loan_payment": _t_loan_payment, "save_goal": _t_save_goal,
+    "get_money_story": _t_money_story, "get_season_outlook": _t_season, "get_category_story": _t_category_story,
+    "explain_month": _t_explain_month, "get_low_points": _t_low_points, "get_income_profile": _t_income_profile,
+    "receipt_trends": _t_receipt_trends, "grocery_basket_profile": _t_basket_profile,
+    "grocery_cut_ideas": _t_cut_ideas, "get_findings": _t_findings,
 }
 
 
