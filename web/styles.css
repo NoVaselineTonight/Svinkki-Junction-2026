@@ -160,6 +160,8 @@ h3 { font-size: 16px; }
 .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--tonal); color: var(--green-strongest); white-space: nowrap; }
 .demo-tag, .demo-pill { display: inline-block; background: var(--warning-bg); color: var(--warning); font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 6px; }
 .demo-pill { align-self: flex-start; margin-top: 4px; }
+.demo-note { display: block; }
+.demo-note[hidden] { display: none; }
 
 /* ---------- one disclosure everywhere ---------- */
 .disc > summary {
@@ -266,6 +268,8 @@ h3 { font-size: 16px; }
 .cols.compact { gap: 2px; }
 .cols.compact .col-track { height: 44px; border-radius: 3px; }
 .cols.compact .col-label { font-size: 11px; overflow: visible; }
+.col[aria-pressed="true"] .col-track { outline: 2px solid var(--green-strong); outline-offset: 1px; }
+.col-readout { margin-top: 6px; min-height: 1.4em; }
 
 /* forecast */
 .fc { width: 100%; height: auto; display: block; }
@@ -477,6 +481,9 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .send-btn { flex: none; width: 44px; height: 44px; border-radius: 50%; background: var(--green-strongest); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
 .send-btn:hover { background: var(--green-strong); }
 .send-btn:disabled { opacity: .5; }
+.wait { display: flex; align-items: center; gap: 10px; }
+.wait-text { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 14px; color: var(--text-secondary); }
+.wait-secs { font-variant-numeric: tabular-nums; }
 
 /* ---------- Your things ---------- */
 .thing-chip {
@@ -493,7 +500,7 @@ table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---------- conversation ---------- */
 body.chat-screen { overflow: hidden; }
-body.chat-screen .app { height: 100vh; height: 100dvh; min-height: 0; }
+body.chat-screen .app { height: 100vh; height: 100dvh; height: var(--vvh, 100dvh); min-height: 0; }
 body.chat-screen .footer { display: none; }
 body.chat-screen .view { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; overflow: hidden; padding: 0 16px calc(10px + env(safe-area-inset-bottom)); }
 .chat { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
@@ -540,7 +547,7 @@ body.sheet-open { overflow: hidden; }
   background: var(--surface); border-radius: 20px 20px 0 0; padding: 8px 16px calc(24px + env(safe-area-inset-bottom));
   animation: up .2s ease-out;
 }
-.sheet.full { height: 100vh; height: 100dvh; max-height: none; border-radius: 0; background: var(--bg); }
+.sheet.full { height: 100vh; height: 100dvh; height: var(--vvh, 100dvh); max-height: none; border-radius: 0; background: var(--bg); }
 @keyframes up { from { transform: translateY(40px); opacity: .4; } to { transform: none; opacity: 1; } }
 .grabber { width: 40px; height: 4px; border-radius: 4px; background: var(--border); margin: 4px auto 0; }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; position: sticky; top: -8px; z-index: 2; background: inherit; padding: 8px 0; margin-bottom: 4px; }
