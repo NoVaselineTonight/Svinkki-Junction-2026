@@ -6,6 +6,7 @@ Python standard library only.
 import argparse
 import datetime
 import hashlib
+import hmac
 import http.server
 import json
 import mimetypes
@@ -19,9 +20,11 @@ import urllib.parse
 from collections import deque
 from types import SimpleNamespace
 
-from . import classify, config, db, money, state
+from . import classify, config, db, embed, money, state
 
-COOKIE = "svinkki_sid"
+COOKIE = "svinkki_sid"            # SameSite=Lax
+XCOOKIE = "svinkki_xsid"          # SameSite=None; Secure; Partitioned: for the S-mobiili iframe
+SESSION_HEADER = "X-Svinkki-Session"   # the embedded app's fallback when third-party cookies are blocked
 MAX_BODY = 16 * 1024
 MAX_BODY_EXPLAIN = 24 * 1024   # /api/explain only: a pasted document
 MAX_BODY_PINS = 256 * 1024     # /api/pins only: a kept card (the card itself is capped at 200 kB)
@@ -39,8 +42,14 @@ MAX_USED_GROUPS = 6
 USED_ROWS = 20
 _TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$")
 
-CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "
-       "connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors *")
+CSP_BASE = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; "
+            "connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors ")
+
+
+def csp():
+    """frame-ancestors is an allow-list (SVINKKI_FRAME_ANCESTORS; default: this app and the local
+    S-mobiili host demo), so only the host app can embed Svinkki."""
+    return CSP_BASE + embed.frame_ancestors()
 
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -73,7 +82,11 @@ NO_CONSENT_PATHS = {
     "/api/consent", "/api/settings", "/api/privacy/erase", "/api/demo/reset",
     "/api/explain",   # explaining a pasted text looks at no transactions, so it needs a session only
     "/api/demo/ai", "/api/demo/ai/test",   # demo setup of the AI model: reads no customer data
+    "/api/host/handover", "/api/embed/session",   # S-mobiili identity handover
 }
+# Endpoints that need no session.
+PUBLIC_PATHS = {"/api/demo/personas", "/api/demo/login", "/api/demo/random", "/api/logout",
+                "/api/host/handover", "/api/embed/session"}
 
 
 class ApiError(Exception):
@@ -170,6 +183,7 @@ class SvinkkiServer(http.server.ThreadingHTTPServer):
     def __init__(self, addr):
         super().__init__(addr, Handler)
         self.sessions = Sessions()
+        self.handovers = embed.Handovers()
         self.limiter = RateLimiter()
         self._persona_lock = threading.Lock()
         self.persona_tokens = {}   # opaque token -> {cid, name, blurb}
@@ -299,7 +313,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     # -- output ------------------------------------------------------------
     def _common_headers(self, api):
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("Content-Security-Policy", csp())
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("Cache-Control", "no-store" if api else "no-cache")
         for k, v in self._extra_headers:
@@ -327,13 +341,46 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     # -- input -------------------------------------------------------------
+    def _request_sid(self):
+        """The session id: the X-Svinkki-Session header (the embedded app keeps it in memory when
+        the browser blocks third-party cookies), else the cookie. A browser never sends the header
+        on its own, so it needs no CSRF check."""
+        hdr = self.headers.get(SESSION_HEADER)
+        if hdr:
+            return hdr.strip()[:100]
+        return self._cookie_sid()
+
+    def _cross_site(self):
+        """True when a browser says this request comes from another origin.
+
+        Once the cookie is SameSite=None (so it works inside the S-mobiili iframe) the browser
+        sends it on cross-site requests too, so state-changing calls check Origin and
+        Sec-Fetch-Site. Requests without either (non-browser clients, the host backend) pass."""
+        hdrs = self.headers
+        site = (hdrs.get("Sec-Fetch-Site") or "").lower()
+        if site and site not in ("same-origin", "none"):
+            return True
+        origin = hdrs.get("Origin")
+        if origin is None:
+            return False
+        try:
+            o = urllib.parse.urlsplit(origin)
+            netloc = o.netloc.lower()
+        except ValueError:
+            return True
+        if o.scheme not in ("http", "https") or not netloc:
+            return True                     # "null" (sandboxed frames, file:) and the like
+        own = {(hdrs.get("Host") or "").lower(), (hdrs.get("X-Forwarded-Host") or "").lower()}
+        return netloc not in own
+
     def _cookie_sid(self):
         raw = self.headers.get("Cookie", "")
+        found = {}
         for part in raw.split(";"):
             k, _, v = part.strip().partition("=")
-            if k == COOKIE:
-                return v
-        return None
+            if k in (COOKIE, XCOOKIE):
+                found.setdefault(k, v)
+        return found.get(COOKIE) or found.get(XCOOKIE)
 
     def _read_json(self, max_body=MAX_BODY):
         te = self.headers.get("Transfer-Encoding")
@@ -394,7 +441,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             raise ApiError(405, "method_not_allowed")
 
         srv = self.server
-        sid = self._cookie_sid()
+        if method not in ("GET", "HEAD") and self._cross_site():
+            self._drain_body()
+            raise ApiError(403, "cross_site_request")
+        sid = self._request_sid()
         session = srv.sessions.get(sid)
         self._sid = sid if session else None
 
@@ -412,7 +462,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         req = SimpleNamespace(handler=self, srv=srv, session=session, sid=sid,
                               body=body, query=query_d, path=path, conn=None)
-        public = path in ("/api/demo/personas", "/api/demo/login", "/api/demo/random", "/api/logout")
+        public = path in PUBLIC_PATHS
         if not public and session is None:
             raise ApiError(401, "not_logged_in")
         try:
@@ -439,7 +489,22 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_json(200, result)
 
     # -- static files ------------------------------------------------------
+    def _embed_page(self):
+        """/embed: the app page with web/embed.js loaded before app.js. embed.js reads the
+        handover token from the URL fragment and sends the session header on API calls."""
+        with open(os.path.join(config.repo_root(), "web", "index.html"), "rb") as f:
+            page = f.read().decode("utf-8")
+        tag = '<script src="embed.js"></script>\n  '
+        marker = '<script src="app.js"></script>'
+        if marker in page:
+            page = page.replace(marker, tag + marker, 1)
+        else:
+            page = page.replace("</body>", tag + "</body>", 1)
+        self._send_bytes(200, CONTENT_TYPES[".html"], page.encode("utf-8"))
+
     def _static(self, path):
+        if path == "/embed":
+            return self._embed_page()
         web_root = os.path.realpath(os.path.join(config.repo_root(), "web"))
         try:
             rel = urllib.parse.unquote(path, errors="strict")
@@ -466,13 +531,32 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self._send_bytes(200, ctype, data)
 
     # helpers used by endpoint functions
+    def _secure_context(self):
+        """https through a tunnel, or localhost (browsers treat it as secure, so a Secure cookie
+        is kept there over plain http). Plain http on another host (a phone on the LAN) is not."""
+        try:
+            name = (urllib.parse.urlsplit("//" + (self.headers.get("Host") or "")).hostname or "").lower()
+        except ValueError:
+            name = ""
+        return (name in ("localhost", "127.0.0.1", "::1") or name.endswith(".localhost")
+                or (self.headers.get("X-Forwarded-Proto") or "").lower() == "https")
+
     def set_cookie(self, sid):
-        self._extra_headers.append(
-            ("Set-Cookie", "%s=%s; HttpOnly; SameSite=Lax; Path=/" % (COOKIE, sid)))
+        """Two cookies with the same session id. COOKIE is SameSite=Lax, as before: the app
+        opened directly, and clients that never send Secure cookies over http. XCOOKIE is
+        SameSite=None; Secure; Partitioned, so the session also works inside the cross-site
+        S-mobiili iframe (Partitioned: still allowed where third-party cookies are blocked, in
+        browsers that support it). CSRF on cross-site requests: see _cross_site."""
+        self._extra_headers.append(("Set-Cookie", "%s=%s; HttpOnly; SameSite=Lax; Path=/" % (COOKIE, sid)))
+        if self._secure_context():
+            self._extra_headers.append(("Set-Cookie", "%s=%s; HttpOnly; SameSite=None; Secure; Partitioned; "
+                                        "Path=/" % (XCOOKIE, sid)))
 
     def clear_cookie(self):
-        self._extra_headers.append(
-            ("Set-Cookie", "%s=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" % COOKIE))
+        self._extra_headers.append(("Set-Cookie", "%s=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0" % COOKIE))
+        if self._secure_context():
+            self._extra_headers.append(("Set-Cookie", "%s=; HttpOnly; SameSite=None; Secure; Partitioned; "
+                                        "Path=/; Max-Age=0" % XCOOKIE))
 
 
 # ---------------------------------------------------------------------------
@@ -522,6 +606,45 @@ def ep_random(req):
     req.handler._sid = sid
     req.handler.set_cookie(sid)
     return {"ok": True}
+
+
+def ep_host_handover(req):
+    """Server to server, for the host app (S-mobiili) that has already authenticated its customer.
+
+    Needs the shared host secret (SVINKKI_HOST_SECRET) as a Bearer token. With the built-in demo
+    secret only calls from this computer are accepted. Only the demo personas and the demo pool
+    can be handed over. Returns a short-lived, single-use handover token that names no customer."""
+    auth = req.handler.headers.get("Authorization") or ""
+    given = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+    if not given or not hmac.compare_digest(given.encode("utf-8", "replace"),
+                                            embed.host_secret().encode("utf-8")):
+        raise ApiError(403, "host_auth_required")
+    if embed.using_demo_secret() and not _is_local(req.handler):
+        raise ApiError(403, "host_auth_required")
+    req.srv._load_personas()
+    cid = req.body.get("customer_id")
+    name = embed.demo_customer(cid, req.srv.persona_tokens)
+    if name is None:
+        raise ApiError(400, "unknown_customer")
+    token = req.srv.handovers.issue(cid, name)
+    if token is None:
+        raise ApiError(429, "rate_limited")
+    return {"token": token, "expires_in": embed.TOKEN_TTL_SECONDS}
+
+
+def ep_embed_session(req):
+    """The embedded app trades a handover token for a session, once. The session id is also
+    returned in the body so the app can send it as X-Svinkki-Session when the browser blocks
+    the (third-party) cookie inside the iframe."""
+    who = req.srv.handovers.redeem(req.body.get("token"))
+    if who is None:
+        raise ApiError(400, "invalid_handover")
+    if req.sid:
+        req.srv.sessions.delete(req.sid)  # avoid session fixation
+    sid = req.srv.sessions.create(who["cid"], who["name"])
+    req.handler._sid = sid
+    req.handler.set_cookie(sid)
+    return {"ok": True, "session": sid}
 
 
 def ep_logout(req):
@@ -1474,6 +1597,8 @@ ROUTES = {
     "/api/demo/login": ("POST", ep_login),
     "/api/demo/random": ("POST", ep_random),
     "/api/logout": ("POST", ep_logout),
+    "/api/host/handover": ("POST", ep_host_handover),
+    "/api/embed/session": ("POST", ep_embed_session),
     "/api/demo/reset": ("POST", ep_demo_reset),
     "/api/me": ("GET", ep_me),
     "/api/demo/ai": ("GET|POST", ep_ai_setup),

@@ -828,10 +828,11 @@ class StaticFileAndHeaderTests(HttpCase):
         self.assertTrue(csp, "a Content-Security-Policy is required")
         self.assertRegex(csp, r"default-src 'self'|script-src 'self'")
         self.assertNotIn("unsafe-eval", csp)
-        self.assertNotRegex(csp, r"https?:")
-        # a wildcard is acceptable only for frame-ancestors (the app must be embeddable in a WebView)
+        # other origins and wildcards are acceptable only in frame-ancestors (the host app that
+        # embeds Svinkki, e.g. S-mobiili); nothing may load scripts or data from elsewhere
         for directive in csp.split(";"):
             if directive.strip() and not directive.strip().startswith("frame-ancestors"):
+                self.assertNotRegex(directive, r"https?:", directive)
                 self.assertNotRegex(directive, r"(^|\s)\*($|\s)", directive)
 
     def test_page_can_be_embedded_in_a_webview(self):
