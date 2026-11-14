@@ -8,8 +8,11 @@ to move, F for full screen. The PDFs are the same slides, one per page.
 
 | File | Slides | Story |
 |---|---|---|
-| `index.html`, `Svinkki-deck.pdf` | 6 | Not a chatbot · the problem (a statement vs an answer) · proves / acts / teaches · trust (the AI explains, code counts) · cost and fit · the four brief questions |
-| `lightning.html`, `Svinkki-60s.pdf` | 3 | Ask your money anything · proves / acts / teaches · why it can ship |
+| `index.html`, `Svinkki-deck.pdf` | 8 | Not a chatbot · the problem (a statement vs an answer) · proves / acts / teaches · ask it the hard questions (afford, goal by date, payday warning) · it plans with you (salary split, what-if, mortgage readiness) · trust (the AI explains, code counts) · cost and fit · the four brief questions |
+| `lightning.html`, `Svinkki-60s.pdf` | 5 | Ask your money anything · proves / acts / teaches · the hard questions · it plans with you · why it can ship |
+
+The answers on the two question slides come from the app's built-in rules (no AI key) for Veeti,
+Joonas and Helmi; with Claude on, the figures are the same and the wording is the model's.
 
 Facts on the slides to re-check before the pitch: the test count (765 on `main` on 14 Nov), the
 cost figures below, and that the screenshots still match the app. To refresh a screenshot, replace the PNG in

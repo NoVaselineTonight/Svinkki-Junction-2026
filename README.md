@@ -1,5 +1,7 @@
 # Svinkki: a personal economic trainer
 
+**Pitch decks:** [8-slide deck (PDF)](submission/deck/Svinkki-deck.pdf) · [5-slide short deck (PDF)](submission/deck/Svinkki-60s.pdf) · [HTML versions and notes](submission/deck/)
+
 Svinkki is a prototype for the S-Pankki challenge at Junction 2026. It lets a bank customer talk with their own money: ask "How much did I spend on taxis last month?" or "What kind of spender am I?" and get a number worked out from their own transactions, with the transactions shown under the answer. It sorts spending into the brief's three baskets (regular essentials, unexpected necessities, everyday spending), shows what is safe to spend until payday, simulates what-if changes and compares the customer with people of the same age using group statistics and Statistics Finland open data. It works like an AI assistant app: a front page with a "New conversation" button, the customer's earlier conversations, and "Your things" (a savings goal, a challenge, answers the customer chose to keep), which appear once they have been created in a conversation. A "What can I ask?" button lists everything the coach can do. It is a web app with a phone-width layout and no build step, so it can be embedded in a mobile app such as S-mobiili.
 
 Python 3.13, standard library only. Nothing is installed. Money moves only inside S-mobiili (your own savings account or an S-Bank fund) and only after you approve that exact move.
