@@ -1026,7 +1026,9 @@ def goal_intent(message, today, pct=None):
     deadline, span = parse_deadline(message, today)
     trip_wish = re.search(r"\bwant(ed)? to (go|travel|fly|visit)\b|\bwanna (go|travel|fly|visit)\b|"
                           r"\bhalu(an|aisin)\s+(matkustaa\s+|lähteä\s+|muuttaa\s+|mennä\s+)?" + _FI_ILL + r"\b|"
-                          r"\b(plan|planning)\s+(a |an |my )?(trip|holiday|vacation|journey)\b", s)
+                          r"\b(plan|planning)\s+(a |an |my )?(trip|holiday|vacation|journey)\b|"
+                          r"\b(save|saving)\s+(up\s+)?(money\s+)?for\s+(a|an|my|the|our)\s+\w+|"
+                          r"\bhalu(an|aisin)\s+säästää\s+" + _FI_ILL + r"\b", s)
     goalish = trip_wish or re.search(
         r"\b(save|saving|savings goal|goal|set aside|put aside|reach)\b|\bwant(ed)? to (buy|get)\b|"
         r"\bwanna (buy|get)\b|\b(need|want|require)s?\s+(?:€\s*)?\d[\d ,.]*\s*(k|€|eur\w*|euros?|e)?\s+for\b|"
@@ -1310,7 +1312,7 @@ def _product_query(message, fi=False):
 
 
 _REC_INSIGHT_EN = re.compile(
-    r"\banaly[sz]e (?:my )?(?:grocery |shopping |food )?receipts?\b|\bwhat (?:do|did) i (?:buy|purchase)\b[^?]{0,20}\b(?:most|often|usually)\b|"
+    r"\banaly[sz]e (?:my )?(?:grocery |shopping |food )?receipts?\b|\banaly[sz]e (?:my )?(?:groceries|grocery (?:shopping|spending|list)|shopping(?: list)?)\b|\bwhat (?:do|did) i (?:buy|purchase)\b[^?]{0,20}\b(?:most|often|usually)\b|"
     r"\b(?:shopping|grocery) (?:basket|cart)\b|\bwhat(?:'s| is) in my (?:shopping |grocery )?(?:basket|cart)\b|"
     r"\bwhere does my (?:grocery|food|shopping) money go\b|\bwhere do my (?:grocery|food) (?:euros|money)\b|"
     r"\b(?:spend|spent|spending)\b[^?]{0,12}\b(?:treats|junk food|sweets and snacks)\b|\bmy treats\b|"
@@ -1645,7 +1647,10 @@ def _route_en(message, ctx):
 
     # save more
     if re.search(r"save more|how (can|do|could|should) i save|ways? to save|saving (tips|ideas)|save money|spend less|"
-                 r"cut (my )?(costs|spending|expenses)|reduce (my )?(costs|spending|expenses)|tips|advice", s):
+                 r"cut (my )?(costs|spending|expenses)|reduce (my )?(costs|spending|expenses)|tips?\b|advice|"
+                 r"cut back|cut down|where (can|could|should) i (cut|save|trim)|what should i do with my money|"
+                 r"improve my (finances|money|spending|budget)|what would you (do|change|suggest|recommend)|"
+                 r"help me (save|budget)|what (can|could|should) i (do|change) (better|differently)", s):
         return "get_save_more", {}, {}
 
     # baskets
@@ -1678,7 +1683,8 @@ def _route_en(message, ctx):
 
     # where did my money go / overview
     if re.search(r"where did (all )?my (money|salary|income|pay|cash)|where (does|is) my money|overview|summary|"
-                 r"how did i do|my finances|financial picture|how am i doing|where.{0,12}(money|spending) go", s) and label is None:
+                 r"how did i do|my finances|financial picture|how am i doing|where.{0,12}(money|spending) go|"
+                 r"spending too much|financial health|how('s| is| was) my (month|money|budget)", s) and label is None:
         mon = month_of_period(period, today) if period else None
         if period and mon is None:
             return "get_spend", {"period": period}, {}
@@ -1772,6 +1778,10 @@ _FI_INTENTS = [
      "will i make it to payday"),
     (r"\bmihin (?:kaikki )?(?:minun )?raha\w*\s+(?:menivät|meni|menee|menevät|katosivat|on mennyt|ovat menneet)\b|"
      r"\bmihin olen käyttänyt raha\w*", "where did my money go"),
+    (r"\bmiten (?:minulla|mulla) menee\b|\bmiten (?:raha-?asiani|talouteni) (?:voi|voivat|menee|menevät)\b|"
+     r"\bkulutanko liikaa\b", "how am i doing"),
+    (r"\banna (?:minulle |mulle )?(?:vinkki|vinkkejä|neuvo|neuvoja)\b|\bmistä (?:voisin|voin) (?:säästää|karsia|tinkiä)\b",
+     "how can i save more"),
     (r"\bmillainen kuluttaja\b|\bminkälainen kuluttaja\b|\bkuluttajatyyp\w*|\bmillainen rahankäyttäjä\b",
      "what kind of spender am i"),
     (r"\bpaljonko (?:säästäisin|voisin säästää|säästyisi)\b", "how much would i save"),
@@ -2063,13 +2073,20 @@ def fi_lead(tool, res, args, hints):
             return "En löytänyt helppoa säästökohdetta viimeaikaisesta kulutuksestasi."
 
         def way(x):
-            what = _FI_LABEL_PART.get(x.get("target"), _FI_LABEL_PART.get(str(x.get("target")).capitalize(),
-                                                                          str(x.get("target") or "").lower()))
+            tgt, amt = str(x.get("target") or ""), _eur_fi(x.get("saved_monthly"))
             m = re.search(r"(\d+)\s?%", str(x.get("title") or ""))
-            return "%s%s (noin %s kuussa)" % (what, (" %s %%" % m.group(1)) if m else "", _eur_fi(x.get("saved_monthly")))
+            pct = (" %s %%" % m.group(1)) if m else ""
+            if tgt == "surplus":
+                return "siirrä palkkapäivänä yli jäävä raha säästöön (noin %s kuussa)" % amt
+            if tgt == "night_out":
+                return "vähennä iltamenoja neljänneksellä (noin %s kuussa)" % amt
+            if tgt == "everyday":
+                return "karsi arkikulutusta%s (noin %s kuussa)" % (pct, amt)
+            what = _FI_LABEL_PART.get(tgt, _FI_LABEL_PART.get(tgt.capitalize(), tgt.lower().replace("_", " ")))
+            return "vähennä %s%s (noin %s kuussa)" % (what, pct, amt)
         if len(ideas) == 1:
-            return "Yksi helppo keino: vähennä %s." % way(ideas[0])
-        return "Kaksi helppoa keinoa: vähennä %s ja %s." % (way(ideas[0]), way(ideas[1]))
+            return "Yksi helppo keino: %s." % way(ideas[0])
+        return "Kaksi helppoa keinoa: %s ja %s." % (way(ideas[0]), way(ideas[1]))
     if tool == "check_mortgage":
         if hints.get("view") == "income":
             return "Tilillesi tulee keskimäärin noin %s kuukaudessa." % _eur_fi(res.get("monthly_income"))
@@ -2181,6 +2198,8 @@ def fi_lead(tool, res, args, hints):
     if tool == "plan_goal_by_date":
         needs = res.get("needs") or []
         name = res.get("name") or args.get("name") or "tavoitteesi"
+        if name == "My goal":
+            name = "tavoitteesi"
         if "target" in needs:
             return "Hyvä tavoite. Paljonko %s suunnilleen maksaa? En arvaa hintaa puolestasi." % name
         if "deadline" in needs:
