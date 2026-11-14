@@ -5252,9 +5252,9 @@ _EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U
 _LABEL_RE = re.compile(r"^\s*(?:headline|summary|answer|tip|next step|note|tl;dr|yhteenveto|vinkki)\s*:\s*", re.I)
 
 
-CARD_MAX_WORDS = 45       # with a picture above the text: two short sentences
-NO_CARD_MAX_WORDS = 90    # without one
-CARD_DETAIL_WORDS = 70    # the customer asked for detail and a picture is shown
+CARD_MAX_WORDS = 80       # with a picture above the text: answer, meaning, one step (owner's eval, 14 Nov)
+NO_CARD_MAX_WORDS = 110   # without one
+CARD_DETAIL_WORDS = 120   # the customer asked for detail and a picture is shown
 
 
 def turn_has_card(calls):
