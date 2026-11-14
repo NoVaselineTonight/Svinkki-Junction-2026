@@ -63,7 +63,9 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
   Finnish defects: "miinus 3 800 €", "-2,7 kuukauden", and "Onko ... tavallista?" not being treated as a
   comparison. Known gap: a FOUND spending pattern asked about in Finnish is still answered in English with a
   note, because `tests/test_wave3_http.py` (W14) pins that reply; change both together if you want it in Finnish.
-- Tests: `Ran 753 tests ... OK`.
+- The coach's picture now carries the figures it would otherwise have to work out (what a usual month leaves,
+  what a goal still needs, how many months that is at the usual leftover), so those sentences pass the number check.
+- Tests: `Ran 755 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 
