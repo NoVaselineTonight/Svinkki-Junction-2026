@@ -2376,12 +2376,26 @@
   }
 
   // ---------- HOME ----------
-  var STARTERS = [
-    { label: 'Taxis last month', q: 'How much did I spend on taxis last month?' },
-    { label: 'Can I afford a €300 jacket?', q: 'Can I afford a 300 euro jacket?' },
-    { label: 'Save for a trip to Japan', q: 'I want to go to Japan in 2027' },
-    { label: 'Where is my money leaking?', q: 'Where is my money leaking?' }
+  // What Svinkki can do, shown on the start page. q: asked right away. act: a tool. fill: starts the sentence for you.
+  var HOME_TOOLS = [
+    { label: 'Can I afford it?', hint: 'Check before you buy', act: 'afford', icon: 'wallet' },
+    { label: 'Where can I save?', hint: 'Ideas from your spending', q: 'How can I save more?', icon: 'coin' },
+    { label: 'Analyse receipts', hint: 'Down to single products', q: 'What do I buy most?', icon: 'receipt' },
+    { label: 'Plan a goal', hint: 'A trip, a home, a buffer', fill: 'I want to save for ', icon: 'target' },
+    { label: 'Until payday', hint: 'Your balance day by day', q: 'Will I make it to payday?', icon: 'calendar' },
+    { label: 'Explain a contract', hint: 'A loan or fund text', act: 'explain', icon: 'doc' }
   ];
+
+  // A closed row on the start page that opens in place: title, one line of summary, the card inside.
+  function fold(ico, title, summary, node) {
+    var body = h('div', { class: 'fold-body' }, node);
+    return h('details', { class: 'fold' },
+      h('summary', null,
+        h('span', { class: 'thing-ico' }, icon(ico, 20)),
+        h('span', { class: 'thing-text' }, h('b', null, title), summary ? h('span', { class: 'tiny' }, summary) : null),
+        h('span', { class: 'chev' }, icon('chev', 18))),
+      body);
+  }
 
   // The message box. onSend(text) gets the trimmed text.
   function composer(placeholder, label, onSend) {
@@ -2425,19 +2439,27 @@
     var t = token;
     var first = firstName();
     var comp = composer('Ask Svinkki', 'Ask Svinkki a question', function (text) { openConversation({ message: text }); });
-    var askLink = h('button', { type: 'button', class: 'link-btn ask-link', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, icon('help', 18), 'What can I ask?');
+    var askLink = h('button', { type: 'button', class: 'link-btn ask-link', 'aria-haspopup': 'dialog', onclick: function () { openAsk(); } }, icon('help', 18), 'Everything I can do');
+    var toolGrid = h('div', { class: 'tool-grid home-tools' }, HOME_TOOLS.map(function (it) {
+      return h('button', { type: 'button', class: 'tool', onclick: function () {
+        if (it.fill) { comp.set(it.fill); return; }
+        openConversation({ entry: it });
+      } },
+        h('span', { class: 'tool-ico' }, icon(it.icon, 20)),
+        h('span', { class: 'tool-text' }, h('b', null, it.label), h('span', { class: 'tool-hint' }, it.hint)));
+    }));
+    var toolsBox = h('div', { class: 'home-sec' }, sectionHead('I can help with'), toolGrid, askLink);
     var forYou = h('div', { class: 'for-you-cards', role: 'group', 'aria-label': 'Ready for you' });
-    var starters = h('div', { class: 'starters', hidden: true });
-    var thingsBox = h('div', { class: 'home-sec' }, sectionHead('Your things'), loadingNode('Loading...'));
+    var thingsBox = h('div', { class: 'home-sec', hidden: true });
     var convBox = h('div', { class: 'home-sec' });
     var acctBox = h('div', { class: 'acct-slot' });
     viewEl.appendChild(h('div', { class: 'home' },
       acctBox,
-      h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), h('p', { class: 'muted' }, 'What would you like to know about your money?')),
-      comp.el, askLink, forYou, starters, thingsBox, convBox));
+      h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), h('p', { class: 'muted' }, 'Ask me anything about your money.')),
+      comp.el, toolsBox, forYou, convBox, thingsBox));
     api('/api/account').then(function (a) { if (alive(t) && a && a.current) acctBox.replaceChildren(accountCard(a)); }, function () {});
 
-    // Ready for you, right on the start page: the check-in, this week's quiz and anything worth a look.
+    // Ready for you: the check-in, this week's quiz and anything worth a look, each closed until tapped.
     var slots = { checkin: h('div'), quiz: h('div'), alerts: h('div') };
     forYou.appendChild(slots.checkin); forYou.appendChild(slots.quiz); forYou.appendChild(slots.alerts);
     function place(key, node) {
@@ -2446,14 +2468,19 @@
       if (!forYou.querySelector('.sec-head')) forYou.insertBefore(sectionHead('For you'), forYou.firstChild);
     }
     api('/api/checkin').then(function (r) {
-      if (r && r.due && r.checkin) place('checkin', checkinCard(r.checkin));
+      if (!(r && r.due && r.checkin)) return;
+      var c = r.checkin, sur = num(c.surplus);
+      var when = fmtPeriod(c.period);
+      place('checkin', fold('calendar', 'Your check-in',
+        (sur >= 0 ? money(sur) + ' left over' : money(-sur) + ' more out than in') + (when ? ' · ' + when : ''), checkinCard(c)));
     }, function () {});
     api('/api/quiz').then(function (q) {
-      if (q && q.quiz_id) place('quiz', quizCard(q));
+      if (q && q.quiz_id) place('quiz', fold('help', 'Weekly quiz', 'One guess about your own spending', quizCard(q)));
     }, function () {});
     api('/api/alerts').then(function (d) {
       var list = (d && Array.isArray(d.alerts)) ? d.alerts : [];
-      if (list.length) place('alerts', CARDS.alerts({ alerts: list, explain: d.explain }));
+      if (list.length) place('alerts', fold('flag', 'Worth a look', plural(list.length, 'thing', 'things') + ' in your recent spending',
+        CARDS.alerts({ alerts: list, explain: d.explain })));
     }, function () {});
 
     function render(d) {
@@ -2461,9 +2488,8 @@
       d = d || {};
       var things = Array.isArray(d.things) ? d.things : [];
       thingsBox.replaceChildren(sectionHead('Your things'));
-      if (!things.length) {
-        thingsBox.appendChild(h('p', { class: 'quiet-line' }, 'Things you set up in a conversation, such as a savings goal, show up here.'));
-      } else {
+      thingsBox.hidden = !things.length;      // nothing to show yet: no empty box on the start page
+      if (things.length) {
         var tl = h('div', { class: 'list-card' });
         things.forEach(function (th) {
           var k = kindOf(th);
@@ -2495,14 +2521,6 @@
           });
           convBox.appendChild(all);
         }
-      }
-      // A few starter questions until the first conversation exists.
-      starters.hidden = !!convs.length;
-      if (!convs.length) {
-        starters.replaceChildren(h('p', { class: 'eyebrow' }, 'Try one'),
-          h('div', { class: 'chips' }, STARTERS.map(function (st) {
-            return h('button', { type: 'button', class: 'chip', onclick: function () { openConversation({ message: st.q }); } }, st.label);
-          })));
       }
     }
 

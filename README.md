@@ -61,7 +61,8 @@ Added by the team:
 - Consent switches (analyse, AI model, comparison, suggestions) and the customer's own choice of how often check-ins, suggestions, the quiz and challenges arrive.
 - Weekly quiz ("Guess how much you spent on X this week") with an awareness score over time.
 - A simulated S-Bank account at the top of the start page: current account balance, savings and investments, and what is safe to spend until payday; tap it for the latest transactions and "Move money" (`GET /api/account`).
-- Monthly check-in, this week's quiz and "Worth a look" right on the start page.
+- The start page shows what the coach can do as six tiles under the question box ("Can I afford it?", "Where can I save?", "Analyse receipts", "Plan a goal", "Until payday", "Explain a contract") and a link to everything else. The monthly check-in, this week's quiz and "Worth a look" sit below as closed rows that open when tapped.
+- A coach that knows the customer: with the AI model on, every turn carries a short, checked picture of the customer (last month, usual month, biggest categories, balance and payday, saving opportunities, goal), so answers are personal and end with one concrete next step when the data gives one. Aggregates only, no ids, merchants or other people; the exact lines are shown under "What the AI saw". Without a model, answers add one sentence about the customer's own previous or usual month (`coach.customer_snapshot`, `coach._personal_note`).
 - Save and invest inside S-mobiili: the coach or a check-in suggestion offers a move to your own S-Bank savings account or an S-Bank fund; an approval card shows the amount, from, to and the balance after, and nothing moves until you tap "Approve". A move never takes money needed for bills before payday, and nothing can go outside S-mobiili (`app/money.py`).
 - "Can I afford this?" with the effect on a savings goal; goals by date in chat ("I want to go to Japan in 2027").
 - Learning: recategorise a transaction and Svinkki remembers it, for one purchase or every purchase from that merchant.
@@ -118,13 +119,14 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 655 tests in 54.1s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
+The last run printed `Ran 685 tests in 36.1s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 
 - The data is synthetic.
 - Login is a demo picker, not bank authentication.
 - The Claude path was checked live on 13 Nov 2026 with Claude Haiku 5.5 on a handful of questions. The automated tests use a fake HTTP layer. Gemini has not been tried live.
+- The coach prompt was rewritten on 14 Nov (personal answers, the customer picture, medium effort, Opus 5.5 unless another model is chosen in Settings). That version has NOT been run against the live model yet: only the fake HTTP layer has seen it. Ask five questions with a key before a demo.
 - Receipt lines are simulated: the dataset has merchants and amounts, not basket contents. A real version would read the customer's S Group purchase data with consent.
 - The S-Pankki name and logo are used with S-Pankki's permission for this demo and pitch only.
 - Repeating charges and investment withdrawals are rare in the synthetic data, so subscription detection and the savings-leakage alert often have nothing to show.
