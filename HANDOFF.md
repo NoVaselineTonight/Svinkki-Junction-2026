@@ -6,6 +6,17 @@ the dataset, the built database, and the API key.
 
 ## Where things stand
 
+Updated 14 Nov 2026, afternoon, by agent-e after the judges' feedback (S-Pankki). What they asked for and what was built:
+
+- **Finnish.** The whole interface in Finnish with an FI/EN switch in the top bar (`web/i18n.js`, `web/i18n-fi.js`; every interface string of `web/app.js` goes through `T()`). The coach answers in Finnish when the interface is Finnish (`ctx.ui_lang`), and the built-in rules understand spoken Finnish.
+- **Home page as the centre, widgets that stay.** `GET/POST /api/widgets`, `app/plans.py`, `web/widgets.js`: savings plans with a progress ring and projection chart, safe-to-spend, a category tracker, the baskets. The goal is the first plan. "Add to home page" on answer cards.
+- **Savings plans you create and see.** One plan builder (a slider for the monthly amount, the chart redraws at once) on the home page and in chat (`goal_plan` and `plan_offer` cards).
+- **Steering and proposals.** `GET /api/next-steps`: up to three proposals worked out by code, one tap each. The coach recommends one option and calls `propose_plan`; it never claims a plan is saved.
+- **The picture first.** Tool results carry a `chart` block and a one-sentence `caption` / `caption_fi` (`app/charts.py`); `web/visuals.js` draws them; an answer shows one card, then at most two short sentences (cut in code to about 45 words when a card shows).
+- Checked: `python -m unittest discover -s tests` (1,282 tests OK); nine live answers in Finnish and English (13 to 38 words, all with a card); the home page, a plan from a suggestion, a plan from chat and the winter chart in a browser in Finnish.
+- Not done: card titles and details behind "More" are still English for some card types; the built-in rules do not attach a plan offer by themselves (only the model does); pensioner wording in the rules; the demo quiz questions are in English.
+
+
 Updated 14 Nov 2026 by agent-e, the demo-ready run (the app is public at https://svinkki.onrender.com):
 
 - **Audited:** 17 audits, about 230 live answers checked; every figure taken from a tool matched SQL.

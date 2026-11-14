@@ -5,12 +5,20 @@
   // ---------- small DOM helpers ----------
   var SVG_NS = 'http://www.w3.org/2000/svg';
 
+  // Add-on (web/i18n.js): the interface language. T() translates a piece of interface text; text it does not
+  // know (figures, names, the coach's own words) comes back unchanged. Never allowed to break the page.
+  function T(s) {
+    try { return (typeof s === 'string' && window.SvI18n && window.SvI18n.t) ? window.SvI18n.t(s) : s; } catch (e) { return s; }
+  }
+  function uiFi() { return !!(window.SvI18n && window.SvI18n.lang === 'fi'); }
+  var T_ATTRS = { placeholder: 1, 'aria-label': 1, title: 1, alt: 1 };
+
   function append(el, kids) {
     for (var i = 0; i < kids.length; i++) {
       var k = kids[i];
       if (k == null || k === false) continue;
       if (Array.isArray(k)) { append(el, k); continue; }
-      el.appendChild(k instanceof Node ? k : document.createTextNode(String(k)));
+      el.appendChild(k instanceof Node ? k : document.createTextNode(typeof k === 'string' ? T(k) : String(k)));
     }
   }
 
@@ -24,10 +32,10 @@
         if (v == null || v === false) continue;
         if (k === 'style' || k === 'innerHTML' || k === 'outerHTML') continue;
         if (k === 'class') el.className = v;
-        else if (k === 'text') el.textContent = v;
+        else if (k === 'text') el.textContent = T(v);
         else if (k.slice(0, 2) === 'on' && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
         else if (v === true) el.setAttribute(k, '');
-        else el.setAttribute(k, String(v));
+        else el.setAttribute(k, T_ATTRS[k] ? T(String(v)) : String(v));
       }
     }
     append(el, Array.prototype.slice.call(arguments, 2));
@@ -86,6 +94,7 @@
 
   // The language of the answer whose cards are being drawn ('fi' writes money and dates the Finnish way).
   var cardLang = 'en';
+  function isFi() { return cardLang === 'fi' || uiFi(); }
   var FI_MONTHS = ['tammikuu', 'helmikuu', 'maaliskuu', 'huhtikuu', 'toukokuu', 'kesäkuu', 'heinäkuu', 'elokuu', 'syyskuu', 'lokakuu', 'marraskuu', 'joulukuu'];
   function money(n, opts) {
     opts = opts || {};
@@ -95,7 +104,7 @@
     // House rule: whole euros from €20 up, cents only below. opts.exact keeps the cents (single payments).
     var dec = opts.exact ? 2 : (abs >= 20 || (opts.hero && abs >= 1000) ? 0 : 2);
     if (!opts.exact && dec === 2 && abs === 0) dec = 0;
-    var fi = cardLang === 'fi';
+    var fi = isFi();
     var s = abs.toLocaleString(fi ? 'fi-FI' : 'en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
     var isZero = Number(abs.toFixed(dec)) === 0;
     var sign = (n < 0 && !isZero) ? '-' : (opts.plus && n > 0 ? '+' : '');
@@ -105,20 +114,20 @@
   // cents, so the card does too ("€92.85", not "€93").
   var EXACT = { exact: true };
   // Whole euros for figures where cents are noise: "€445".
-  function euros(n) { return money(Math.round(num(n)), { hero: true }).replace(/\.00$/, ''); }
+  function euros(n) { return money(Math.round(num(n)), { hero: true }).replace(/[.,]00(?=$|\s?€)/, ''); }
 
   // The current year is left out of dates: "15 Oct", but "30 Jun 2027".
   function yearPart(y) { return (me && me.today && String(me.today).slice(0, 4) === y) ? '' : ' ' + y; }
   function fmtDate(s) {
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
     if (!m) return s ? String(s) : '';
-    if (cardLang === 'fi') return Number(m[3]) + '.' + Number(m[2]) + '.' + yearPart(m[1]).trim();
+    if (isFi()) return Number(m[3]) + '.' + Number(m[2]) + '.' + yearPart(m[1]).trim();
     return Number(m[3]) + ' ' + MON[Number(m[2]) - 1] + yearPart(m[1]);
   }
   function fmtMonth(ym) {
     var m = /^(\d{4})-(\d{2})/.exec(String(ym || ''));
     if (!m) return String(ym || '');
-    return (cardLang === 'fi' ? FI_MONTHS : MONTHS)[Number(m[2]) - 1] + yearPart(m[1]);
+    return (isFi() ? FI_MONTHS : MONTHS)[Number(m[2]) - 1] + yearPart(m[1]);
   }
   // Full calendar month: "August 2026". Same year: "1 Aug to 15 Sep 2026". Otherwise both years.
   function fmtRange(p) {
@@ -129,9 +138,9 @@
     var b = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(to));
     if (!a || !b) return fmtDate(p.from) + ' to ' + fmtDate(to);
     if (a[1] === b[1] && a[2] === b[2] && a[3] === '01' && String(to).slice(0, 10) === lastDayOfMonth(a[1] + '-' + a[2])) {
-      return (cardLang === 'fi' ? FI_MONTHS : MONTHS)[Number(a[2]) - 1] + yearPart(a[1]);
+      return (isFi() ? FI_MONTHS : MONTHS)[Number(a[2]) - 1] + yearPart(a[1]);
     }
-    if (cardLang === 'fi') return fmtDate(p.from) + '–' + fmtDate(to);
+    if (isFi()) return fmtDate(p.from) + '–' + fmtDate(to);
     if (a[1] === b[1]) return Number(a[3]) + ' ' + MON[Number(a[2]) - 1] + ' to ' + fmtDate(to);
     return fmtDate(p.from) + ' to ' + fmtDate(to);
   }
@@ -205,6 +214,7 @@
   function api(path, opts) {
     opts = opts || {};
     var init = { method: opts.method || 'GET', credentials: 'same-origin', headers: { 'Accept': 'application/json' } };
+    if (window.SvI18n && window.SvI18n.lang) init.headers['X-Svinkki-Lang'] = String(window.SvI18n.lang);
     if (opts.body !== undefined) {
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(opts.body);
@@ -913,7 +923,7 @@
     choose.body.appendChild(pc.el);
     viewEl.appendChild(h('div', { class: 'welcome' },
       h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'),
-      h('p', null, 'I\'m Svinkki, your money coach. I read your own transactions to answer your questions. ' + (me && me.ai_available
+      h('p', null, 'I\'m Svinkki, your money coach. I read your own transactions to answer your questions. ', (me && me.ai_available
         ? 'An AI helps with the wording; it never sees your name or account.'
         : 'The AI isn\'t connected right now, so I\'ll answer with my built-in know-how. The figures are just as exact.')),
       h('p', { class: 'muted' }, 'Money only moves when you approve it, and only to your own S-Bank savings or funds. You can change these choices any time in Settings.'),
@@ -1243,7 +1253,7 @@
       api('/api/suggestions/action', { method: 'POST', body: { id: s.id, action: action } }).then(function (r) {
         row.hidden = true;
         if (action === 'accept' && String(s.id || '').indexOf('review_overdraft') === 0 && !(r && r.proposal)) {
-          openConversation({ message: 'When was my balance below zero?' });
+          openConversation({ message: T('When was my balance below zero?') });
           return;
         }
         if (r && r.proposal) { msg.replaceChildren(moneyProposalCard(r.proposal)); return; }
@@ -2484,6 +2494,11 @@
     if (!c || typeof c !== 'object') return null;
     var fn = CARDS[c.type];
     var d = c.data || {};
+    // Add-ons (web/widgets.js, web/visuals.js) may draw a card type themselves: SvinkkiCards[type](data, card).
+    var ext = window.SvinkkiCards && window.SvinkkiCards[c.type];
+    if (typeof ext === 'function') {
+      try { var made = ext(d, c); if (made) return made; } catch (e) { if (window.console) console.error(e); }
+    }
     if (!fn) return null;
     // Nothing was spent: the sentence already says so, an empty card adds nothing.
     if (c.type === 'spend' && !num(d.total) && !num(d.count)) return null;
@@ -2907,16 +2922,19 @@
     var thingsBox = h('div', { class: 'home-sec', hidden: true });
     var convBox = h('div', { class: 'home-sec' });
     var acctBox = h('div', { class: 'acct-slot' });
+    // Add-on (web/widgets.js): savings plans, suggestions and other widgets the customer keeps on the home page.
+    var widgetBox = h('div', { class: 'home-widgets', id: 'home-widgets' });
     var greetLine = h('p', { class: 'muted', 'aria-live': 'polite' }, 'Ask me anything about your money, even the hard questions.');
     viewEl.appendChild(h('div', { class: 'home' },
       errBox,
       h('div', { class: 'greet' }, h('h1', null, first ? 'Hi ' + first + '!' : 'Hi!'), greetLine),
-      acctBox,
-      comp.el, suggest, monthBox, forYou, convBox, thingsBox));
+      acctBox, comp.el, widgetBox,
+      suggest, monthBox, forYou, convBox, thingsBox));
     // The lists that change when the customer does something; refreshed in place, never the check-in or the quiz.
     function refresh() {
       if (!alive(t)) return;
       errBox.replaceChildren();
+      try { if (window.SvinkkiWidgets && window.SvinkkiWidgets.home) window.SvinkkiWidgets.home(widgetBox); } catch (e) { if (window.console) console.error(e); }
       api('/api/account').then(function (a) {
         if (!alive(t)) return;
         if (a && a.current) { acctBox.hidden = false; acctBox.replaceChildren(accountCard(a)); } else acctBox.hidden = true;
@@ -2978,6 +2996,8 @@
       if (!alive(t)) return;
       d = d || {};
       var things = Array.isArray(d.things) ? d.things : [];
+      // A savings goal is drawn as a widget at the top of the page (web/widgets.js), not as a row down here.
+      if (window.SvinkkiWidgets && window.SvinkkiWidgets.home) things = things.filter(function (th) { return th.kind !== 'goal'; });
       thingsBox.replaceChildren(sectionHead('Your things'));
       thingsBox.hidden = !things.length;      // nothing to show yet: no empty box on the start page
       if (things.length) {
@@ -3337,6 +3357,7 @@
       storing.then(function () {
         var body = { message: text };
         if (conv.id) body.conversation_id = conv.id;
+        if (uiFi()) body.lang = 'fi';
         return api('/api/chat', { method: 'POST', body: body, timeout: TURN_TIMEOUT_MS });
       }).then(function (res) {
         res = res || {};
@@ -3363,6 +3384,7 @@
 
     // Entries from "What can I ask?": send now, or put the question in the box while an answer is pending.
     function ask(q) {
+      q = T(q);     // a chip sends its question in the interface language
       if (busy) { comp.set(q); return; }
       send(q);
     }
@@ -3379,18 +3401,28 @@
     };
     function botReplyIn(res) {
       var m = h('div', { class: 'msg bot' });
-      m.appendChild(h('div', { class: 'bot-text' }, richText(res.reply)));
+      var textNode = h('div', { class: 'bot-text' }, richText(res.reply));
       var used = null;
       try { used = usedParts(res.used); } catch (e) { used = null; }
       var cards = h('div', { class: 'msg-cards' + (used ? ' has-used' : '') });
+      var extra = [];
       (res.cards || []).forEach(function (c) {
         var node = null;
         try { node = renderChatCard(c); } catch (e) { node = null; if (window.console) console.error(e); }
         if (!node) return;
-        cards.appendChild(node);
+        // One card in view per answer; any others wait behind "More views".
+        if (cards.childNodes.length) extra.push(node); else cards.appendChild(node);
         if (!NOT_KEEPABLE[c.type]) addKeep(node, c, node);
+        try { if (window.SvinkkiWidgets && window.SvinkkiWidgets.afterCard) window.SvinkkiWidgets.afterCard(node, c); } catch (e) { if (window.console) console.error(e); }
       });
-      if (cards.childNodes.length) m.appendChild(cards);
+      if (extra.length) {
+        var fold = disclosure('More views (' + extra.length + ')', 'more-cards');
+        append(fold.body, extra);
+        cards.appendChild(fold.el);
+      }
+      // The picture first, then the words: a card answers at a glance, the text says what it means.
+      if (cards.childNodes.length) { m.classList.add('visual-first'); m.appendChild(cards); }
+      m.appendChild(textNode);
       var acts = h('div', { class: 'reply-acts' });
       if (used) acts.appendChild(used.btn);
       // Every answer says where it came from, small and plain: the built-in rules or the model's name.
@@ -3878,6 +3910,17 @@
     watchViewport();
     boot();
   }
+
+  // What the add-ons (web/i18n.js, web/widgets.js, web/visuals.js) may use from the app.
+  window.SvinkkiApp = {
+    h: h, T: T, isFi: isFi, api: api, num: num, money: money, euros: euros, fmtDate: fmtDate, fmtMonth: fmtMonth,
+    icon: icon, svgEl: svgEl, cardShell: cardShell, keyFig: keyFig, addRows: addRows, more: more, disclosure: disclosure,
+    openSheet: openSheet, closeSheet: closeSheet, moneyProposalCard: moneyProposalCard,
+    ask: function (text) { openConversation({ message: text }); },
+    refreshHome: function () { thingsChanged(); },
+    showHome: function () { showHome(); },
+    me: function () { return me; }
+  };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

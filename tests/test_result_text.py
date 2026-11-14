@@ -141,6 +141,8 @@ class ResultTextTests(unittest.TestCase):
     def test_money_over_20_is_whole_euros_and_never_mixes_formats(self):
         bad = []
         for cid, name, args, key, s in self.each():
+            if name == "get_spend" and str(key).endswith("caption"):
+                continue     # the chart caption of a looked-up total is exact, like the answer (app/charts.py)
             for m in MONEY.finditer(s):
                 whole = float(m.group(1).replace(",", ""))
                 cents = m.group(2)

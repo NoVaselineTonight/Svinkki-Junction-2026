@@ -1710,4 +1710,10 @@ def call(name, args, ctx):
         return {"error": "the tool returned nothing", "card": "error"}
     res = dict(res)
     res["card"] = "error" if "error" in res else card
+    if "error" not in res:
+        try:
+            from app import charts
+            res = charts.attach(card, res, args, ctx, insights)
+        except Exception:
+            pass                      # a picture is a bonus: the answer never fails because of it
     return res

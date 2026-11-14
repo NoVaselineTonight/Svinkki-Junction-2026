@@ -392,9 +392,15 @@ class CoachWave3Tests(unittest.TestCase):
                 self.assertIn("get_patterns", r1["tools_used"])
                 data = self.card(r1, "patterns")
                 self.assertTrue(data["patterns"])
-                # a Finnish question without a Finnish template gets the English reply plus a short note (B2)
-                self.assertTrue(r1["reply"].replace("(Vastaan tähän vielä englanniksi.)", "").strip()
-                                .endswith("Want to hear why?"), r1["reply"])
+                if first.startswith("ostanko"):
+                    # a Finnish question gets the Finnish reply (judges' feedback: it must work in Finnish)
+                    self.assertTrue(r1["reply"].strip().endswith("Haluatko kuulla miksi?"), r1["reply"])
+                    self.assertNotIn("englanniksi", r1["reply"])
+                    r2 = self.ask(ctx, second)
+                    self.assertTrue(r2["reply"].strip())
+                    self.assertNotIn("englanniksi", r2["reply"])
+                    continue
+                self.assertTrue(r1["reply"].strip().endswith("Want to hear why?"), r1["reply"])
                 r2 = self.ask(ctx, second)
                 for line in data["patterns"][0]["why"][:2]:      # the reply keeps two why lines (brevity)
                     self.assertIn(line, r2["reply"])

@@ -21,7 +21,7 @@ import urllib.parse
 from collections import deque
 from types import SimpleNamespace
 
-from . import classify, config, db, embed, money, state
+from . import classify, config, db, embed, money, plans, state
 
 COOKIE = "svinkki_sid"            # SameSite=Lax
 XCOOKIE = "svinkki_xsid"          # SameSite=None; Secure; Partitioned: for the S-mobiili iframe
@@ -484,8 +484,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         body = self._read_json(limit) if method == "POST" else {}
         query_d = {k: v[-1] for k, v in urllib.parse.parse_qs(query, keep_blank_values=False).items()}
 
+        lang = "fi" if str(self.headers.get("X-Svinkki-Lang") or "").strip().lower() == "fi" else "en"
         req = SimpleNamespace(handler=self, srv=srv, session=session, sid=sid,
-                              body=body, query=query_d, path=path, conn=None)
+                              body=body, query=query_d, path=path, conn=None, lang=lang)
         public = path in PUBLIC_PATHS
         if not public and session is None:
             raise ApiError(401, "not_logged_in")
@@ -1094,6 +1095,8 @@ def ep_money(req):
 def ep_money_propose(req):
     b = req.body
     dest = b.get("dest")
+    if "dest" not in b:
+        dest = "savings"   # no destination named at all: the customer's own S-Bank savings account
     if not isinstance(dest, str) or dest not in money.DEST_IDS:
         raise ApiError(400, "invalid_destination")   # no free-form destination exists
     amount = b.get("amount")
@@ -1122,7 +1125,329 @@ def ep_money_confirm(req):
     src = str(((got or {}).get("data") or {}).get("source") or "")
     if res.get("moved") and src.startswith("checkin:"):
         state.record_intent(req.skey, src[len("checkin:"):], "accept")
+    wid = ((got or {}).get("data") or {}).get("widget_id")
+    if res.get("moved") and wid:
+        _credit_plan(req, wid, float(res.get("amount") or 0))
     return res
+
+
+# ---------------------------------------------------------------------------
+# Home-page widgets, savings plans and next steps (Contract C). The goal is always the first widget ("goal").
+# ---------------------------------------------------------------------------
+
+def _wc(req):
+    c = getattr(req, "_wcache", None)
+    if c is None:
+        c = req._wcache = {}
+    return c
+
+
+def _w_cap(req):
+    """(what can be moved now, the safe-to-spend result): computed once per request."""
+    c = _wc(req)
+    if "cap" not in c:
+        c["cap"] = money.available(req.conn, req.today)
+    return c["cap"]
+
+
+def _w_safe(req):
+    c = _wc(req)
+    if "safe" not in c:
+        target = _saving_target(req)
+        c["safe"] = _w_cap(req)[1] if target <= 0 else _insights().safe_to_spend(
+            req.conn, req.today, monthly_saving_target=target)
+    return c["safe"]
+
+
+def _w_left(req):
+    c = _wc(req)
+    if "left" not in c:
+        c["left"] = plans.usual_leftover(req.conn, req.today)
+    return c["left"]
+
+
+def _plan_data(req, params, saved):
+    """Plan data for stored plan params. An old or odd plan (a deadline gone by, a tiny monthly amount) falls
+    back to something that can still be drawn instead of failing the whole home page."""
+    left = _w_left(req)
+    cap = _w_cap(req)[0]
+    target = min(max(float(params.get("target") or 1), 1.0), plans.TARGET_MAX)
+    saved = max(0.0, float(saved or 0))
+    mo = params.get("monthly")
+    base = dict(today=req.today, saved=saved, usual_leftover=left, name=params.get("name"), can_move=cap)
+    default = plans.small_monthly(left if left is not None else 0)
+    if not mo and not params.get("deadline"):
+        # A goal saved without a pace (an older goal, or one typed in as a bare amount): show it on a two-year
+        # horizon instead of a token amount that would take decades.
+        default = max(default, float(int(-(-max(target - saved, 0.0) / 24.0 // 5) * 5)))
+    tries = [(mo, params.get("deadline")), (mo or default, None),
+             (max(float(mo or default), target / plans.MAX_MONTHS + 1), None)]
+    for m, dl in tries:
+        try:
+            return plans.preview(target, monthly=m, deadline=dl, **base)
+        except ValueError:
+            continue
+    return plans.preview(target, monthly=target, **base)
+
+
+def _goal_saved(skey, g):
+    """What counts toward the goal: its own "saved", or the money approved into the savings account (less what
+    went into other plans), whichever is more. /api/home uses the same figure."""
+    in_savings = sum(hd["amount"] for hd in money.holdings(skey) if hd["kind"] == "savings")
+    elsewhere = sum(float(w["params"].get("saved") or 0) for w in state.list_widgets(skey) if w["type"] == "plan")
+    return max(float(g["saved"]), in_savings - elsewhere)
+
+
+def _goal_widget(req):
+    g = state.get_goal(req.skey)
+    if not g or not float(g.get("target") or 0) > 0:
+        return None
+    saved = _goal_saved(req.skey, g)
+    data = _plan_data(req, {"name": g["name"], "target": g["target"], "monthly": g.get("monthly_needed"),
+                            "deadline": g.get("deadline")}, saved)
+    data["name"] = g["name"]
+    return {"id": "goal", "type": "plan", "title": g["name"], "title_fi": g["name"], "data": data}
+
+
+def _widget_view(req, w):
+    p, t = w["params"], w["type"]
+    if t == "plan":
+        data = _plan_data(req, p, p.get("saved") or 0)
+        data["name"] = p.get("name", "")
+        return {"id": w["id"], "type": t, "title": p.get("name", ""), "title_fi": p.get("name", ""), "data": data}
+    if t == "safe":
+        return {"id": w["id"], "type": t, "title": "Safe to spend", "title_fi": "Käytettävissä",
+                "data": plans.safe_data(req.conn, req.today, cache=_w_safe(req))}
+    if t == "category":
+        d = plans.category_data(req.conn, req.today, p.get("label", ""), p.get("limit"))
+        return {"id": w["id"], "type": t, "title": d["label"].title(), "title_fi": d["label_fi"], "data": d}
+    return {"id": w["id"], "type": "baskets", "title": "Where your money goes",
+            "title_fi": "Minne rahasi menevät", "data": plans.baskets_data(req.conn, req.today)}
+
+
+def _can_add(req):
+    extras = state.list_widgets(req.skey)
+    if len(extras) >= state.MAX_WIDGETS:
+        return []
+    have = {w["type"] for w in extras}
+    return [t for t in state.WIDGET_TYPES if t not in ("safe", "baskets") or t not in have]
+
+
+def _all_widgets(req, only_plans=False):
+    out = []
+    g = _goal_widget(req)
+    if g:
+        out.append(g)
+    for w in state.list_widgets(req.skey):
+        if not only_plans or w["type"] == "plan":
+            out.append(_widget_view(req, w))
+    return out
+
+
+def _plan_params(b, today):
+    """Validated, complete plan params from a request: name, target, monthly and deadline both worked out."""
+    name = plans._clean_name(b.get("name"))
+    p = plans.preview(b.get("target"), monthly=b.get("monthly"), deadline=b.get("deadline"), today=today)
+    return {"name": name, "target": p["target"], "monthly": p["monthly"], "deadline": p["deadline"], "saved": 0.0}
+
+
+def _category_params(b):
+    label = b.get("label")
+    if not plans.valid_label(label):
+        raise ApiError(400, "invalid_label")
+    limit = b.get("limit")
+    if limit in (None, ""):
+        limit = None
+    else:
+        limit = _num(limit, "limit", 1, 1_000_000)
+    return {"label": label.strip(), "limit": limit}
+
+
+def ep_widgets(req):
+    if req.handler.command != "POST":
+        return {"widgets": _all_widgets(req), "can_add": _can_add(req)}
+    wtype = req.body.get("type")
+    params = req.body.get("params")
+    params = params if isinstance(params, dict) else {}
+    if wtype not in state.WIDGET_TYPES:
+        raise ApiError(400, "invalid_type")
+    if wtype == "plan":
+        p = _plan_params(params, req.today)
+        if state.get_goal(req.skey) is None:
+            state.set_goal(req.skey, {"name": p["name"], "target": p["target"], "saved": 0,
+                                      "deadline": p["deadline"], "monthly_needed": p["monthly"]})
+            return {"widget": _goal_widget(req)}
+        stored = p
+    elif wtype == "category":
+        stored = _category_params(params)
+    else:
+        stored = {}
+    try:
+        w = state.add_widget(req.skey, wtype, stored)
+    except ValueError:
+        have = {x["type"] for x in state.list_widgets(req.skey)}
+        raise ApiError(400, "already_added" if wtype in have and wtype in ("safe", "baskets") else "too_many_widgets")
+    return {"widget": _widget_view(req, w)}
+
+
+def _merge_plan(old, params, today):
+    """The plan params after an edit. Setting only the monthly amount frees the date; a date wins over a monthly
+    amount; a date that has gone by is dropped rather than blocking an unrelated edit."""
+    new = dict(old)
+    for k in ("name", "target", "saved"):
+        if k in params:
+            new[k] = params[k]
+    if "name" in params:
+        new["name"] = plans._clean_name(params["name"])
+    if "deadline" in params:
+        new["deadline"] = params["deadline"] or None
+        new["monthly"] = params.get("monthly")
+    elif "monthly" in params:
+        new["monthly"], new["deadline"] = params["monthly"], None
+    elif "target" in params:
+        new["monthly"] = None   # a new target gets a fresh pace towards the same date
+    saved = new.get("saved") or 0
+    try:
+        p = plans.preview(new.get("target"), new.get("monthly"), new.get("deadline"), today=today, saved=saved)
+    except ValueError:
+        if "deadline" in params or not new.get("deadline"):
+            raise
+        p = plans.preview(new.get("target"), new.get("monthly"), None, today=today, saved=saved)
+    return {"name": new["name"], "target": p["target"], "saved": round(max(0.0, float(saved)), 2),
+            "monthly": p["monthly"], "deadline": p["deadline"]}
+
+
+def ep_widgets_update(req):
+    wid = req.body.get("id")
+    params = req.body.get("params")
+    if not isinstance(wid, str) or not isinstance(params, dict):
+        raise ApiError(400, "invalid_request")
+    if wid == "goal":
+        g = state.get_goal(req.skey)
+        if not g:
+            raise ApiError(404, "not_found")
+        new = _merge_plan({"name": g["name"], "target": g["target"], "saved": g["saved"],
+                           "monthly": g.get("monthly_needed"), "deadline": g.get("deadline")}, params, req.today)
+        state.set_goal(req.skey, {"name": new["name"], "target": new["target"], "saved": new["saved"],
+                                  "deadline": new["deadline"], "monthly_needed": new["monthly"]})
+        return {"widget": _goal_widget(req)}
+    w = state.get_widget(req.skey, wid)
+    if not w:
+        raise ApiError(404, "not_found")
+    if w["type"] == "plan":
+        stored = _merge_plan(w["params"], params, req.today)
+    elif w["type"] == "category":
+        stored = _category_params({"label": params.get("label", w["params"].get("label")),
+                                   "limit": params["limit"] if "limit" in params else w["params"].get("limit")})
+    else:
+        stored = w["params"]
+    w = state.update_widget(req.skey, wid, stored)
+    return {"widget": _widget_view(req, w)}
+
+
+def ep_widgets_remove(req):
+    wid = req.body.get("id")
+    if not isinstance(wid, str):
+        raise ApiError(400, "invalid_request")
+    if wid == "goal":
+        if state.get_goal(req.skey) is None:
+            raise ApiError(404, "not_found")
+        state.set_goal(req.skey, None)
+    elif not state.remove_widget(req.skey, wid):
+        raise ApiError(404, "not_found")
+    return {"ok": True}
+
+
+def ep_plan_preview(req):
+    b = req.body
+    name = b.get("name")
+    return plans.preview(b.get("target"), monthly=b.get("monthly"), deadline=b.get("deadline"), today=req.today,
+                         saved=0, usual_leftover=_w_left(req),
+                         name=plans._clean_name(name) if name not in (None, "") else None,
+                         can_move=_w_cap(req)[0])
+
+
+def ep_widgets_move(req):
+    b = req.body
+    wid = b.get("id")
+    amount = b.get("amount")
+    if not isinstance(wid, str):
+        raise ApiError(400, "invalid_request")
+    if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+        raise ApiError(400, "invalid_amount")
+    if wid == "goal":
+        g = state.get_goal(req.skey)
+        name = g["name"] if g else None
+    else:
+        w = state.get_widget(req.skey, wid)
+        name = (w["params"].get("name") if w and w["type"] == "plan" else None)
+    if not name:
+        raise ApiError(404, "not_found")
+    try:
+        prop = money.propose(req.conn, req.today, req.skey, "savings", amount, "Savings plan: %s" % name[:100],
+                             "widget", widget_id=wid)
+    except money.MoneyError as e:
+        return {"ok": False, "message": str(e)}
+    return {"ok": True, "proposal": prop}
+
+
+def _credit_plan(req, wid, amount):
+    """A confirmed move into a plan: its "saved" grows by that amount."""
+    if wid == "goal":
+        g = state.get_goal(req.skey)
+        if g:
+            g = dict(g)
+            g["saved"] = min(1e9, float(g["saved"]) + amount)
+            state.set_goal(req.skey, g)
+        return
+    w = state.get_widget(req.skey, wid)
+    if w and w["type"] == "plan":
+        p = dict(w["params"])
+        p["saved"] = round(float(p.get("saved") or 0) + amount, 2)
+        state.update_widget(req.skey, wid, p)
+
+
+def ep_next_steps(req):
+    if not req.consent.get("suggestions") or req.settings.get("suggestion_level") == "off":
+        return {"steps": []}
+    ins = _insights()
+    views = _all_widgets(req, only_plans=True)
+    plan_views = [{"id": w["id"], "name": w["data"].get("name") or w["title"], "status": w["data"]["status"],
+                   "next_move": w["data"].get("next_move")} for w in views]
+    try:
+        ov = ins.overview(req.conn, req.today)
+        leftover = float(ov.get("surplus") or 0) if float(ov.get("income") or 0) > 0 else None
+    except Exception:
+        leftover = None
+    if leftover is not None:
+        # What the customer has already moved to savings or a fund this month came out of that leftover.
+        try:
+            moved = sum(float(m.get("amount") or 0) for m in state.list_moves(req.skey)
+                        if str(m.get("d") or "")[:7] == str(req.today)[:7])
+        except Exception:
+            moved = 0.0
+        leftover = leftover - moved
+    try:
+        ideas = ins.save_more(req.conn, req.today).get("ideas") or []
+    except Exception:
+        ideas = []
+    safe = _w_safe(req)
+    left = _w_left(req)
+    dismissed = {k[3:] for k, v in state.get_intents(req.skey).items() if k.startswith("ns:") and v == "dismiss"}
+    steps = plans.next_steps(
+        req.lang, bool(views), plan_views, leftover, _w_cap(req)[0], ideas, float(safe.get("balance") or 0),
+        plans._per_month(req.conn, req.today), left,
+        plans.small_monthly(left if left is not None else 0, ideas),
+        views[0]["id"] if views else None, dismissed)
+    return {"steps": steps}
+
+
+def ep_next_steps_dismiss(req):
+    sid = req.body.get("id")
+    if not isinstance(sid, str) or not sid or len(sid) > 90:
+        raise ApiError(400, "invalid_id")
+    state.record_intent(req.skey, "ns:" + sid, "dismiss")
+    return {"ok": True}
 
 
 def ep_transactions(req):
@@ -1308,7 +1633,8 @@ def ep_chat(req):
                           area_lookup=area_lookup, remember=remember,
                           explain=explain, save_goal=save_goal, memory=memory,
                           propose_money=propose_money, holdings=money.holdings(req.skey),
-                          save_note=save_note, notes=[n["text"] for n in state.list_notes(req.skey)])
+                          save_note=save_note, notes=[n["text"] for n in state.list_notes(req.skey)],
+                          ui_lang="fi" if (req.lang == "fi" or req.body.get("lang") == "fi") else "en")
     result = coach.chat(msg, history, ctx)
     session["ai_payload"] = result.pop("ai_payload", None)
     conn = req.conn
@@ -1351,9 +1677,8 @@ def ep_home(req):
     goal = state.get_goal(cid)
     if goal:
         # money approved into the S-Bank savings account counts toward the goal
-        in_savings = sum(hd["amount"] for hd in money.holdings(cid) if hd["kind"] == "savings")
         things.append({"id": "goal", "kind": "goal", "title": goal["name"],
-                       "summary": "%s of %s saved%s" % (_money_text(max(goal["saved"], in_savings)),
+                       "summary": "%s of %s saved%s" % (_money_text(_goal_saved(cid, goal)),
                                                         _money_text(goal["target"]),
                                                         _by_month(goal.get("deadline"))),
                        "updated": state.iso_time(state.goal_updated(cid))})
@@ -1741,6 +2066,13 @@ ROUTES = {
     "/api/money": ("GET", ep_money),
     "/api/money/propose": ("POST", ep_money_propose),
     "/api/money/confirm": ("POST", ep_money_confirm),
+    "/api/widgets": ("GET|POST", ep_widgets),
+    "/api/widgets/update": ("POST", ep_widgets_update),
+    "/api/widgets/remove": ("POST", ep_widgets_remove),
+    "/api/widgets/move": ("POST", ep_widgets_move),
+    "/api/plan/preview": ("POST", ep_plan_preview),
+    "/api/next-steps": ("GET", ep_next_steps),
+    "/api/next-steps/dismiss": ("POST", ep_next_steps_dismiss),
     "/api/conversation": ("GET", ep_conversation),
     "/api/conversation/delete": ("POST", ep_conversation_delete),
     "/api/conversation/tool": ("POST", ep_conversation_tool),

@@ -645,3 +645,14 @@ pre.payload { background: var(--bg); border: 1px solid var(--border); border-rad
 .quiz-verdict.ok { color: var(--green-strong); }
 .quiz-verdict.miss { color: var(--warning); }
 .quiz-teach { border-left: 3px solid var(--green-strong); padding-left: 10px; }
+
+/* The language switch in the top bar (web/i18n.js). */
+.lang-switch { margin-left: auto; flex: none; display: flex; gap: 2px; background: var(--tonal); padding: 2px; border-radius: var(--pill); }
+.lang-switch .seg-btn { flex: none; min-width: 34px; min-height: 34px; padding: 2px 9px; font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.topbar .topbar-sub { margin-left: 0; }
+.topbar > .lang-switch ~ .top-actions { margin-left: 4px; }
+@media (max-width: 520px) {
+  .topbar { gap: 4px; }
+  .topbar .new-btn { padding: 0; width: 44px; justify-content: center; }
+  .topbar .new-btn span:last-child { display: none; }
+}

@@ -76,6 +76,9 @@ CREATE TABLE IF NOT EXISTS money_moves(id INTEGER PRIMARY KEY AUTOINCREMENT, cid
                                        d TEXT NOT NULL, ts TEXT NOT NULL, amount REAL NOT NULL,
                                        dest TEXT NOT NULL, proposal_id TEXT NOT NULL UNIQUE, created REAL);
 CREATE INDEX IF NOT EXISTS money_moves_cid ON money_moves(cid);
+CREATE TABLE IF NOT EXISTS widgets(id INTEGER PRIMARY KEY AUTOINCREMENT, cid TEXT NOT NULL, type TEXT NOT NULL,
+                                   params TEXT NOT NULL, created REAL);
+CREATE INDEX IF NOT EXISTS widgets_cid ON widgets(cid);
 """
 
 
@@ -187,7 +190,7 @@ def get_intents(cid) -> dict:
 def erase(cid) -> None:
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results", "pins", "notes", "money_proposals", "money_moves"):
+                  "quiz_results", "pins", "notes", "money_proposals", "money_moves", "widgets"):
             conn.execute(f"DELETE FROM {t} WHERE cid=?", (cid,))
         conn.execute("DELETE FROM turns WHERE conv_id IN (SELECT id FROM conversations WHERE cid=?)",
                      (cid,))
@@ -202,7 +205,8 @@ def reset_all() -> None:
     The AI key and the chosen model are not app state and are kept."""
     def go(conn):
         for t in ("consent", "settings", "intents", "quiz", "goal", "challenge", "overrides",
-                  "quiz_results", "conversations", "turns", "pins", "notes", "money_proposals", "money_moves"):
+                  "quiz_results", "conversations", "turns", "pins", "notes", "money_proposals", "money_moves",
+                  "widgets"):
             conn.execute(f"DELETE FROM {t}")
     _run(go)
 
@@ -718,3 +722,70 @@ def remove_note(cid, note_id) -> bool:
         return False
     rid = int(m.group(1))
     return bool(_run(lambda c: c.execute("DELETE FROM notes WHERE id=? AND cid=?", (rid, cid)).rowcount))
+
+
+# ---------------------------------------------------------------------------
+# Home-page widgets (extra savings plans, safe-to-spend, a category tracker, the three baskets).
+# The customer's savings goal is not stored here: it is always the first widget, id "goal".
+# ---------------------------------------------------------------------------
+MAX_WIDGETS = 8
+WIDGET_TYPES = ("plan", "safe", "category", "baskets")
+_WIDGET_ID_RE = re.compile(r"w(\d{1,12})")
+
+
+def _widget_row(r):
+    return {"id": "w%d" % r[0], "type": r[1], "params": json.loads(r[2]), "created": iso_time(r[3])}
+
+
+def list_widgets(cid) -> list:
+    """Oldest first."""
+    rows = _run(lambda c: c.execute("SELECT id, type, params, created FROM widgets WHERE cid=? ORDER BY id",
+                                    (cid,)).fetchall())
+    return [_widget_row(r) for r in rows]
+
+
+def get_widget(cid, wid):
+    m = _WIDGET_ID_RE.fullmatch(wid) if isinstance(wid, str) else None
+    if not m:
+        return None
+    row = _run(lambda c: c.execute("SELECT id, type, params, created FROM widgets WHERE id=? AND cid=?",
+                                   (int(m.group(1)), cid)).fetchone())
+    return _widget_row(row) if row else None
+
+
+def add_widget(cid, wtype, params) -> dict:
+    """ValueError when the type is unknown, the customer has MAX_WIDGETS already, or it is a second
+    safe-to-spend or baskets widget."""
+    if wtype not in WIDGET_TYPES or not isinstance(params, dict):
+        raise ValueError("invalid widget")
+    data = json.dumps(params)
+
+    def go(conn):
+        rows = conn.execute("SELECT type FROM widgets WHERE cid=?", (cid,)).fetchall()
+        if len(rows) >= MAX_WIDGETS:
+            raise ValueError("too many widgets")
+        if wtype in ("safe", "baskets") and any(r[0] == wtype for r in rows):
+            raise ValueError("already on the home page")
+        now = _now()
+        cur = conn.execute("INSERT INTO widgets(cid, type, params, created) VALUES(?,?,?,?)",
+                           (cid, wtype, data, now))
+        return {"id": "w%d" % cur.lastrowid, "type": wtype, "params": params, "created": iso_time(now)}
+    return _run(go)
+
+
+def update_widget(cid, wid, params):
+    """Replace a widget's params; None when it does not exist."""
+    m = _WIDGET_ID_RE.fullmatch(wid) if isinstance(wid, str) else None
+    if not m or not isinstance(params, dict):
+        return None
+    n = _run(lambda c: c.execute("UPDATE widgets SET params=? WHERE id=? AND cid=?",
+                                 (json.dumps(params), int(m.group(1)), cid)).rowcount)
+    return get_widget(cid, wid) if n else None
+
+
+def remove_widget(cid, wid) -> bool:
+    m = _WIDGET_ID_RE.fullmatch(wid) if isinstance(wid, str) else None
+    if not m:
+        return False
+    return bool(_run(lambda c: c.execute("DELETE FROM widgets WHERE id=? AND cid=?",
+                                         (int(m.group(1)), cid)).rowcount))
