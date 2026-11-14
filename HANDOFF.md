@@ -65,7 +65,11 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
   note, because `tests/test_wave3_http.py` (W14) pins that reply; change both together if you want it in Finnish.
 - The coach's picture now carries the figures it would otherwise have to work out (what a usual month leaves,
   what a goal still needs, how many months that is at the usual leftover), so those sentences pass the number check.
-- Tests: `Ran 755 tests ... OK`.
+- The model's reply is tidied before it is shown (`coach.tidy_model_text`): headings, emoji, stray `*emphasis*`
+  and "Headline:" labels go; bold and bullets stay (the app renders them); an answer over 110 words is cut at a
+  sentence end unless the customer asked for detail. Yesterday's `data/state.db` was checked to open with today's
+  code (the notes table is added on first use; an old goal without a date reads as before).
+- Tests: `Ran 761 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 

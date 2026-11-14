@@ -186,6 +186,48 @@ class ModelTurnTests(_Base):
         self.assertIn("suggestions off", fake.requests[0]["system"][1]["text"])
 
 
+class TidyModelTextTests(_Base):
+    def test_headings_labels_emoji_and_stray_emphasis_are_removed(self):
+        t = self.coach.tidy_model_text
+        self.assertEqual(t("## Next step\nMove your leftover on payday."), "Next step\nMove your leftover on payday.")
+        self.assertEqual(t("Headline: you kept €1,229 in August."), "you kept €1,229 in August.")
+        self.assertEqual(t("You kept €1,229 in August 🎉. That's *more* than usual!"),
+                         "You kept €1,229 in August. That's more than usual!")
+        self.assertEqual(t("Use `get_spend` wisely"), "Use get_spend wisely")
+
+    def test_bold_and_bullets_survive_because_the_app_renders_them(self):
+        t = self.coach.tidy_model_text
+        self.assertEqual(t("**Good news.**\n\n- Housing: €900\n- Groceries: €251"),
+                         "**Good news.**\n\n- Housing: €900\n- Groceries: €251")
+
+    def test_figures_dates_and_finnish_are_untouched(self):
+        t = self.coach.tidy_model_text
+        for text in ("You spent €62.10 on taxis (3 payments), 4% of the €1,571 you spent in August.",
+                     "Käytit takseihin 62,10 € viime kuussa. Se on 20 € enemmän kuin heinäkuussa.",
+                     "Payday is on 15 Oct; €30,439 is safe to spend until then.",
+                     "a_b stays, 3 * 4 stays, snake_case_name stays"):
+            with self.subTest(text=text):
+                self.assertEqual(t(text), text)
+
+    def test_a_run_on_answer_is_cut_at_a_sentence_end_unless_detail_was_asked_for(self):
+        long = "You kept €1,229 in August. " + "This sentence keeps going about your money for a while. " * 30
+        cut = self.coach.tidy_model_text(long, "How am I doing?")
+        self.assertLessEqual(len(cut.split()), self.coach.COACH_MAX_WORDS)
+        self.assertTrue(cut.startswith("You kept €1,229 in August."))
+        self.assertTrue(cut.endswith("."))
+        self.assertEqual(len(self.coach.tidy_model_text(long, "Explain my month in detail").split()), len(long.split()))
+
+    def test_the_first_sentence_is_never_lost(self):
+        one = "word " * 300
+        self.assertEqual(self.coach.tidy_model_text(one, "hi"), one.strip())
+
+    def test_the_model_reply_is_tidied_in_the_chat(self):
+        r, _ = self.run_claude([fc.cl_text("## Summary\nHeadline: You kept €1,229 in August 🎉.")], message="How am I doing?")
+        self.assertEqual(r["reply"], "Summary\nYou kept €1,229 in August.")
+        self.assertEqual(r["mode"], "claude")
+        self.assertNotIn("notice", r)
+
+
 class PromptTests(_Base):
     def test_prompt_asks_for_a_personal_answer_and_a_concrete_step(self):
         p = self.coach.SYSTEM_PROMPT

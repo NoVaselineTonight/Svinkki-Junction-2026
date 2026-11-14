@@ -4152,6 +4152,41 @@ def _set_compare(ctx, message):
             pass
 
 
+COACH_MAX_WORDS = 110     # a model answer longer than this is cut at a sentence end, unless detail was asked for
+_DETAIL_RE = re.compile(r"\b(explain|detail\w*|in depth|step by step|list|break ?down|everything|tell me more|more about|why|how does|"
+                        r"selitä|kerro lisää|tarkemmin|yksityiskoht\w*|miksi|listaa)\b", re.I)
+_EMOJI_RE = re.compile("[\U0001F000-\U0001FAFF\U00002600-\U000027BF\U0001F1E6-\U0001F1FF\uFE0F\u200D]")
+_LABEL_RE = re.compile(r"^\s*(?:headline|summary|answer|tip|next step|note|tl;dr|yhteenveto|vinkki)\s*:\s*", re.I)
+
+
+def tidy_model_text(text, message=""):
+    """The model's wording made to fit the app: no headings, emoji, stray emphasis marks or 'Headline:' labels,
+    and an answer that runs on is cut at a sentence end (unless the customer asked for detail). Figures are
+    not touched; the number check runs on the result."""
+    out = []
+    for line in str(text or "").replace("\r", "").split("\n"):
+        line = _EMOJI_RE.sub("", line)
+        line = re.sub(r"^\s{0,3}#{1,6}\s+", "", line)                     # "## Next step" -> "Next step"
+        line = _LABEL_RE.sub("", line)
+        line = re.sub(r"(?<![*\w])\*(?!\*)([^*\n]+?)\*(?![*\w])", r"\1", line)   # *more* -> more (bold ** is kept)
+        line = re.sub(r"(?<![_\w])_([^_\n]+?)_(?![_\w])", r"\1", line)
+        line = re.sub(r"`([^`\n]+)`", r"\1", line)
+        line = re.sub(r"[ \t]+", " ", line).strip()
+        line = re.sub(r" +([.,!?;:])", r"\1", line)
+        out.append(line)
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+    if text and len(text.split()) > COACH_MAX_WORDS and not _DETAIL_RE.search(message or ""):
+        kept, n = [], 0
+        for sent in _SENT_SPLIT.split(text):
+            w = len(sent.split())
+            if kept and n + w > COACH_MAX_WORDS:
+                break
+            kept.append(sent)
+            n += w
+        text = " ".join(kept).strip()
+    return text
+
+
 def chat(message, history, ctx):
     message = (message if isinstance(message, str) else "").strip()[:MAX_MESSAGE]
     if not message:
@@ -4210,6 +4245,7 @@ def chat(message, history, ctx):
     if calls:
         name, args, res = calls[-1]
         _remember(ctx, name, args, {}, _enrich(name, res) if isinstance(res, dict) else res)
+    text = tidy_model_text(text, message) or text
     results = [c[2] for c in calls]
     # What the coach was told about the customer is checked data too: its figures may be quoted.
     snapshot = payload.pop("_snapshot", None) if isinstance(payload, dict) else None
