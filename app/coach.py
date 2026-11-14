@@ -31,7 +31,7 @@ You know this customer: after these rules comes a section "What you know about t
 How a good answer is built:
 - First sentence: the direct answer to what was asked, with its key figure.
 - Then, when it helps, one sentence on what that means for THIS customer: tie it to their own numbers (their income, their usual month, their goal, their payday, a change from their own earlier months).
-- Then, when there is a real one, one concrete next step they could take, with a euro figure from their data ("skipping one of your three taxi rides would leave about €20 more for the Japan fund"). Suggest, never lecture or moralise; never judge a purchase. If nothing useful follows from the data, stop after the answer: no filler, no generic tips ("make a budget", "track your spending"), no praise for its own sake.
+- Then, when there is a real one, one concrete next step they could take, with a euro figure that is already in their data ("trimming nights out by a quarter would free about €16 a month for the Japan fund"). Use amounts exactly as a tool result or the customer section gives them; never halve, divide, add up or otherwise work out a new amount, because the app deletes any sentence whose figure it cannot find. If you need a figure you do not have, call a tool for it (get_save_more, simulate_what_if, plan_goal_by_date, can_i_afford) or make the point without a number. Suggest, never lecture or moralise; never judge a purchase. If nothing useful follows from the data, stop after the answer: no filler, no generic tips ("make a budget", "track your spending"), no praise for its own sake.
 - Two to four short sentences, at most about 80 words, unless the customer asks for detail or asks you to explain a text. For greetings and small talk, answer in one warm sentence and, if they have not asked anything yet, mention one specific thing from their data worth a look.
 - Sound like a person who is on their side: warm, direct, specific, a little personality. Say "you" and "your". Never sound like a report.
 - Plain text only: no lists, headings, bold or emoji. The app shows the transactions and details under your answer, so do not repeat them. Do not mention Settings or app features unless the customer asked.
@@ -1562,7 +1562,9 @@ def _route_en(message, ctx):
         if dest:
             return "propose_money_move", {"destination": dest, "amount": amts[0][0], "reason": "You asked in the chat"}, {}
     if re.search(r"\b(how much|what)\b[^?]{0,30}\b(in|on) my (savings( account)?|investments?|funds?)\b|"
-                 r"\bmy (savings account|investments|funds)\b\s*[?.!]*$|\bshow (me )?my (savings|investments|funds)\b", s):
+                 r"\bmy (savings account|investments|funds)\b\s*[?.!]*$|\bshow (me )?my (savings|investments|funds)\b|"
+                 r"\bhow much (have|did) i (saved?|put aside|set aside|invest(ed)?)\b(?! (on|by|if))|"
+                 r"\bhow much (do i have|is) (saved|in savings)\b", s):
         return "get_savings_and_investments", {}, {}
 
     # savings goal
@@ -1618,7 +1620,9 @@ def _route_en(message, ctx):
 
     # safe to spend
     if re.search(r"safe.{0,25}spend|spend.{0,25}safe|safe to spend|can i (still )?(afford|spend)|left to spend|"
-                 r"how much can i spend|disposable|spendable|money left|budget for the week|weekly budget", s):
+                 r"how much can i spend|disposable|spendable|money left|budget for the week|weekly budget|"
+                 r"how much (do i have|have i got|is) left|what('s| is| do i have) left (this|for the|until)|left (this|for the) (week|month)|"
+                 r"left until payday", s):
         return "get_safe_to_spend", {}, {}
 
     # spender type
@@ -2587,12 +2591,16 @@ def _render(tool, res, args=None, hints=None):
             _eur(pr.get("amount")), pr.get("to") or "savings", risk))
     if tool == "get_savings_and_investments":
         held = [h for h in (res.get("holdings") or []) if isinstance(h, dict)]
-        can = _eur(int(res.get("available_to_move") or 0))
+        free = int(res.get("available_to_move") or 0)
+        can = _eur(free)
         if not held:
+            if free <= 0:
+                return ("You haven't moved anything to savings or funds in S-mobiili yet, and right now nothing is free "
+                        "to move without touching money for bills.")
             return ("You haven't moved anything to savings or funds in S-mobiili yet. You could move up to %s now "
                     "without touching money for bills." % can)
-        return "You have %s. You could move up to %s more now." % (
-            _join(["%s in your %s" % (_eur_x(h.get("amount")), h.get("name")) for h in held]), can)
+        have = "You have %s." % _join(["%s in your %s" % (_eur_x(h.get("amount")), h.get("name")) for h in held])
+        return have + (" You could move up to %s more now." % can if free > 0 else "")
 
     if tool in ("get_spend", "_food"):
         lab = "food" if tool == "_food" else args.get("label")
@@ -2698,6 +2706,12 @@ def _render(tool, res, args=None, hints=None):
         if view == "balance":
             tail = ("After bills you're about %s short until payday on %s." % (_eur(abs(res.get("safe_total"))), pay)
                     if short else "After bills you can spend about %s this week." % _eur(res.get("per_week")))
+            try:
+                bal = float(res.get("balance"))
+            except (TypeError, ValueError):
+                bal = 0.0
+            if bal < 0:
+                return "Your account is %s overdrawn. %s" % (_eur_x(-bal), tail)
             return "You have %s in your account. %s" % (_eur_x(res.get("balance")), tail)
         if short:
             return ("You're about %s short until payday on %s, so nothing is safe to spend on extras until then."
@@ -2824,6 +2838,9 @@ def _render(tool, res, args=None, hints=None):
         if bm is None:
             pts = _g(res, "points", []) or []
             return (str(pts[0]) if pts else "Start with a buffer of easy-access money.") + " I don't pick products."
+        if float(bm) <= 0:
+            return ("Your account is below zero right now, so the first step is getting back above it and building "
+                    "a buffer; 3-6 months of costs is a common aim. After that I can explain the basics; I don't pick products.")
         bmt = "{:g}".format(round(float(bm), 1))
         if res.get("buffer_ok"):
             return ("Your account covers about %s months of costs, so the basics of investing are a fair next step. "
@@ -3039,6 +3056,12 @@ def _render2(tool, res, args, hints):
         if res.get("goes_negative"):
             fn = res.get("first_negative")
             fn = fn.get("d") if isinstance(fn, dict) else fn
+            try:
+                below_now = float(res.get("start_balance")) < 0
+            except (TypeError, ValueError):
+                below_now = False
+            if below_now:
+                return "Your account is already below zero, and at your usual pace it stays there until payday on %s." % to
             return "Probably not: at your usual pace your balance could go below zero around %s, before payday on %s." % (
                 _day(fn), to)
         if res.get("stays_above") is None:

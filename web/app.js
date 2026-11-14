@@ -2949,7 +2949,7 @@
     function start() {
       var first = firstName();
       botText(h('div', { class: 'rich intro' },
-        h('p', null, 'Hi' + (first ? ' ' + first : '') + '! I\'m Svinkki. Ask me anything about your money, or just tell me things: a goal like "Japan in 2027" or a fix like "that kebab was lunch". What you set up appears on Home under Your things.')));
+        h('p', null, 'Hi' + (first ? ' ' + first : '') + '! I\'m Svinkki, your money coach. Ask me anything, or tell me about a goal.')));
     }
 
     function renderTurns(turns) {
