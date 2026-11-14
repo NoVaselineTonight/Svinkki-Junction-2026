@@ -184,7 +184,7 @@
     if (status === 429) return 'You are going a bit fast. Wait a moment and try again.';
     if (status >= 500) return 'Something went wrong on our side. Please try again in a moment.';
     if (status === 403) return 'That needs a permission you have not given. You can change it in Settings.';
-    if (status === 404 && code === 'quiz_off') return 'The weekly quiz is switched off.';
+    if (status === 404 && code === 'quiz_off') return 'The daily quiz is switched off.';
     if (status === 404) return 'That\'s no longer available.';
     if (status === 413) return 'That message is too long.';
     if (status === 400 || status === 422) return 'I couldn\'t handle that. Try asking in a different way.';
@@ -860,7 +860,7 @@
       'None, at most one idea, or up to three.');
     field('Weekly challenge', segmented('Weekly challenge', ONOFF, s.challenges, function (v) { s.challenges = v; fire(); }),
       'One small optional challenge from your own habits.');
-    field('Weekly quiz', segmented('Weekly quiz', ONOFF, s.quiz === 'off' ? 'off' : 'on', function (v) { s.quiz = v === 'on' ? 'weekly' : 'off'; fire(); }),
+    field('Daily quiz', segmented('Daily quiz', ONOFF, s.quiz === 'off' ? 'off' : 'on', function (v) { s.quiz = v === 'on' ? 'weekly' : 'off'; fire(); }),
       'Guess what you spent. It helps you notice habits.');
     return { el: wrap, get: function () { return Object.assign({}, s); } };
   }
@@ -1070,6 +1070,137 @@
       });
     });
     c.appendChild(out); c.appendChild(slider); c.appendChild(btn); c.appendChild(result);
+    return c;
+  }
+
+  // The daily quiz: a round of questions picked for this customer, about their own money and money skills,
+  // one at a time. Answers are checked by the server (POST /api/quiz/round/answer); a round resumes where it was.
+  function quizRoundCard(rd) {
+    var qs = (rd && rd.questions) || [];
+    var c = cardShell(rd.title || 'Your money quiz', rd.mode === 'claude' ? 'Picked for you by the AI coach' : 'Picked for you');
+    var body = h('div', { class: 'quiz-round' });
+    c.appendChild(body);
+    var right = 0;
+    qs.forEach(function (q) { if (q.result && q.result.correct) right++; });
+    function show(v, unit) { return unit === 'count' ? String(Math.round(num(v))) : money(v); }
+    function progress(i) {
+      var dots = h('span', { class: 'quiz-dots', 'aria-hidden': 'true' }, qs.map(function (q, j) {
+        return h('span', { class: 'quiz-dot' + (q.result ? (q.result.correct ? ' ok' : ' miss') : '') + (j === i ? ' now' : '') });
+      }));
+      return h('div', { class: 'quiz-progress' },
+        h('span', { class: 'small muted' }, 'Question ' + (i + 1) + ' of ' + qs.length + (qs[i].about === 'skills' ? ' · money skills' : ' · your money')),
+        dots);
+    }
+    function reveal(i, r, box) {
+      var q = qs[i];
+      box.replaceChildren();
+      if (q.kind === 'choice') {
+        body.querySelectorAll('.quiz-opt').forEach(function (b, j) {
+          b.disabled = true;
+          if (j === r.right_option) b.classList.add('right');
+          else if (j === r.chosen) b.classList.add('wrong');
+        });
+      } else {
+        var big = h('div', { class: 'reveal-actual' }, show(0, q.unit));
+        box.appendChild(h('div', { class: 'reveal' }, h('div', { class: 'key-label' }, 'The answer'), big,
+          h('p', { class: 'small' }, 'Your guess: ' + show(r.guess, q.unit) + '.')));
+        if (q.unit === 'count') big.textContent = show(r.actual, 'count'); else animateNumber(big, num(r.actual), 900);
+      }
+      box.appendChild(h('p', { class: 'quiz-verdict ' + (r.correct ? 'ok' : 'miss') }, r.verdict || ''));
+      if (r.explain) box.appendChild(h('p', { class: 'small' }, r.explain));
+      if (r.teach) box.appendChild(h('p', { class: 'small quiz-teach' }, r.teach));
+      if (r.source && r.source.url) {
+        box.appendChild(h('p', { class: 'tiny muted' }, 'Source: ',
+          h('a', { href: r.source.url, target: '_blank', rel: 'noopener noreferrer' }, r.source.publisher || 'link')));
+      }
+      if (r.evidence && r.evidence.length) more(box, [], { evidence: r.evidence }, 'The transactions behind this');
+      var last = i >= qs.length - 1;
+      var next = h('button', { type: 'button', class: 'btn block' }, last ? 'See my score' : 'Next question');
+      next.addEventListener('click', function () { ask(i + 1); });
+      box.appendChild(next);
+      var pr = body.querySelector('.quiz-progress');
+      if (pr) pr.replaceWith(progress(i));
+    }
+    function ask(i) {
+      if (i >= qs.length) return finish();
+      var q = qs[i];
+      var result = h('div', { class: 'quiz-result', 'aria-live': 'polite' });
+      body.replaceChildren(progress(i), h('p', { class: 'quiz-q' }, q.question));
+      function send(answer, lock) {
+        lock(true);
+        result.replaceChildren(loadingNode('Checking...'));
+        api('/api/quiz/round/answer', { method: 'POST', body: { round_id: rd.round_id, qid: q.id, answer: answer } }).then(function (r) {
+          if (!q.result && r.correct) right++;
+          q.result = r;
+          reveal(i, r, result);
+        }, function (e) {
+          lock(false);
+          if (e.handled) return;
+          result.replaceChildren(errorNode(e));
+        });
+      }
+      if (q.kind === 'choice') {
+        var btns = (q.options || []).map(function (o, j) {
+          var b = h('button', { type: 'button', class: 'btn secondary block quiz-opt' }, o);
+          b.addEventListener('click', function () {
+            b.classList.add('picked');
+            send(j, function (on) { btns.forEach(function (x) { x.disabled = on; }); });
+          });
+          return b;
+        });
+        body.appendChild(h('div', { class: 'quiz-opts' }, btns));
+      } else if (!q.result) {
+        var min = num(q.min), max = num(q.max) || 100, stepV = num(q.step) || 1;
+        var mid = Math.round((min + max) / 2 / stepV) * stepV;
+        var out = h('div', { class: 'quiz-guess', 'aria-live': 'polite' }, show(mid, q.unit));
+        var slider = h('input', { type: 'range', class: 'range', min: min, max: max, step: stepV,
+          'aria-label': q.unit === 'count' ? 'Your guess' : 'Your guess in euros' });
+        slider.value = String(mid);
+        slider.addEventListener('input', function () { out.textContent = show(slider.value, q.unit); });
+        var btn = h('button', { type: 'button', class: 'btn block' }, 'Lock in my guess');
+        btn.addEventListener('click', function () {
+          send(Number(slider.value), function (on) { btn.disabled = on; slider.disabled = on; });
+        });
+        body.appendChild(out); body.appendChild(slider); body.appendChild(btn);
+      }
+      body.appendChild(result);
+      if (q.result) reveal(i, q.result, result);
+    }
+    function finish() {
+      var n = qs.length;
+      body.replaceChildren(h('div', { class: 'reveal' },
+        h('div', { class: 'key-label' }, 'Your score'),
+        h('div', { class: 'reveal-actual' }, right + ' / ' + n),
+        h('p', { class: 'small' }, right === n ? 'A perfect round.' : right * 2 >= n
+          ? 'A good round. New questions come tomorrow, or try another set now.'
+          : 'Every answer teaches something. Try another set?')));
+      var again = h('button', { type: 'button', class: 'btn secondary block' }, 'New questions');
+      var statsBox = h('div', { 'aria-live': 'polite' });
+      again.addEventListener('click', function () {
+        again.disabled = true;
+        statsBox.replaceChildren(loadingNode('Picking new questions for you...'));
+        api('/api/quiz/round?new=1').then(function (r2) {
+          if (r2 && r2.round_id) c.replaceWith(quizRoundCard(r2));
+          else again.disabled = false;
+        }, function (e) {
+          again.disabled = false;
+          if (e.handled) return;
+          statsBox.replaceChildren(errorNode(e));
+        });
+      });
+      body.appendChild(again);
+      body.appendChild(statsBox);
+      api('/api/quiz/stats').then(function (s) {
+        if (s && num(s.count)) {
+          statsBox.replaceChildren(thingChip({ id: 'quiz', kind: 'quiz', title: 'Quiz score' }, 'Score saved to Your things'));
+          thingsChanged();
+        }
+      }, function () {});
+    }
+    if (!qs.length) { body.appendChild(h('p', { class: 'small' }, 'No questions are ready right now.')); return c; }
+    var open = 0;
+    while (open < qs.length && qs[open].result) open++;
+    if (open >= qs.length) finish(); else ask(open);
     return c;
   }
 
@@ -2773,8 +2904,14 @@
         (num(c.income) <= 0 ? money(c.spent) + ' spent' : (sur >= 0 ? money(sur) + ' left over' : money(-sur) + ' more out than in')) +
         (when ? ' · ' + when : ''), checkinCard(c)));
     }, homeFailed);
-    api('/api/quiz').then(function (q) {
-      if (q && q.quiz_id) place('quiz', fold('help', 'Weekly quiz', 'One guess about your own spending', quizCard(q)));
+    api('/api/quiz/round').then(function (rd) {
+      if (rd && rd.round_id && rd.questions && rd.questions.length) {
+        var sc = rd.score || {};
+        var sum = num(sc.answered) >= num(sc.total) && num(sc.total)
+          ? 'Done today: ' + num(sc.right) + ' of ' + num(sc.total) + ' right'
+          : rd.questions.length + ' questions picked for you' + (num(sc.answered) ? ' · ' + num(sc.answered) + ' answered' : '');
+        place('quiz', fold('help', 'Daily quiz', sum, quizRoundCard(rd)));
+      }
     }, homeFailed);
     api('/api/alerts').then(function (d) {
       var list = (d && Array.isArray(d.alerts)) ? d.alerts : [];
@@ -3236,8 +3373,8 @@
       if (name === 'typical') return insertCard('typical', function (hd) { typicalSection(hd, t); });
       if (name === 'quiz') {
         return insertCard('quiz', function (hd) {
-          fillCard(hd, t, src('/api/quiz'), function (q) { hd.appendChild(quizCard(q)); },
-            'Finding this week\'s question...', 'The weekly quiz is off. You can turn it on in Settings.');
+          fillCard(hd, t, src('/api/quiz/round'), function (rd) { hd.appendChild(quizRoundCard(rd)); },
+            'Picking today\'s questions for you...', 'The daily quiz is off. You can turn it on in Settings.');
         });
       }
       if (name === 'checkin') {

@@ -872,6 +872,68 @@ def ep_quiz_answer(req):
     return res
 
 
+def _quiz_ai(req):
+    """The AI model for the quiz, when this customer allows it and a key exists; else None (the code picks)."""
+    if not (req.consent or {}).get("ai"):
+        return None
+    key = config.claude_api_key()
+    return {"key": key, "model": config.claude_model()} if key else None
+
+
+def ep_quiz_round(req):
+    """Today's quiz round for this customer (made once a day; ?new=1 makes another with other questions)."""
+    if req.settings.get("quiz") == "off":
+        raise ApiError(404, "quiz_off")
+    from . import quiz
+    today = str(req.today)
+    ptr = state.load_quiz(req.cid, "round:latest") or {}
+    same_day = ptr.get("date") == today
+    if same_day and ptr.get("id") and req.query.get("new") not in ("1", "true", "yes"):
+        rnd = state.load_quiz(req.cid, ptr["id"])
+        if isinstance(rnd, dict) and rnd.get("questions"):
+            return quiz.public(rnd)
+    k = int(ptr.get("k") or 0) + 1 if same_day else 1
+    recent = [str(x) for x in (ptr.get("recent") or [])][-quiz.RECENT_KEEP:]
+    rnd, payload = quiz.build(req.conn, req.today, req.cid, db.profile(req.cid), k=k, recent=recent,
+                              ai=_quiz_ai(req))
+    state.save_quiz(req.cid, rnd["id"], rnd)
+    recent = (recent + [q["id"] for q in rnd["questions"]])[-quiz.RECENT_KEEP:]
+    state.save_quiz(req.cid, "round:latest", {"id": rnd["id"], "date": today, "k": k, "recent": recent})
+    if payload:
+        req.session["ai_payload"] = payload
+    return quiz.public(rnd)
+
+
+def ep_quiz_round_answer(req):
+    from . import quiz
+    rid, qid = req.body.get("round_id"), req.body.get("qid")
+    for v, name in ((rid, "round_id"), (qid, "qid")):
+        if not isinstance(v, str) or not v or len(v) > 200:
+            raise ApiError(400, "invalid_" + name)
+    if rid == "round:latest":
+        raise ApiError(404, "unknown_quiz")
+    rnd = state.load_quiz(req.cid, rid)
+    if not isinstance(rnd, dict) or not rnd.get("questions"):
+        raise ApiError(404, "unknown_quiz")
+    first = qid not in (rnd.get("answers") or {})
+    try:
+        res = quiz.grade(rnd, qid, req.body.get("answer"))
+    except KeyError:
+        raise ApiError(404, "unknown_question")
+    except ValueError:
+        raise ApiError(400, "invalid_answer")
+    state.save_quiz(req.cid, rid, rnd)
+    q = next(x for x in rnd["questions"] if x["id"] == qid)
+    if first and q["kind"] == "guess" and q.get("unit") == "eur":
+        try:      # spending guesses feed the awareness score, as the single question did
+            state.add_quiz_result(req.cid, {"at": datetime.datetime.now().replace(microsecond=0).isoformat(),
+                                            "label": str(q.get("label") or q["topic"])[:80],
+                                            "guess": res.get("guess", 0), "actual": res.get("actual", 0)})
+        except ValueError:
+            pass
+    return res
+
+
 def ep_checkin(req):
     freq = req.settings.get("checkin_frequency", "monthly")
     if freq == "off":
@@ -1615,6 +1677,8 @@ ROUTES = {
     "/api/mortgage": ("POST", ep_mortgage),
     "/api/quiz": ("GET", ep_quiz),
     "/api/quiz/answer": ("POST", ep_quiz_answer),
+    "/api/quiz/round": ("GET", ep_quiz_round),
+    "/api/quiz/round/answer": ("POST", ep_quiz_round_answer),
     "/api/checkin": ("GET", ep_checkin),
     "/api/suggestions/action": ("POST", ep_suggestion_action),
     "/api/transactions": ("GET", ep_transactions),
