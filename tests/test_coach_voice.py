@@ -134,6 +134,29 @@ class PromptTests(_Base):
         self.assertNotIn("Stay under about 45 words", p)
         self.assertNotIn("Keep replies to one or two sentences", p)
 
+    def test_the_prompts_own_example_tip_would_pass_the_number_check(self):
+        """The example in the prompt must not teach the model a sentence the app would delete."""
+        p = self.coach.SYSTEM_PROMPT
+        self.assertIn("never halve, divide, add up or otherwise work out a new amount", p)
+        self.assertNotIn("skipping one of your three taxi rides", p)
+        ctx = self.ctx(goal={"name": "Japan", "target": 3000.0, "saved": 0.0})
+        _, snap = self.coach.customer_snapshot(ctx)
+        ok = "Trimming nights out by a quarter would free about €16 a month for the Japan fund."
+        bad = "Skipping one of your three taxi rides would leave about €20 more for the Japan fund."
+        self.assertTrue(self.coach.numbers_grounded(ok, [snap], "How can I save?"))
+        self.assertFalse(self.coach.numbers_grounded(bad, [snap], "How can I save?"))
+
+    def test_personal_sentences_built_from_the_snapshot_pass_the_number_check(self):
+        ctx = self.ctx(goal={"name": "Japan", "target": 3000.0, "saved": 0.0, "deadline": "2027-06"})
+        _, snap = self.coach.customer_snapshot(ctx)
+        for text in ("You bring in about €3,000 a month and usually spend around €1,671.",
+                     "You have €31,469 in your account and payday is on 15 October, 21 days away.",
+                     "Housing takes €900 of it and groceries €251.",
+                     "You kept 44% of your income over the last 6 months.",
+                     "Moving your leftover of about €1,129 on payday would get you to Japan by June 2027."):
+            with self.subTest(text=text):
+                self.assertTrue(self.coach.numbers_grounded(text, [snap], "How am I doing?"), text)
+
     def test_prompt_holds_no_customer_data(self):
         self.assertNotRegex(self.coach.SYSTEM_PROMPT, r"€3,000|€1,571")
 
@@ -189,6 +212,55 @@ class OfflineNoteTests(_Base):
                     r = self.ask(q, self.ctx(c["cid"], consent=dict(fx.ALL_CONSENT, ai=False)))
                     self.assertLessEqual(len(r["reply"].split()), 60, r["reply"])
                     self.assertLessEqual(len(re.findall(r"[.!?](?:\s|$)", r["reply"])), 3, r["reply"])
+
+
+class OverdrawnAndLeftoverWordingTests(_Base):
+    """Answers for a customer below zero never show a signed or negative figure as if it were money to use."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.short = None
+        for c in fx.CUSTOMERS:
+            ctx = fx.make_ctx(c["cid"])
+            r = cls.tools.call("get_safe_to_spend", {}, ctx)
+            if isinstance(r, dict) and (r.get("balance") or 0) < 0:
+                cls.short = c["cid"]
+                break
+
+    def ask(self, q, cid=None):
+        return self.coach.chat(q, [], self.ctx(cid or self.short, consent=dict(fx.ALL_CONSENT, ai=False)))["reply"]
+
+    def test_fixture_has_an_overdrawn_customer(self):
+        self.assertIsNotNone(self.short)
+
+    def test_balance_says_overdrawn_not_minus(self):
+        r = self.ask("What's my balance?")
+        self.assertRegex(r, r"^Your account is €[\d,]+\.\d\d overdrawn\.")
+        self.assertNotRegex(r, r"minus|-€|€-")
+
+    def test_invest_question_has_no_negative_months(self):
+        r = self.ask("What should I invest in?")
+        self.assertNotRegex(r, r"(?<!\d)-\d", "no negative number of months")
+        self.assertIn("below zero", r)
+
+    def test_forecast_when_already_below_zero(self):
+        r = self.ask("Will I make it to payday?")
+        self.assertIn("already below zero", r)
+        self.assertNotIn("could go below zero", r)
+
+    def test_how_much_is_left_and_how_much_have_i_saved_are_understood(self):
+        for q, tool in (("how much do I have left this month", "get_safe_to_spend"),
+                        ("how much is left until payday", "get_safe_to_spend"),
+                        ("how much have I saved", "get_savings_and_investments"),
+                        ("how much have I saved on taxis", "get_spend")):
+            with self.subTest(q=q):
+                self.assertEqual(self.coach.route(q, self.ctx())[0], tool)
+
+    def test_nothing_free_to_move_is_not_offered_as_zero_euros(self):
+        r = self.ask("how much have I saved")
+        self.assertNotRegex(r, r"up to €0\b")
+        self.assertIn("nothing is free to move", r)
 
 
 class ModelChoiceTests(_Base):

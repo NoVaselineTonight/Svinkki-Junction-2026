@@ -43,7 +43,12 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
 - **Tool-only conversations are kept:** opening the quiz, the check-in, the afford form, what-if, compare,
   challenge or "Worth a look" in a conversation stores the tool's name as a turn (`POST /api/conversation/tool`),
   so the conversation is listed and reopens with the card drawn fresh. Tool turns are not sent to the model.
-- Tests: `Ran 716 tests ... OK`.
+- **Prompt fix after a self-check:** the coach prompt's own example tip used a worked-out figure that the number
+  check deletes. The prompt now says: use amounts exactly as given, never work out a new one, call a tool for a
+  figure you lack. Tests pin that the example and five typical personal sentences pass the check.
+- Overdrawn accounts are worded ("Your account is €3,800.00 overdrawn", no "minus", no "-2.7 months");
+  "how much do I have left", "how much have I saved" are understood; "move up to €0" is gone.
+- Tests: `Ran 724 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 
