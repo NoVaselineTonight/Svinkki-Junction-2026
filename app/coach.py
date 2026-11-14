@@ -22,8 +22,8 @@ MAX_ROUNDS = 4
 CLAUDE_ROUNDS = 6  # tool rounds in one Claude turn: a plan can need an estimate, a sum and a goal plan
 HISTORY_TURNS = 8
 COACH_EFFORT = "medium"   # how hard Claude thinks about a coach answer (the key test and explainer stay on low)
-COACH_TIMEOUT = 60        # seconds for one Claude request inside a turn
-TURN_SECONDS = 100   # a whole model turn (all rounds) may take this long, then the built-in rules answer
+COACH_TIMEOUT = 45        # ceiling for one Claude request inside a turn
+TURN_SECONDS = 60         # hard cap for a whole model turn, the last request included; then the built-in rules answer
 DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 # ------------------------------------------------------------------ prompt
@@ -4283,7 +4283,8 @@ def _claude_turn(message, history, ctx, key):
             raise ClaudeError("Claude turn took too long")
         # On the last round the tools stay declared (the history holds tool calls) but may not be called.
         resp = llm_claude.create(system, messages, declared, key, model, http_post=http_post,
-                                 allow_tools=rnd < CLAUDE_ROUNDS, effort=COACH_EFFORT, timeout=COACH_TIMEOUT)
+                                 allow_tools=rnd < CLAUDE_ROUNDS, effort=COACH_EFFORT,
+                                 timeout=COACH_TIMEOUT, deadline=deadline)
         uses = llm_claude.tool_uses(resp)
         if resp.get("stop_reason") != "tool_use" or not uses:
             final_text = llm_claude.text_of(resp) or first_text
