@@ -47,7 +47,7 @@ Never commit a key: `claude_api_key.txt` and `.env` are git-ignored. With a key,
 
 Core from the brief:
 
-- Chat with your own money, with the transactions behind each answer under it ("Transactions used").
+- Chat with your own money, with the transactions behind each answer under it ("From 2 transactions"), and two short follow-up questions under the latest answer.
 - Three baskets, with context-aware labels: a kebab or taxi in the middle of a night out counts as "Night out", not food or transport.
 - Safe to spend this week and until payday, with the working shown and a day-by-day balance forecast.
 - What-if: "What if I cut dining out by 20%?", in chat and with sliders.
@@ -60,8 +60,8 @@ Added by the team:
 
 - Consent switches (analyse, AI model, comparison, suggestions) and the customer's own choice of how often check-ins, suggestions, the quiz and challenges arrive.
 - Weekly quiz ("Guess how much you spent on X this week") with an awareness score over time.
-- A simulated S-Bank account at the top of the start page: current account balance, savings and investments, and what is safe to spend until payday; tap it for the latest transactions and "Move money" (`GET /api/account`).
-- The start page shows what the coach can do as six tiles under the question box ("Can I afford it?", "Where can I save?", "Analyse receipts", "Plan a goal", "Until payday", "Explain a contract") and a link to everything else. The monthly check-in, this week's quiz and "Worth a look" sit below as closed rows that open when tapped.
+- A simulated S-Bank account at the top of the start page: current account balance and what is safe to spend until payday (savings only when there are some); tap it for the latest transactions and "Move money" (`GET /api/account`).
+- The start page is kept short (owner's criteria, 14 Nov: useful, clear what you can do, approachable). Under the question box are four example questions the way a customer would ask them ("What can I spend this week?", "What kind of spender am I?", "Can I afford it?", "How can I save more?") and one link, "Goals, receipts, contracts and more", to every topic. Below is last month in the three baskets, each with one line on what goes in it; tap a basket for its transactions. The monthly check-in, this week's quiz and "Worth a look" are closed rows of one list. An empty conversation shows the same examples; after each answer two follow-up questions are offered, chosen by the answer's card (none for Finnish questions).
 - Notes: say "Remember that my rent goes up in January" (or "Muista, että ...") and the app keeps it in your own words. It shows under "Your things", the coach is given it with every question as information (never as instructions), and "Forget this" removes it (`state.add_note`, `GET /api/notes`, `POST /api/notes/remove`).
 - A coach that knows the customer: with the AI model on, every turn carries a short, checked picture of the customer (last month, usual month, biggest categories, balance and payday, saving opportunities, goal), so answers are personal and end with one concrete next step when the data gives one. Aggregates only, no ids, merchants or other people; the exact lines are shown under "What the AI saw". Without a model, answers add one sentence about the customer's own previous or usual month (`coach.customer_snapshot`, `coach._personal_note`).
 - Save and invest inside S-mobiili: the coach or a check-in suggestion offers a move to your own S-Bank savings account or an S-Bank fund; an approval card shows the amount, from, to and the balance after, and nothing moves until you tap "Approve". A move never takes money needed for bills before payday, and nothing can go outside S-mobiili (`app/money.py`).
