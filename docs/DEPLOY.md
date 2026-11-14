@@ -144,7 +144,12 @@ Run on 14 Nov on the owner's computer:
   taxis last month?" gives €92.85, receipts answer as before, random login works, "Reset demo" answers 404.
 - The unit tests in `tests/test_deploy.py`.
 
+Run on GitHub (workflow "demo image", pull request 41, 14 Nov):
+- The image built from the Dockerfile in 1 minute 48 seconds, the database inside it in 51 seconds.
+- Started without a key, it listed the six demo customers, answered Veeti's taxi question with €92.85 from the
+  built-in rules, refused "Reset demo" with 404 and ran as the user `svinkki`, not root.
+
 Not run:
-- The Docker image was not built on this computer (no Docker here). The GitHub workflow builds it.
+- Docker is not installed on the owner's computer, so the image has only been built on GitHub.
 - Nothing has been deployed to Render or anywhere else, and `render.yaml` has not been read by Render.
 - The hosted entry point has not been run with a real key.
