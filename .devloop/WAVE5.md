@@ -133,6 +133,40 @@ What the round 1 judges still found, and what round 2 did about it:
 Live calls used in this wave: about 85 (first evaluation), 238 (baseline), 238 (round 1), 64 (round 2) and a
 handful of single checks: about 630 customer messages, each one or more model requests.
 
+## Investment guidance and follow-up questions (14 Nov, later)
+
+The owner's complaint: asked "How should I invest my money?" the coach said "I wouldn't invest yet", sent the
+buffer to a savings account, quoted "three to six months of costs" from the model's memory, and showed
+follow-up buttons unrelated to the answer.
+
+- `app/invest_knowledge.json`: 38 statements, 13 figures and 7 products gathered on 14 Nov 2026 from 45 named
+  pages (Pörssisäätiö, Takuusäätiö, Marttaliitto, Finanssivalvonta, Verohallinto, Rahoitusvakausvirasto,
+  Suomen Pankki, S-Pankki, Evli, ESMA and others). Each entry names its source and link; each figure says
+  whether it was read on the provider's own page (`primary`) or on a third party's (`secondary`), and its date.
+  Rates go stale: refresh the file before relying on it.
+- `app/invest.py`: `get_investment_plan` works out, by code, what this customer could do in order: what being
+  below zero costs (S-Pankki card credit 14.6%), a buffer of one to three months of spending and where it
+  earns more (S-Tuottotili pays 0.01% under 5,000 euros; S-Pankki Lyhyt Korko returned 2.1% over the last
+  12 months; new fixed-term deposits averaged 2.85%), a monthly amount split between buffer and index fund,
+  an illustration at 5.2% a year after inflation, and idle money above the buffer. `get_invest_facts(topic)`
+  returns the sourced statements on one topic (index funds, taxes, crypto, leverage ...).
+  The tools are declared and run through `coach.call_tool`, not `app/tools.py` (held by another agent at the
+  time); they replace `get_invest_education` for the model.
+- Prompt rule 7 rewritten: recommend from the plan, "don't invest yet" is never the whole answer, name the
+  source, never state a rate or rule from memory, crypto and leverage get facts and a sensible alternative.
+- What the sources do NOT say, and the plan therefore does not claim: no source says a short-term interest
+  fund is THE place for a buffer (Takuusäätiö says a separate account; Pörssisäätiö's guide puts money for the
+  next couple of years in such a fund): the plan compares the rates and says the fund has no deposit
+  guarantee. No source gives a percentage for speculative holdings. Takuusäätiö says buffer first, Pörssisäätiö
+  says start early with small sums: the plan splits the monthly amount between the two.
+- The in-app "S-Bank global index fund" is a demo product: no global passive S-Pankki fund was found; its facts
+  are those of S-Pankki Passiivinen USA ESG Osake A.
+- Follow-up questions: the model ends each answer with a line `NEXT: a | b | c`; `coach.split_followups` takes
+  it off the answer and `/api/chat` returns it as `followups`. The web app must show `res.followups` in place
+  of its static table (web/app.js `followUps`, held by agent-s2 when this was written).
+- The built-in rules (no model) still answer investing questions with the old education-only text.
+- Checked live with seven questions on three demo customers; not run on the question bank.
+
 ## Where the material is
 
 In the repository: `.devloop/coach-bank/` holds the three bank files, `RUBRIC.md` (the judging rubric) and
