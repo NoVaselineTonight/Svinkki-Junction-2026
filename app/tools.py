@@ -161,8 +161,8 @@ TOOLS = [
         "name": "explore_my_data",
         "description": "Run one read-only SQL SELECT on the customer's own transactions. The only table is "
                        "tx with columns: d (date YYYY-MM-DD), ts (timestamp), amount (signed euros, spending "
-                       "is negative), balance, type, category, mcc, merchant, label, basket, context "
-                       "('night_out' or ''). At most 50 rows come back.",
+                       "is negative), balance, type, category, mcc, label, basket, context "
+                       "('night_out' or ''), id. Shop names are not available here. At most 50 rows come back.",
         "parameters": {"type": "object", "properties": {
             "sql": {"type": "string", "description": "A single SELECT statement on table tx."},
         }, "required": ["sql"]},
@@ -859,10 +859,17 @@ def _t_explore(args, ctx, ins):
     sql = args.get("sql")
     if not isinstance(sql, str) or not sql.strip() or len(sql) > 1000:
         raise ValueError("sql must be a short SELECT statement")
+    # The query runs on a copy without the merchant column (db.MODEL_COLUMNS), never on the sandbox itself.
+    copy = db.model_copy(ctx.conn)
     try:
-        res = db.safe_select(ctx.conn, sql)
-    except ValueError:
-        return {"error": "only a single read-only SELECT on table tx is allowed"}, "table"
+        res = db.safe_select(copy, sql)
+    except ValueError as e:
+        msg = "only a single read-only SELECT on table tx is allowed"
+        if "no such column" in str(e):
+            msg += "; columns: " + ", ".join(db.MODEL_COLUMNS)
+        return {"error": msg}, "table"
+    finally:
+        copy.close()
     res = dict(res)
     res["explain"] = "Result of your read-only query on your own transactions."
     return res, "table"
@@ -1028,6 +1035,89 @@ def _strip_ids(o):
     if isinstance(o, list):
         return [_strip_ids(v) for v in o]
     return o
+
+
+# ---------------------------------------------------------------- what the model is sent
+# coach._model_view runs every tool result through model_payload, then coach.anonymise. The card for the web (the
+# customer's own screen) keeps the full result. Row-level results are trimmed to what an answer needs.
+MODEL_TX_ROWS = 25           # list_transactions rows the model sees; count, total and spent cover all of them
+MODEL_TX_FIELDS = ("d", "amount", "label", "display_label", "category", "basket", "context", "id")
+_MODEL_RECEIPT_DROP = ("ts", "tx_id")
+_MODEL_DROP_ANYWHERE = {"merchant_ref"}     # a stable hash of the merchant id (find_leaks): an id by another name
+
+
+def _drop_anywhere(o):
+    if isinstance(o, dict):
+        return {k: _drop_anywhere(v) for k, v in o.items() if str(k).lower() not in _MODEL_DROP_ANYWHERE}
+    if isinstance(o, list):
+        return [_drop_anywhere(v) for v in o]
+    return o
+
+
+def model_payload(res):
+    """The part of a tool result that goes to the model (a new object; `res` is not changed).
+    list_transactions: the aggregates and at most MODEL_TX_ROWS rows of date, amount, category, basket and the
+    row id (for remember_category); no time of day, no merchant. get_receipts: no timestamp, no transaction id.
+    Everywhere: no merchant hash."""
+    if not isinstance(res, dict):
+        return res
+    out = _drop_anywhere(res)
+    card = res.get("card")
+    if card == "transactions" and isinstance(out.get("rows"), list):
+        rows = [r for r in out["rows"] if isinstance(r, dict)]
+        out["rows"] = [{k: r[k] for k in MODEL_TX_FIELDS if k in r} for r in rows[:MODEL_TX_ROWS]]
+        if len(rows) > MODEL_TX_ROWS:
+            out["rows_left_out"] = len(rows) - MODEL_TX_ROWS
+    elif card == "receipts" and isinstance(out.get("receipts"), list):
+        out["receipts"] = [{k: v for k, v in r.items() if k not in _MODEL_RECEIPT_DROP} if isinstance(r, dict) else r
+                           for r in out["receipts"]]
+    return out
+
+
+# First names in what the customer types are replaced with "[name]" before the text goes to the model. The rule is
+# deliberately simple so it can be stated exactly: a CAPITALISED name from this list, as written or with an English
+# possessive or a Finnish case ending added to it (Anna's, Annalle, Veetin). Names not on the list, and forms that
+# change the stem (Matti -> Matin), are sent as typed. Names that are also everyday words or Finnish brands (Max,
+# Tim, Jack, Elisa, Sampo, Alma, May, June, Will, Mark, Bill ...) are left out on purpose.
+FIRST_NAMES = frozenset("""
+Aada Aapo Aino Aki Aku Aleksi Anna Anne Anni Antero Antti Anu Ari Arja Arto Eemeli Eero Eetu Eila Eino Elias Elina
+Ella Elsa Emilia Emma Erkki Esa Eveliina Hanna Hannu Harri Heikki Heli Helena Helmi Henna Henri Ilkka Iida Iiris
+Jaakko Jaana Jani Janne Jari Jarmo Jenna Jenni Joonas Jouni Juha Juho Jukka Jussi Jyrki Kaarina Kaisa Kalle Kari
+Katja Kati Kimmo Kirsi Kristiina Lassi Laura Lauri Leena Leevi Lenni Liisa Lotta Maija Marja Marjatta Marko Markku
+Matias Matti Merja Mika Mikko Minna Mira Niina Niko Noora Olli Onni Oona Oskari Outi Paula Pekka Pentti Petri
+Petteri Pirjo Pirkko Päivi Raija Raimo Riikka Risto Saara Sami Sanna Sari Satu Seppo Siiri Sini Suvi Taneli Tapani
+Tapio Teemu Terhi Timo Tiina Toni Topias Tuomas Tuula Tuuli Ulla Urho Valtteri Veeti Veikko Venla Vesa Viivi Ville
+Alice Amanda Amy Andrew Anthony Ashley Brian Charlotte Chloe Chris Christopher Daniel David Emily Eric Ethan George
+Hannah Harry Jacob James Jason Jennifer Jessica John Joseph Kate Katie Kevin Liam Lisa Lucy Mary Matthew Megan Mia
+Michael Michelle Nicole Noah Oliver Olivia Paul Peter Rachel Richard Robert Ryan Sam Sarah Sophia Sophie Steve
+Steven Thomas Tom William
+""".split())
+# Also everyday Finnish words ("Anna minulle..." = "give me..."): at the start of a sentence, followed by a
+# lowercase word, they are read as the word, not the name.
+_NAME_WORDS = frozenset({"Anna", "Onni", "Satu", "Suvi", "Tuuli", "Helmi", "Sini", "Kari", "Urho"})
+_NAME_RE = re.compile(r"(?<![\w\[])(" + "|".join(sorted(FIRST_NAMES, key=len, reverse=True)) + r")"
+                      r"(?:['’]s|['’]|:n|lle|lta|ltä|lla|llä|sta|stä|ssa|ssä|kin|n|a|ä)?(?!\w)")
+_SENTENCE_START = re.compile(r"(?:^|[.!?:]\s+)$")
+_ENGLISH_NEXT = frozenset("and or is was has had paid pays pay owes owed still never did said sent gave bought lent "
+                          "borrowed will can just also".split())
+
+
+def mask_names(text):
+    """(text with listed first names replaced by "[name]", how many were replaced). See FIRST_NAMES."""
+    if not isinstance(text, str):
+        return "", 0
+    count = 0
+
+    def one(m):
+        nonlocal count
+        name = m.group(1)
+        if name in _NAME_WORDS and m.group(0) == name and _SENTENCE_START.search(text[:m.start()]) \
+                and re.match(r"\s+[a-zåäö]", text[m.end():]) \
+                and text[m.end():].split(None, 1)[0].strip(",.!?").lower() not in _ENGLISH_NEXT:
+            return m.group(0)
+        count += 1
+        return "[name]"
+    return _NAME_RE.sub(one, text), count
 
 
 def _t_remember(args, ctx, ins):

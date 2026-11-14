@@ -148,6 +148,29 @@ def sandbox(cid, today: str, overrides=None, moves=None) -> sqlite3.Connection:
     return mem
 
 
+# What the model's own SQL (explore_my_data) can see: the customer's transactions WITHOUT the merchant column.
+# No customer, account or postal column exists in the sandbox at all. An expression such as '#'||merchant,
+# lower(merchant) or substr(merchant, 5) would carry a merchant id past the name-based filter in
+# coach.anonymise, so the column is not there to be read: such a query fails with "no such column".
+MODEL_COLUMNS = ("d", "ts", "amount", "balance", "type", "category", "mcc", "label", "basket", "context", "id")
+
+
+def model_copy(conn) -> sqlite3.Connection:
+    """A fresh read-only in-memory copy of a sandbox's `tx` table with only MODEL_COLUMNS. The model's
+    queries run here, never on the sandbox itself. The caller closes it."""
+    cols = ", ".join(MODEL_COLUMNS)
+    rows = [tuple(r) for r in conn.execute(f"SELECT {cols} FROM tx ORDER BY ts, rowid")]
+    mem = sqlite3.connect(":memory:", check_same_thread=False)
+    mem.execute("CREATE TABLE tx (d TEXT, ts TEXT, amount REAL, balance REAL, type TEXT, category TEXT, "
+                "mcc TEXT, label TEXT, basket TEXT, context TEXT, id INTEGER)")
+    mem.executemany(f"INSERT INTO tx VALUES ({', '.join('?' * len(MODEL_COLUMNS))})", rows)
+    mem.execute("CREATE INDEX tx_d ON tx(d)")
+    mem.commit()
+    mem.execute("PRAGMA query_only = ON")
+    mem.row_factory = sqlite3.Row
+    return mem
+
+
 def tx_merchant(cid, tx_id):
     """Merchant id of ONE of this customer's own transactions, or None when the row does not exist
     or belongs to someone else. For server-side use only: it never goes to a client or a model."""
