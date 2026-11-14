@@ -220,5 +220,111 @@ class ServerFollowUpTests(unittest.TestCase):
         self.assertLess(fu.index("res.followups"), fu.index("paljonko"), "Finnish follow-ups from the server pass")
 
 
+class TurnProgressTests(unittest.TestCase):
+    """h. A model turn can take about 100 s with no streaming."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.js = _read("app.js")
+
+    def test_one_client_timeout_a_little_above_the_server_cap(self):
+        import app.coach as coach
+        m = re.search(r"var TURN_TIMEOUT_MS = (\d+);", self.js)
+        self.assertIsNotNone(m)
+        ms = int(m.group(1))
+        self.assertGreater(ms, coach.TURN_SECONDS * 1000)
+        self.assertLessEqual(ms, coach.TURN_SECONDS * 1000 + 30000)
+        self.assertEqual(self.js.count("timeout: TURN_TIMEOUT_MS }"), 2, "chat and explain use the one constant")
+
+    def test_a_timeout_is_a_plain_message(self):
+        body = _fn(self.js, "function api(")
+        self.assertIn("AbortController", body)
+        self.assertIn("'The answer took too long. Please try again in a moment.'", body)
+
+    def test_the_wait_shows_seconds_and_a_line_that_changes(self):
+        w = _fn(self.js, "function waitingNode(")
+        self.assertIn("setInterval(", w)
+        self.assertIn("clearInterval(timer)", w)
+        self.assertIn("s + ' s'", w)
+        lines = self.js[self.js.index("var WAIT_LINES = ["):]
+        lines = lines[:lines.index("];")]
+        self.assertIn("'Checking your numbers...'", lines)
+        self.assertGreaterEqual(lines.count("['") + lines.count("[0,") + lines.count(", '"), 4)
+
+    def test_send_is_disabled_while_waiting_and_an_error_offers_a_retry(self):
+        chat = _fn(self.js, "function buildChat(opts)")
+        self.assertIn("var wait = waitingNode();", chat)
+        self.assertIn("api('/api/chat', { method: 'POST', body: body, timeout: TURN_TIMEOUT_MS })", chat)
+        self.assertIn("busy = true; comp.setBusy(true);", chat)
+        self.assertIn("errorNode(e, function () {", chat)
+        comp = _fn(self.js, "function composer(")
+        self.assertIn("send.disabled = b;", comp)
+        self.assertIn("'Waiting for the answer'", comp)
+
+
+class KeyboardTests(unittest.TestCase):
+    """i. The keyboard must not cover the message box."""
+
+    def test_the_visible_height_follows_the_visual_viewport(self):
+        js = _read("app.js")
+        fit = _fn(js, "function fitViewport(")
+        self.assertIn("window.visualViewport", fit)
+        self.assertIn("setProperty('--vvh'", fit)
+        watch = _fn(js, "function watchViewport(")
+        self.assertIn("vv.addEventListener('resize', fitViewport)", watch)
+        self.assertIn("watchViewport();", _fn(js, "function init("))
+        css = _read("styles.css")
+        self.assertRegex(css, r"body\.chat-screen \.app \{[^}]*height: var\(--vvh, 100dvh\)")
+        self.assertRegex(css, r"\.sheet\.full \{[^}]*height: var\(--vvh, 100dvh\)")
+        self.assertIn("interactive-widget=resizes-content", _read("index.html"))
+
+
+class TouchTests(unittest.TestCase):
+    """j. Nothing is only reachable by hovering."""
+
+    def test_no_title_tooltips(self):
+        js = _read("app.js")
+        self.assertNotRegex(js, r"[{,] title: (?:titleOf|'The receipt lines)", "values behind a hover tooltip")
+        self.assertNotIn("title: 'Keep in Your things'", js)
+        self.assertNotIn("title: 'Kept in Your things'", js)
+
+    def test_chart_columns_open_by_tap(self):
+        js = _read("app.js")
+        chart = _fn(js, "function colChart(")
+        self.assertIn("h('button', { type: 'button', class: 'col'", chart)
+        self.assertIn("readout.textContent = titleOf(it);", chart)
+        self.assertIn("h('button', { type: 'button', class: 'demo-pill'", _fn(js, "function demoTag("))
+
+    def test_hover_only_styles_change_looks_not_content(self):
+        css = _read("styles.css")
+        for rule in re.findall(r"[^{}]*:hover[^{]*\{([^}]*)\}", css):
+            self.assertNotIn("display", rule)
+            self.assertNotIn("visibility", rule)
+            self.assertNotIn("content:", rule)
+
+
+class StoryCardTests(unittest.TestCase):
+    """k. The longer-view tools draw a simple card from their highlights."""
+
+    def test_every_story_card_type_has_a_card(self):
+        fx.get()
+        from app import tools
+        js = _read("app.js")
+        block = js[js.index("var STORY_CARDS = {"):]
+        block = block[:block.index("};")]
+        names = set(re.findall(r"(\w+): '", block))
+        ctx = fx.make_ctx(fx.A_CID)
+        for tool in ("get_money_story", "get_season_outlook", "explain_month", "get_low_points", "get_income_profile",
+                     "receipt_trends", "grocery_basket_profile", "grocery_cut_ideas", "get_findings"):
+            with self.subTest(tool=tool):
+                res = tools.call(tool, {}, ctx)
+                self.assertIn(res["card"], names)
+                self.assertTrue(res.get("highlights"))
+        self.assertIn("category_story", names)
+        body = _fn(js, "function storyCard(")
+        self.assertIn("d.highlights", body)
+        self.assertIn("hl.slice(0, 3)", body)
+        self.assertIn("CARDS[k] = function (d) { return storyCard(k, d); };", js)
+
 if __name__ == "__main__":
     unittest.main()

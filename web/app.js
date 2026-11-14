@@ -191,6 +191,11 @@
     return 'Something went wrong. Please try again.';
   }
 
+  // A model turn may take up to 100 s on the server (coach.TURN_SECONDS) with no streaming; the browser gives
+  // up a little later, so the server's own fallback answer normally arrives first.
+  var TURN_TIMEOUT_MS = 110000;
+
+  // opts.timeout: milliseconds before the request is given up with a plain "took too long" message.
   function api(path, opts) {
     opts = opts || {};
     var init = { method: opts.method || 'GET', credentials: 'same-origin', headers: { 'Accept': 'application/json' } };
@@ -198,7 +203,15 @@
       init.headers['Content-Type'] = 'application/json';
       init.body = JSON.stringify(opts.body);
     }
+    var timer = null, timedOut = false;
+    if (opts.timeout && typeof AbortController === 'function') {
+      var ctl = new AbortController();
+      init.signal = ctl.signal;
+      timer = setTimeout(function () { timedOut = true; ctl.abort(); }, opts.timeout);
+    }
+    function done() { if (timer) clearTimeout(timer); }
     return fetch(path, init).then(function (res) {
+      done();
       return res.text().then(function (txt) {
         var data = null;
         try { data = txt ? JSON.parse(txt) : null; } catch (e) { data = null; }
@@ -214,7 +227,10 @@
         }
         throw new ApiError(res.status, code, friendly(res.status, code), false);
       });
-    }, function () {
+    }, function (err) {
+      done();
+      if (err instanceof ApiError) throw err;
+      if (timedOut) throw new ApiError(0, 'timeout', 'The answer took too long. Please try again in a moment.', false);
       throw new ApiError(0, 'network', friendly(0, ''), false);
     });
   }
@@ -1332,15 +1348,24 @@
     var vals = items.map(function (it) { return Math.max(0, num(valueOf(it))); });
     var mx = Math.max.apply(null, vals.concat([0.0001]));
     var top = vals.indexOf(Math.max.apply(null, vals.concat([0])));
-    var wrap = h('div', { class: 'cols' + (compact ? ' compact' : ''), role: 'img', 'aria-label': summary || '' });
+    // No hover tooltips: a phone has no hover. Tapping a column shows its value in the line under the chart.
+    var wrap = h('div', { class: 'cols' + (compact ? ' compact' : ''), role: 'group', 'aria-label': summary || '' });
+    var readout = h('p', { class: 'tiny col-readout', 'aria-live': 'polite' }, 'Tap a column to see its value.');
+    var btns = [];
     items.forEach(function (it, i) {
       var fill = h('div', { class: 'col-fill' + (i === top && vals[i] > 0 ? ' peak' : '') });
       fill.style.height = Math.max(vals[i] > 0 ? 3 : 0, vals[i] / mx * 100) + '%';
-      wrap.appendChild(h('div', { class: 'col', title: titleOf(it) },
-        h('div', { class: 'col-track' }, fill),
-        h('span', { class: 'col-label', 'aria-hidden': 'true' }, labelOf(it, i))));
+      var b = h('button', { type: 'button', class: 'col', 'aria-label': titleOf(it), 'aria-pressed': 'false' },
+        h('span', { class: 'col-track' }, fill),
+        h('span', { class: 'col-label', 'aria-hidden': 'true' }, labelOf(it, i)));
+      b.addEventListener('click', function () {
+        btns.forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+        readout.textContent = titleOf(it);
+      });
+      btns.push(b);
+      wrap.appendChild(b);
     });
-    return wrap;
+    return h('div', { class: 'col-chart' }, wrap, readout);
   }
 
   function sparkline(values) {
@@ -1546,7 +1571,7 @@
       if (text.length < EXPLAIN_MIN || text.length > EXPLAIN_MAX) { paint(); return; }
       go_.disabled = true; ta.disabled = true;
       out.replaceChildren(loadingNode('Reading your text…'));
-      api('/api/explain', { method: 'POST', body: { text: text } }).then(function (d) {
+      api('/api/explain', { method: 'POST', body: { text: text }, timeout: TURN_TIMEOUT_MS }).then(function (d) {
         d = d || {};
         form.hidden = true;
         var again = h('button', { type: 'button', class: 'btn secondary block' }, 'Explain another text');
@@ -1642,7 +1667,15 @@
   // One "Demo receipts" tag in the card head instead of notes on every receipt (R6).
   function demoTag(c) {
     var head = c.querySelector('.card-titles');
-    if (head) head.appendChild(h('span', { class: 'demo-pill', title: 'The receipt lines are simulated for this demo.' }, 'Demo receipts'));
+    if (!head) return;
+    var note = h('span', { class: 'tiny demo-note', hidden: true }, 'The receipt lines are simulated for this demo.');
+    var pill = h('button', { type: 'button', class: 'demo-pill', 'aria-expanded': 'false' }, 'Demo receipts');
+    pill.addEventListener('click', function () {
+      note.hidden = !note.hidden;
+      pill.setAttribute('aria-expanded', String(!note.hidden));
+    });
+    head.appendChild(pill);
+    head.appendChild(note);
   }
   function openReceiptSheet() {
     var body = openSheet('Read a receipt', { full: true });
@@ -2248,6 +2281,34 @@
     }
   };
 
+  // The longer-view tools (PR 29) each carry ready-made highlights[]: one simple card, a title and the list.
+  var STORY_CARDS = {
+    money_story: 'Your year in money',
+    season_outlook: 'The months ahead',
+    category_story: 'One category over time',
+    explain_month: 'Your month explained',
+    low_points: 'Your lowest points',
+    income_profile: 'Your income',
+    receipt_trends: 'What your receipts show',
+    basket_profile: 'Your grocery trips',
+    cut_ideas: 'Where groceries could give',
+    findings: 'Worth knowing'
+  };
+  var DEMO_RECEIPT_CARDS = { receipt_trends: 1, basket_profile: 1, cut_ideas: 1 };
+  function storyCard(type, d) {
+    var hl = (d.highlights || []).filter(function (x) { return typeof x === 'string' && x; });
+    if (!hl.length) return null;
+    var title = type === 'category_story' && d.label ? cap(String(d.label)) + ' over time' : STORY_CARDS[type];
+    var sub = type === 'explain_month' && d.month ? fmtMonth(d.month) : '';
+    var c = cardShell(title, sub);
+    if (DEMO_RECEIPT_CARDS[type]) demoTag(c);
+    var list = function (xs) { return h('ul', { class: 'plain-list' }, xs.map(function (x) { return h('li', null, ht(x)); })); };
+    c.appendChild(list(hl.slice(0, 3)));
+    more(c, [hl.length > 3 ? list(hl.slice(3)) : null, para(d.note, 'tiny')], d);
+    return c;
+  }
+  Object.keys(STORY_CARDS).forEach(function (k) { CARDS[k] = function (d) { return storyCard(k, d); }; });
+
   // Cards that can be kept under "Your things". The others are things already, or tools.
   var NOT_KEEPABLE = { help: 1, override: 1, challenge: 1, goal_plan: 1, goal_saved: 1, quiz_stats: 1, money_proposal: 1 };
 
@@ -2274,13 +2335,13 @@
     var head = node.querySelector('.card-head');
     if (!head) return;
     var title = cardTitleOf(node).slice(0, 80);
-    var b = h('button', { type: 'button', class: 'keep-btn', 'aria-label': 'Keep in Your things: ' + title, title: 'Keep in Your things' }, icon('pin', 18));
+    var b = h('button', { type: 'button', class: 'keep-btn', 'aria-label': 'Keep in Your things: ' + title }, icon('pin', 18));
     b.addEventListener('click', function () {
       b.disabled = true;
       var data = c.data || {};
       if (!data.evidence && c.evidence) data = Object.assign({}, data, { evidence: c.evidence });
       api('/api/pins', { method: 'POST', body: { title: title, card: { type: c.type, data: data } } }).then(function (r) {
-        b.replaceWith(h('span', { class: 'kept-tag', title: 'Kept in Your things' }, icon('pin', 16), 'Kept'));
+        b.replaceWith(h('span', { class: 'kept-tag' }, icon('pin', 16), 'Kept'));
         var chip = thingChip({ id: r && r.id, kind: 'pin', title: (r && r.title) || title });
         if (after && after.parentNode) after.parentNode.insertBefore(chip, after.nextSibling);
         thingsChanged();
@@ -2614,7 +2675,11 @@
     input.addEventListener('input', autosize);
     return {
       el: form, input: input,
-      setBusy: function (b) { busy = b; send.disabled = b; },
+      setBusy: function (b) {
+        busy = b; send.disabled = b;
+        form.classList.toggle('busy', b);
+        send.setAttribute('aria-label', b ? 'Waiting for the answer' : 'Send');
+      },
       set: function (v) { input.value = v; autosize(); input.focus(); }
     };
   }
@@ -3004,6 +3069,32 @@
     draw(null);
   }
 
+  // While a turn runs (up to about 100 s, no streaming): the typing dots, the seconds so far and a plain line
+  // that changes over time, so a long wait never looks like a hang.
+  var WAIT_LINES = [
+    [0, 'Reading your question...'],
+    [3, 'Checking your numbers...'],
+    [10, 'Looking through your transactions...'],
+    [25, 'Putting the answer together...'],
+    [50, 'Still working. A long question takes a while...'],
+    [80, 'Almost there...']
+  ];
+  function waitingNode() {
+    var line = h('span', { class: 'wait-line' }, WAIT_LINES[0][1]);
+    var secs = h('span', { class: 'wait-secs', 'aria-hidden': 'true' });
+    var el = h('div', { class: 'msg bot' }, h('div', { class: 'bot-text wait', role: 'status', 'aria-live': 'polite' },
+      h('span', { class: 'typing', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')), h('span', { class: 'wait-text' }, line, secs)));
+    var t0 = Date.now();
+    var timer = setInterval(function () {
+      var s = Math.floor((Date.now() - t0) / 1000);
+      var text = WAIT_LINES[0][1];
+      WAIT_LINES.forEach(function (w) { if (s >= w[0]) text = w[1]; });
+      if (line.textContent !== text) line.textContent = text;
+      secs.textContent = s >= 2 ? s + ' s' : '';
+    }, 1000);
+    return { el: el, stop: function () { clearInterval(timer); el.remove(); } };
+  }
+
   function buildChat(opts) {
     var t = token;
     var conv = { id: opts.id || null, local: !!opts.local };
@@ -3011,7 +3102,7 @@
     var busy = false;
     var shown = {};    // key -> thread message already holding that card
     var comp = composer('Ask anything about your money', 'Your question', function (text) { send(text); });
-    var askBtn = h('button', { type: 'button', class: 'icon-btn ask-btn', 'aria-haspopup': 'dialog', 'aria-label': 'What can I ask?', title: 'What can I ask?', onclick: function () { openAsk(); } }, icon('help', 22));
+    var askBtn = h('button', { type: 'button', class: 'icon-btn ask-btn', 'aria-haspopup': 'dialog', 'aria-label': 'What can I ask?', onclick: function () { openAsk(); } }, icon('help', 22));
     comp.el.insertBefore(askBtn, comp.el.firstChild);
     var follow = null;   // the follow-up chips under the latest answer; only one set at a time
     function dropFollow() { if (follow) { follow.remove(); follow = null; } }
@@ -3046,16 +3137,17 @@
       dropFollow();
       // A pasted receipt shows as one short line, not the whole text.
       userBubble(/^Receipt:\n/.test(text) ? 'Read this receipt (' + plural(text.split('\n').length - 1, 'line', 'lines') + ')' : text);
-      var wait = h('div', { class: 'msg bot' }, h('div', { class: 'bot-text' }, h('span', { class: 'typing', role: 'status', 'aria-label': 'Svinkki is thinking' }, h('i'), h('i'), h('i'))));
-      msgs.appendChild(wait);
+      var bubble = msgs.lastChild;
+      var wait = waitingNode();
+      msgs.appendChild(wait.el);
       toBottom();
       storing.then(function () {
         var body = { message: text };
         if (conv.id) body.conversation_id = conv.id;
-        return api('/api/chat', { method: 'POST', body: body });
+        return api('/api/chat', { method: 'POST', body: body, timeout: TURN_TIMEOUT_MS });
       }).then(function (res) {
         res = res || {};
-        wait.remove();
+        wait.stop();
         if (res.conversation_id) { conv.id = res.conversation_id; convApi = true; }
         else if (convApi !== true) {
           // The server keeps no conversations: remember this one until the next "New".
@@ -3067,9 +3159,11 @@
         addFollow(m, followUps(res, text));
         toStartOf(m);
       }, function (e) {
-        wait.remove();
+        wait.stop();
         if (e.handled) return;
-        toStartOf(botText(errorNode(e)));
+        // Try again asks the same question once more, in place of this attempt.
+        var m = botText(errorNode(e, function () { m.remove(); if (bubble && bubble.parentNode) bubble.remove(); send(text); }));
+        toStartOf(m);
       }).then(function () { busy = false; comp.setBusy(false); comp.input.focus({ preventScroll: true }); });
     }
 
@@ -3543,6 +3637,25 @@
     root.appendChild(h('p', { class: 'tiny center' }, 'Hackathon prototype for the S-Pankki challenge. Synthetic data.'));
   }
 
+  // ---------- the on-screen keyboard ----------
+  // On a phone the keyboard covers the bottom of the page (iOS shrinks only the visual viewport). The chat screen
+  // and full sheets take the visible height (--vvh), so the message box stays just above the keyboard.
+  function fitViewport() {
+    var vv = window.visualViewport;
+    var root = document.documentElement;
+    if (!vv || Math.abs(vv.scale - 1) > 0.01) { root.style.removeProperty('--vvh'); return; }   // zoomed: leave it
+    root.style.setProperty('--vvh', Math.round(vv.height) + 'px');
+    // iOS scrolls the page up under the keyboard; the chat screen is exactly the visible height, so pin it.
+    if ((document.body.classList.contains('chat-screen') || sheetState) && vv.offsetTop > 0) window.scrollTo(0, 0);
+  }
+  function watchViewport() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    vv.addEventListener('resize', fitViewport);
+    vv.addEventListener('scroll', fitViewport);
+    fitViewport();
+  }
+
   // ---------- start ----------
   function init() {
     viewEl = document.getElementById('view');
@@ -3554,6 +3667,7 @@
     document.getElementById('gear-btn').addEventListener('click', function () { openSettings(); });
     try { history.replaceState({ svk: 0 }, ''); } catch (e) { /* no history API */ }
     window.addEventListener('popstate', onPop);
+    watchViewport();
     boot();
   }
 
