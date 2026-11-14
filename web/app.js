@@ -191,9 +191,9 @@
     return 'Something went wrong. Please try again.';
   }
 
-  // A model turn may take up to 100 s on the server (coach.TURN_SECONDS) with no streaming; the browser gives
+  // A model turn may take up to 60 s on the server (coach.TURN_SECONDS) with no streaming; the browser gives
   // up a little later, so the server's own fallback answer normally arrives first.
-  var TURN_TIMEOUT_MS = 110000;
+  var TURN_TIMEOUT_MS = 70000;
 
   // opts.timeout: milliseconds before the request is given up with a plain "took too long" message.
   function api(path, opts) {
@@ -3069,15 +3069,15 @@
     draw(null);
   }
 
-  // While a turn runs (up to about 100 s, no streaming): the typing dots, the seconds so far and a plain line
+  // While a turn runs (up to about 60 s, no streaming): the typing dots, the seconds so far and a plain line
   // that changes over time, so a long wait never looks like a hang.
   var WAIT_LINES = [
     [0, 'Reading your question...'],
     [3, 'Checking your numbers...'],
     [10, 'Looking through your transactions...'],
     [25, 'Putting the answer together...'],
-    [50, 'Still working. A long question takes a while...'],
-    [80, 'Almost there...']
+    [35, 'Still working. A long question takes a while...'],
+    [50, 'Almost there...']
   ];
   function waitingNode() {
     var line = h('span', { class: 'wait-line' }, WAIT_LINES[0][1]);
