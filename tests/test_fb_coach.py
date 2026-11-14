@@ -34,24 +34,32 @@ LONG = ("You spent a lot on taxis in August. That is more than your usual month 
         "That money could go to a small buffer for surprises. Would you like me to work out a plan?")
 
 
+LONGER = LONG.replace(" Would you like me to work out a plan?", " ") + " ".join(
+    ["This is a plain sentence about money that goes on."] * 8) + " Would you like me to work out a plan?"
+
+
 class TheCut(Base):
-    def test_with_a_card_the_text_is_about_45_words(self):
-        out = self.coach.tidy_model_text(LONG, "how are my taxis", card=True)
-        self.assertLessEqual(len(out.split()), 50, out)
+    # Limits raised in the owner's eval (14 Nov): with a card about 80 words (answer, meaning, one step).
+    def test_with_a_card_the_text_is_about_80_words(self):
+        out = self.coach.tidy_model_text(LONGER, "how are my taxis", card=True)
+        self.assertLessEqual(len(out.split()), self.coach.CARD_MAX_WORDS + 5, out)
         self.assertTrue(out.startswith("You spent a lot on taxis in August."))
         self.assertTrue(out.endswith("?"), "a short closing question is kept")
 
-    def test_without_a_card_the_text_is_about_90_words(self):
+    def test_a_full_short_answer_with_a_step_is_not_cut(self):
+        self.assertEqual(self.coach.tidy_model_text(LONG, "how are my taxis", card=True), LONG)
+
+    def test_without_a_card_the_text_is_about_110_words(self):
         long = " ".join(["This is a plain sentence about money that goes on."] * 20)
         out = self.coach.tidy_model_text(long, "hello", card=False)
-        self.assertLessEqual(len(out.split()), 100)
-        self.assertGreater(len(out.split()), 50)
+        self.assertLessEqual(len(out.split()), self.coach.NO_CARD_MAX_WORDS + 10)
+        self.assertGreater(len(out.split()), 80)
 
     def test_detail_asked_gets_more_room_but_still_cut_with_a_card(self):
         long = " ".join(["This is a plain sentence about money that goes on."] * 20)
         out = self.coach.tidy_model_text(long, "explain it in detail", card=True)
-        self.assertLessEqual(len(out.split()), 80)
-        self.assertGreater(len(out.split()), 45)
+        self.assertLessEqual(len(out.split()), self.coach.CARD_DETAIL_WORDS)
+        self.assertGreater(len(out.split()), self.coach.CARD_MAX_WORDS)
 
     def test_a_short_answer_is_left_alone_and_card_none_keeps_old_behaviour(self):
         t = "You spent €92.85 on taxis. Night buses would cut that."
@@ -67,11 +75,11 @@ class TheCut(Base):
 
     def test_the_model_answer_is_cut_in_a_real_turn(self):
         ctx = self.ctx(ai=True)
-        fake = fc.FakeClaude([fc.cl_call("get_spend", {"period": "last_month", "label": "Taxi"}), fc.cl_text(LONG)])
+        fake = fc.FakeClaude([fc.cl_call("get_spend", {"period": "last_month", "label": "Taxi"}), fc.cl_text(LONGER)])
         with fc.patched_claude(fake):
             r = self.coach.chat("How much did I spend on taxis?", [], ctx)
         self.assertTrue(r["cards"], r)
-        self.assertLessEqual(len(r["reply"].split()), 50, r["reply"])
+        self.assertLessEqual(len(r["reply"].split()), self.coach.CARD_MAX_WORDS + 5, r["reply"])
 
 
 class ChartsCostNoTokens(Base):
@@ -240,9 +248,10 @@ class SpokenFinnish(Base):
 
 
 class Prompt(Base):
-    def test_the_prompt_asks_for_two_sentences_a_plan_and_finnish(self):
+    def test_the_prompt_asks_for_a_complete_short_answer_a_plan_and_finnish(self):
         p = self.coach.SYSTEM_PROMPT
-        for bit in ("at most TWO short sentences", "propose_plan", "add it to their home page with one tap",
+        for bit in ("answer to EVERY part", "the one concrete thing you would do", "General knowledge counts",
+                    "Money is tight", "make_savings_plan", "propose_plan", "add it to their home page with one tap",
                     "Never say a plan is saved", "the app's controls", "Omat asiasi"):
             if bit == "the app's controls":
                 continue

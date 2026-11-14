@@ -23,6 +23,9 @@ LEFTOVER_SHARE = 0.8          # keep a fifth of the usual leftover as a margin f
 MIN_CUT = 8.0                 # a cut worth naming frees at least this much a month
 MAX_CUTS = 4
 LONG_PLAN_MONTHS = 36
+FASTER_FACTOR = 1.75          # "faster": every cut this much deeper (at most 80% of the category)
+LOAN_RATE = 0.07              # a typical Finnish consumer / car loan, yearly, for the "borrow the rest" comparison
+LOAN_MONTHS = 60
 
 # How much of a category can realistically go, and what to do. Essentials (housing, bills, health, public
 # transport) are never cut. Groceries only gently, and only when the flexible areas are not enough.
@@ -69,8 +72,9 @@ ESTIMATES = [
     (r"\bbike\b|bicycle|polkupyör|\bpyör", "a bike", "polkupyörä", 400, 800, 1500,
      "a decent new bike", "kunnon uusi polkupyörä"),
     (r"deposit|down ?payment|first home|own home|apartment|flat|house|asunto|omistusasun|käsiraha|koti\b",
-     "a home deposit", "asunnon käsiraha", 10000, 20000, 35000,
-     "10% of a 200,000 euro home plus transfer tax", "10 % 200 000 euron asunnosta ja varainsiirtovero"),
+     "a home deposit", "asunnon käsiraha", 13000, 23000, 38000,
+     "10% of a 200,000 euro home (20,000) plus the 1.5% transfer tax (3,000)",
+     "10 % 200 000 euron asunnosta (20 000) ja 1,5 %:n varainsiirtovero (3 000)"),
     (r"wedding|häät|häihin", "a wedding", "häät", 5000, 12000, 25000,
      "a wedding for about 80 guests", "noin 80 vieraan häät"),
     (r"laptop|computer|\bpc\b|läppär|tietokone", "a laptop", "kannettava tietokone", 600, 1200, 2000,
@@ -112,7 +116,9 @@ TOOLS = [
             "target": {"type": "number", "description": "Price in euros, only if they gave one."},
             "deadline": {"type": "string", "description": "YYYY, YYYY-MM or YYYY-MM-DD, only if they gave a date."},
             "estimate": {"type": "number", "description": "Only for a goal the built-in list cannot price (it says "
-                                                          "so): your realistic Finnish price in euros."}},
+                                                          "so): your realistic Finnish price in euros."},
+            "faster": {"type": "boolean", "description": "true when they find the plan too slow or want it sooner: "
+                                                         "deeper cuts and all of the usual leftover."}},
             "required": ["goal"]},
     },
 ]
@@ -197,27 +203,33 @@ def picture(conn, today):
             "categories": sorted(((k, float(v)) for k, v in by.items() if v and v > 0), key=lambda kv: -kv[1])}
 
 
-def _cut_options(categories):
+def _cut_options(categories, faster=False):
     out = []
     for label, avg in categories:
         rule = CUTS.get(label)
         if not rule:
             continue
-        freed = math.floor(avg * rule[0])
+        share = min(0.8, rule[0] * FASTER_FACTOR) if faster else rule[0]
+        freed = math.floor(avg * share)
         if freed >= MIN_CUT:
             out.append({"label": label, "label_fi": _label_fi(label), "now": round(avg), "to": round(avg) - freed,
                         "saves": float(freed), "how": rule[1], "how_fi": rule[2]})
     out.sort(key=lambda c: -c["saves"])
     for label, avg in categories:
         if label == "Groceries":
-            freed = math.floor(avg * GROCERY_CUT[0])
+            freed = math.floor(avg * (GROCERY_CUT[0] * (2 if faster else 1)))
             if freed >= MIN_CUT:
                 out.append({"label": label, "label_fi": _label_fi(label), "now": round(avg), "to": round(avg) - freed,
                             "saves": float(freed), "how": GROCERY_CUT[1], "how_fi": GROCERY_CUT[2]})
     return out
 
 
-def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=None):
+def loan_monthly(amount, rate=LOAN_RATE, months=LOAN_MONTHS):
+    r = rate / 12.0
+    return amount * r / (1 - (1 + r) ** -months)
+
+
+def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=None, faster=False):
     t = plans._date(today)
     goal = " ".join(str(goal or "").split())[:plans.MAX_NAME]
     if not goal:
@@ -231,10 +243,14 @@ def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=Non
     if target in (None, "", 0):
         target = None
         if re.search(BUFFER_RE, goal.lower()):
-            target = float(max(500, math.ceil(pic["spent"] * 3 / 100.0) * 100))
-            est = {"what": "a buffer of three months' spending", "what_fi": "kolmen kuukauden menojen puskuri",
-                   "low": target, "high": target, "basis": "three times your usual monthly spending",
-                   "basis_fi": "kolme kertaa tavalliset kuukausimenosi", "own_data": True}
+            tight = pic["leftover"] < 0.1 * pic["spent"]
+            n = 1 if tight else 3     # money is tight: a first buffer of one month, reachable in a year or two
+            target = float(max(500, math.ceil(pic["spent"] * n / 100.0) * 100))
+            est = {"what": "a buffer", "what_fi": "puskuri", "low": target, "high": target,
+                   "basis": "one month of your usual spending, a first buffer you can reach" if tight else
+                            "three months of your usual spending",
+                   "basis_fi": "kuukauden tavalliset menosi, ensimmäinen puskuri jonka saavutat" if tight else
+                               "kolmen kuukauden tavalliset menosi", "own_data": True}
         else:
             e = estimate_price(goal)
             if e:
@@ -257,8 +273,8 @@ def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=Non
     # 2. where the money comes from
     left = pic["leftover"]
     deficit = max(0.0, -left)
-    from_leftover = float(math.floor(max(0.0, left) * LEFTOVER_SHARE / 10.0) * 10)
-    options = _cut_options(pic["categories"])
+    from_leftover = float(math.floor(max(0.0, left) * (1.0 if faster else LEFTOVER_SHARE) / 10.0) * 10)
+    options = _cut_options(pic["categories"], faster)
     months_to_dl = plans._months_between(t, dl) if dl else None
     needed = float(math.ceil(remaining / months_to_dl)) if dl else None
 
@@ -267,11 +283,11 @@ def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=Non
         have = from_leftover + freed - deficit
         if dl is not None and have >= needed:
             break
-        if dl is None and len(chosen) >= MAX_CUTS:
+        if dl is None and len(chosen) >= MAX_CUTS + (2 if faster else 0):
             break
-        if dl is None and c["label"] == "Groceries" and from_leftover - deficit + freed >= remaining / 24.0:
+        if dl is None and not faster and c["label"] == "Groceries" and from_leftover - deficit + freed >= remaining / 24.0:
             continue      # groceries only when the flexible areas leave a goal more than two years away
-        if dl is None and from_leftover - deficit >= remaining / 12.0:
+        if dl is None and not faster and from_leftover - deficit + freed >= remaining / 12.0:
             break         # the leftover alone reaches it within a year: no cuts needed
         chosen.append(c)
         freed += c["saves"]
@@ -318,15 +334,19 @@ def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=Non
         price_fi = "Tavoite %s: %s." % (_eur_fi(target), est["basis_fi"])
     else:
         price_en, price_fi = "Target %s." % _eur(target), "Tavoite %s." % _eur_fi(target)
-    parts_en = (["%s of your usual leftover" % _eur(used_leftover)] if used_leftover > 0 else []) + [
+    parts_en = (["%s of what you usually have left (last %d months)" % (_eur(used_leftover), pic["months"])]
+                if used_leftover > 0 else []) + [
         "%s %s less" % (_label_en(c["label"]), _eur(c["saves"])) for c in chosen]
-    parts_fi = (["%s tavallisesta ylijäämästäsi" % _eur_fi(used_leftover)] if used_leftover > 0 else []) + [
+    parts_fi = (["%s tavallisesta ylijäämästäsi (viim. %d kk)" % (_eur_fi(used_leftover), pic["months"])]
+                if used_leftover > 0 else []) + [
         "%s %s vähemmän" % (_label_fi(c["label"]).lower(), _eur_fi(c["saves"])) for c in chosen]
     src_en = "It comes from " + ", ".join(parts_en) + "." if parts_en else ""
     src_fi = "Rahat tulevat näin: " + ", ".join(parts_fi) + "." if parts_fi else ""
     if deficit > 0 and chosen:
-        src_en += " Today about %s more goes out than comes in a month, so the cuts cover that first." % _eur(deficit)
-        src_fi += " Nyt kuussa menee noin %s enemmän kuin tulee, joten säästöt kattavat ensin sen." % _eur_fi(deficit)
+        src_en += (" Over the last %d months about %s a month more went out than came in, so the cuts cover that "
+                   "first." % (pic["months"], _eur(deficit)))
+        src_fi += (" Viimeisten %d kuukauden aikana kuussa meni noin %s enemmän kuin tuli, joten säästöt kattavat "
+                   "ensin sen." % (pic["months"], _eur_fi(deficit)))
 
     if monthly <= 0 or months is None:
         decision = ("%s Your usual month leaves nothing over and your spending has no flexible areas big enough "
@@ -355,15 +375,30 @@ def build(conn, today, goal, target=None, deadline=None, saved=0.0, estimate=Non
                 _eur_fi(monthly), goal_fi, when_fi, months)
         decision = " ".join(x for x in (head, src_en, price_en) if x)
         decision_fi = " ".join(x for x in (head_fi, src_fi, price_fi) if x)
+        if dl is not None and not fits:
+            by_date = saved + monthly * months_to_dl
+            gap = max(0.0, target - by_date)
+            loan = loan_monthly(gap) if gap > 0 else 0.0
+            alt = {"by_date": round(by_date), "loan_for_rest": round(gap), "loan_monthly": round(loan),
+                   "loan_rate_pct": round(LOAN_RATE * 100), "loan_years": LOAN_MONTHS // 12}
+            decision += (" If you need it by %s: you would have about %s saved by then, and a loan for the other %s "
+                         "would cost roughly %s a month for %d years (at about %d%% interest)." % (
+                             _when_en(t, months_to_dl), _eur(by_date), _eur(gap), _eur(loan), LOAN_MONTHS // 12,
+                             round(LOAN_RATE * 100)))
+            decision_fi += (" Jos tarvitset sen %s: sinulla olisi silloin noin %s säästössä, ja laina loppuihin (%s) "
+                            "maksaisi noin %s kuussa %d vuoden ajan (noin %d %%:n korolla)." % (
+                                _when_fi(t, months_to_dl), _eur_fi(by_date), _eur_fi(gap), _eur_fi(loan),
+                                LOAN_MONTHS // 12, round(LOAN_RATE * 100)))
         if cheaper:
             decision += " A %s option would be ready in %s." % (_eur(cheaper["target"]), cheaper["when"])
             decision_fi += " %s vaihtoehto olisi koossa %s." % (_eur_fi(cheaper["target"]), cheaper["when_fi"])
 
+    alt = locals().get("alt")
     out = {"goal": goal, "target": round(target, 2), "estimate": est, "saved": round(saved, 2),
            "usual_income": round(pic["income"]), "usual_spending": round(pic["spent"]),
            "usual_leftover": round(left), "from_leftover": from_leftover, "cuts": chosen,
            "cuts_total": freed, "monthly": monthly, "months": months, "fits": bool(fits),
-           "needed_for_date": needed, "cheaper": cheaper,
+           "needed_for_date": needed, "cheaper": cheaper, "if_needed_by_date": alt, "faster": bool(faster),
            "decision": decision, "decision_fi": decision_fi, "text": decision, "text_fi": decision_fi,
            "explain": ("Leftover, spending and categories are your own monthly averages over the last %d full "
                        "months. %d%% of the leftover goes to the plan, the rest stays as a margin. Each cut is a "
@@ -395,7 +430,7 @@ def call(name, args, ctx):
             except (TypeError, ValueError):
                 saved = 0.0
         res = build(ctx.conn, ctx.today, goal, args.get("target"), args.get("deadline"), saved=saved,
-                    estimate=args.get("estimate"))
+                    estimate=args.get("estimate"), faster=bool(args.get("faster")))
     except (ValueError, TypeError, KeyError) as e:
         return {"error": "bad arguments: %s" % str(e)[:160], "card": "error"}
     except Exception:
