@@ -3778,7 +3778,7 @@ def customer_snapshot(ctx):
         data["goal"] = g
         lines.append("Their savings goal: %s, target %s, %s set aside so far%s." % (
             anonymise(g["name"]), _snap_money(g["target"]), _snap_money(g["saved"]) if g["saved"] else "nothing",
-            (", by %s" % g["deadline"]) if g.get("deadline") else ""))
+            (", by %s" % _date_words(g["deadline"][:7])) if g.get("deadline") else ""))
     else:
         lines.append("They have not set a savings goal yet.")
     held = [h for h in (_ctx_get(ctx, "holdings") or []) if isinstance(h, dict) and h.get("amount")]

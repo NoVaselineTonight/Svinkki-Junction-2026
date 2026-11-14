@@ -119,7 +119,7 @@ The full plan, including what a real launch would still need, is in `docs/SECURI
 python -m unittest discover -s tests
 ```
 
-The last run printed `Ran 701 tests in 37.0s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
+The last run printed `Ran 716 tests in 38.5s` and `OK`. The tests use an invented population, need no network and no real dataset, and cannot see a real key: the fixture empties `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` and points `.env` and the key file at files that do not exist. More in `tests/README.md`.
 
 ## Honest limits
 

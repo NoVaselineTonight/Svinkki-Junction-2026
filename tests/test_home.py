@@ -1,5 +1,6 @@
 """Front page API: conversations stored per customer, "things" the customer has created, kept answers."""
 import json
+import os
 import unittest
 from unittest import mock
 
@@ -299,6 +300,67 @@ class EraseTests(HomeBase):
         self.state.reset_all()
         self.assertEqual(self.counts(), {"conversations": 0, "turns": 0, "pins": 0})
 
+
+
+class ToolOnlyConversationTests(HomeBase):
+    """A conversation that holds only a tool card (quiz, check-in, the afford form) is kept and listed."""
+
+    def tool(self, c, name, conv=None):
+        body = {"tool": name}
+        if conv:
+            body["conversation_id"] = conv
+        return c.post("/api/conversation/tool", body)
+
+    def test_opening_a_tool_creates_a_listed_conversation_titled_after_it(self):
+        r = self.tool(self.a, "afford")
+        self.assertEqual(r.status, 200, r.text[:200])
+        cid = r.json["conversation_id"]
+        convs = self.a.get("/api/home").json["conversations"]
+        self.assertEqual([(c["id"], c["title"]) for c in convs], [(cid, "Can I afford it?")])
+        conv = self.a.get("/api/conversation?id=" + cid).json
+        self.assertEqual(len(conv["turns"]), 1)
+        self.assertEqual(conv["turns"][0]["tool"], "afford")
+        self.assertEqual(conv["turns"][0]["user"], "")
+        self.assertEqual(conv["turns"][0]["cards"], [], "only the name is stored; the card is drawn fresh")
+
+    def test_a_tool_joins_the_conversation_it_was_opened_in(self):
+        cid = self.chat(self.a, "How much did I spend on taxis?")["conversation_id"]
+        self.assertEqual(self.tool(self.a, "quiz", cid).json["conversation_id"], cid)
+        conv = self.a.get("/api/conversation?id=" + cid).json
+        self.assertEqual(conv["title"], "How much did I spend on taxis?")
+        self.assertEqual([t.get("tool") for t in conv["turns"]], [None, "quiz"])
+
+    def test_tool_turns_are_not_sent_to_the_coach_as_history(self):
+        cid = self.tool(self.a, "checkin").json["conversation_id"]
+        self.chat(self.a, "first question", cid)
+        self.chat(self.a, "second question", cid)
+        self.assertEqual(self.seen[0]["history"], [])
+        self.assertEqual(self.seen[1]["history"], [
+            {"role": "user", "content": "first question"},
+            {"role": "assistant", "content": "answer to: first question"}])
+
+    def test_unknown_tool_names_are_refused(self):
+        for bad in ("explain", "", None, 5, "quiz; DROP TABLE turns", "<b>quiz</b>"):
+            with self.subTest(bad=bad):
+                self.assertEqual(self.tool(self.a, bad).status, 400)
+        self.assertEqual(self.a.get("/api/home").json["conversations"], [])
+
+    def test_another_customers_conversation_id_starts_a_new_one(self):
+        mine = self.tool(self.a, "quiz").json["conversation_id"]
+        theirs = self.tool(self.b, "quiz", mine).json["conversation_id"]
+        self.assertNotEqual(mine, theirs)
+        self.assertEqual(len(self.a.get("/api/conversation?id=" + mine).json["turns"]), 1)
+        self.assertEqual(self.b.get("/api/conversation?id=" + mine).status, 404)
+
+    def test_every_tool_the_web_stores_is_known_to_the_server(self):
+        import re
+        import app.server as server
+        with open(os.path.join(fx.REPO, "web", "app.js"), encoding="utf-8") as f:
+            js = f.read()
+        block = re.search(r"var STORED_TOOLS = \{([^}]+)\}", js).group(1)
+        names = set(re.findall(r"(\w+): 1", block))
+        self.assertEqual(names, set(server.CONVERSATION_TOOLS))
+        self.assertIn("if (tn.tool) { insert(tn.tool, null, true); return; }", js)
 
 if __name__ == "__main__":
     unittest.main()

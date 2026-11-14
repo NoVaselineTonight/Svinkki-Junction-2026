@@ -37,7 +37,13 @@ Updated 14 Nov 2026, about 05:00 UTC, by agent-a (cloud session: no dataset, no 
   English any more (`coach._fi_lead2`, `tests/test_finnish_replies.py`).
 - The start page greets with the customer's own month ("You kept €735 in August. What shall we look at?"), and
   an answer of "nothing spent" no longer shows an empty €0 card.
-- Tests: `Ran 701 tests ... OK`.
+- **Goal date kept:** a goal planned with a date stores the date and the monthly amount (`state.set_goal`
+  takes `deadline` as YYYY-MM or YYYY-MM-DD); "Your things" says "€0 of €3,000 saved, by June 2027", the goal view
+  shows "By" and "Needs about", and the coach is told the date.
+- **Tool-only conversations are kept:** opening the quiz, the check-in, the afford form, what-if, compare,
+  challenge or "Worth a look" in a conversation stores the tool's name as a turn (`POST /api/conversation/tool`),
+  so the conversation is listed and reopens with the card drawn fresh. Tool turns are not sent to the model.
+- Tests: `Ran 716 tests ... OK`.
 
 Updated 14 Nov 2026, about 01:00, by agent-c (main coding agent after agent-a):
 
