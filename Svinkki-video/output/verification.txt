@@ -1,0 +1,34 @@
+{
+  "programs": [],
+  "stream_groups": [],
+  "streams": [
+    {
+      "index": 0,
+      "codec_name": "h264",
+      "codec_type": "video",
+      "width": 1920,
+      "height": 1080,
+      "avg_frame_rate": "30/1",
+      "duration": "107.100000"
+    },
+    {
+      "index": 1,
+      "codec_name": "aac",
+      "codec_type": "audio",
+      "sample_rate": "48000",
+      "channels": 2,
+      "avg_frame_rate": "0/0",
+      "duration": "107.100000"
+    }
+  ],
+  "format": {
+    "duration": "107.100000",
+    "size": "22672388",
+    "bit_rate": "1693549"
+  }
+}
+Full decode: OK; no errors
+[Parsed_volumedetect_0 @ 00000218fcc19a00] mean_volume: -21.7 dB
+[Parsed_volumedetect_0 @ 00000218fcc19a00] max_volume: -4.7 dB
+Validation complete: C:\Users\onnik\Desktop\Svinkki-video\output\Svinkki-demo-1080p.mp4
+Size: 21.6 MiB

@@ -1,0 +1,7 @@
+{
+  "chat_issue": 1,
+  "recent": 100,
+  "sync_ttl_seconds": 15,
+  "stale_minutes": 30,
+  "protected_branches": ["main", "master"]
+}

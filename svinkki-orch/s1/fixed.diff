@@ -1,0 +1,514 @@
+diff --git a/app/coach.py b/app/coach.py
+index e8a45ef..40a5b4e 100644
+--- a/app/coach.py
++++ b/app/coach.py
+@@ -676,11 +676,98 @@ def month_of_period(p, today):
+     return None
+ 
+ 
++_MON_ALT = "|".join(sorted(_MONTHS, key=len, reverse=True))
++_YR = r"(?:\s+(20\d\d))?"
++_RANGE_RES = [
++    re.compile(r"\bbetween\s+(?:the\s+)?(" + _MON_ALT + r")" + _YR + r"\s+and\s+(?:the\s+)?(?:end\s+of\s+)?(" +
++               _MON_ALT + r")\b" + _YR),
++    re.compile(r"\b(" + _MON_ALT + r")" + _YR + r"\s*(?:-|–|—|\bto\b|\btill\b|\buntil\b|\bthrough\b|\bthru\b)\s*"
++               r"(?:the\s+)?(?:end\s+of\s+)?(" + _MON_ALT + r")\b" + _YR),
++]
++_SINCE_RE = re.compile(r"\bsince\s+(?:the\s+)?(?:start\s+of\s+|beginning\s+of\s+)?(" + _MON_ALT + r")\b" + _YR)
++_LAST_N_RE = re.compile(r"\b(?:last|past|previous)\s+(\d{1,2}|two|four|five|six|seven|eight|nine|ten|eleven|eighteen|"
++                        r"twenty-four)\s+months\b")
++_RANGE_CUE = re.compile(r"\b(?:between|from|since|until|till|through|thru|before|after)\b[^?.!]{0,25}\b(?:" + _MON_ALT +
++                        r")\b|\b(?:" + _MON_ALT + r")\b\s*(?:-|–|—|\bto\b|\btill\b|\buntil\b|\bthrough\b)")
++_N_WORDS = {"two": 2, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
++            "eighteen": 18, "twenty-four": 24}
++
++
++def span_from_text(msg, today):
++    """A time span the named periods cannot hold: a range of months ("between June and August", "June-August",
++    "from December to February"), "since June", or "the last N months" for N other than 3 and 12.
++    Returns ("dates", from, to, words_en, words_fi); ("unclear",) when months stand around a range word that
++    could not be read, so the reply says so instead of quietly answering one month; or None."""
++    import datetime as _dt
++    s = (msg or "").lower()
++    try:
++        t = _dt.date.fromisoformat(str(today)[:10])
++    except ValueError:
++        return None
++    ela = lambda mo: _FI_MONTHS[mo - 1][0] + "sta"     # kesäkuusta
++    ill = lambda mo: _FI_MONTHS[mo - 1][0] + "hun"     # elokuuhun
++    m = _LAST_N_RE.search(s)
++    if m:
++        n = int(m.group(1)) if m.group(1).isdigit() else _N_WORDS[m.group(1)]
++        if n in (3, 12):
++            return None                      # the named periods last_3_months and last_12_months
++        if not 2 <= n <= 24:
++            return ("unclear",)
++        y, mo = t.year, t.month - n
++        while mo < 1:
++            mo, y = mo + 12, y - 1
++        last = (_dt.date(y + (mo == 12), mo % 12 + 1, 1) - _dt.timedelta(days=1)).day
++        start = _dt.date(y, mo, min(t.day, last)) + _dt.timedelta(days=1)
++        return ("dates", start.isoformat(), t.isoformat(), "over the last %d months" % n,
++                "viimeisen %d kuukauden aikana" % n)
++    m = _SINCE_RE.search(s)
++    if m:
++        sm = _MONTHS[m.group(1)]
++        sy = int(m.group(2)) if m.group(2) else (t.year if sm <= t.month else t.year - 1)
++        start = _dt.date(sy, sm, 1)
++        if start > t:
++            return ("unclear",)
++        return ("dates", start.isoformat(), t.isoformat(), "since %s %d" % (_MONTH_NAMES[sm], sy),
++                "%s %d alkaen" % (ela(sm), sy))
++    for rx in _RANGE_RES:
++        m = rx.search(s)
++        if not m:
++            continue
++        sm, y1, em, y2 = _MONTHS[m.group(1)], m.group(2), _MONTHS[m.group(3)], m.group(4)
++        if y2:
++            ey = int(y2)
++        elif y1:
++            ey = int(y1) + (1 if em < sm else 0)
++        else:
++            ey = t.year if em <= t.month else t.year - 1
++        sy = int(y1) if y1 else (ey if sm <= em else ey - 1)
++        start = _dt.date(sy, sm, 1)
++        end = _dt.date(ey + (em == 12), em % 12 + 1, 1) - _dt.timedelta(days=1)
++        if start > end or start > t:
++            return ("unclear",)
++        so_far = end >= t
++        end = min(end, t)
++        if sy == ey:
++            en = "from %s to %s %d" % (_MONTH_NAMES[sm], _MONTH_NAMES[em], ey)
++            fi = "%s %s %d" % (ela(sm), ill(em), ey)
++        else:
++            en = "from %s %d to %s %d" % (_MONTH_NAMES[sm], sy, _MONTH_NAMES[em], ey)
++            fi = "%s %d %s %d" % (ela(sm), sy, ill(em), ey)
++        if so_far:
++            en, fi = en + " so far", fi + " tähän mennessä"
++        return ("dates", start.isoformat(), end.isoformat(), en, fi)
++    if _RANGE_CUE.search(s):
++        return ("unclear",)
++    return None
++
++
+ _LABEL_PATTERNS = [
++    # cafés are no category of their own in the data: they are paid as restaurants or fast food
++    (r"\bcaf[eé]s?\b|\bcoffee (?:shops?|places?|bars?)\b", "Dining out"),
+     (r"\bdining out\b|\beating out\b|\bdining\b|\beat(ing)? out\b", "Dining out"),
+     (r"\bnights? out\b|\bgoing out\b|\bnightlife\b", "Night out"),
+     (r"\bfast[- ]?food\b|\btakeaways?\b|\bburgers?\b", "Fast food"),
+-    (r"\brestaurants?\b|\blunch(es)?\b|\bdinners?\b|\bcafes?\b|\bcafés?\b", "Restaurant"),
++    (r"\brestaurants?\b|\blunch(es)?\b|\bdinners?\b", "Restaurant"),
+     (r"\bbars?\b|\bpubs?\b|\bdrinks\b|\balcohol\b|\bbeers?\b", "Bar"),
+     (r"\btaxis?\b|\buber\b|\bcabs?\b|\bbolt\b", "Taxi"),
+     (r"\bgroceries\b|\bgrocery\b|\bsupermarkets?\b|\bfood shopping\b", "Groceries"),
+@@ -841,6 +928,7 @@ def item_from_text(msg, price_span):
+     s = re.sub(r"\b(a|an|the|some|new|this|that|my|to|for|on|me|i|it)\b", " ", s, flags=re.I)
+     s = re.sub(r"[^\w &'-]", " ", s)
+     s = re.sub(r"\s+", " ", s).strip()
++    s = re.sub(r"^(?:worth )?of\s+", "", s, flags=re.I)      # "500 euros of bitcoin" -> "bitcoin"
+     return s[:60] or "this purchase"
+ 
+ 
+@@ -1285,6 +1373,8 @@ _PRODUCT_PATTERNS = [
+     re.compile(r"\bhow (?:much|many) (?P<x>[a-z][a-z ]{1,30}?) (?:do|did|have|would) i "
+                r"(?:buy|bought|drink|drunk|eat|get|spend|purchase)\w*", re.I),
+     re.compile(r"\bwhat (?:do|did) i (?:spend|spent) (?:on|for) (?P<x>[^?!.]*)", re.I),
++    re.compile(r"\bhow much\b(?: money)?(?: (?:did|do|has|have) i)?(?: (?:go|went|gone|put))? (?:on|for|into) "
++               r"(?P<x>[^?!.]*)", re.I),
+     re.compile(r"\bdo i (?:buy|drink|eat) (?:a lot of|too much|too many|much|many) (?P<x>[^?!.]*)", re.I),
+ ]
+ _FI_PRODUCT_PATTERNS = [
+@@ -1420,6 +1510,11 @@ def note_intent(message):
+     return text
+ 
+ 
++_CRYPTO_WORDS = re.compile(r"\bcrypto\w*|\bkrypto\w*|bitcoin|\bbtc\b|ethereum|\bdogecoin\b|\bsolana\b", re.I)
++_INVEST_WORDS = re.compile(r"\binvest\w*|\bstocks?\b|\betfs?\b|index funds?|\bshares\b|\bportfolio\b|" +
++                           _CRYPTO_WORDS.pattern, re.I)
++
++
+ def _route_en(message, ctx):
+     """Map an English (or already translated) message to (tool, args, hints) or None."""
+     note = note_intent(message)
+@@ -1435,6 +1530,12 @@ def _route_en(message, ctx):
+     if dp and dp[0] == "period":
+         period = dp[1]
+     day_dates = dp[1] if dp and dp[0] == "dates" else None
++    # a range of months, "since June" or "the last 6 months": dates, with the span in words for the reply
++    span = span_from_text(message, today) if not day_dates else None
++    span_words = None
++    if span and span[0] == "dates":
++        day_dates, span_words, period = (span[1], span[2]), {"pw": span[3], "pw_fi": span[4]}, None
++    span_unclear = bool(span and span[0] == "unclear")
+ 
+     # a pasted receipt comes before the document check: a long receipt is not a loan agreement
+     rp = receipt_paste(message)
+@@ -1453,6 +1554,21 @@ def _route_en(message, ctx):
+     if fu:
+         return fu
+ 
++    # "did Anna pay me back?": the data has no sender names, so list what came in besides pay and say so
++    if re.search(r"\b(?:pa(?:y|ys|id)|sen[dt]|give|gave|transfer(?:red)?)\b[^?.!]{0,20}\b(?:me|it|the money)\s+back\b|"
++                 r"\bpaid back\b|\brepa(?:y|id|ys) me\b|\bowes? me\b|\breimburs\w*|"
++                 r"\bmaks(?:oi|anut|oiko|aa|ais)\w*\b[^?.!]{0,20}\btakaisin\b", s):
++        who = re.search(r"\b(?i:did|has|have|will)\s+([A-ZÅÄÖ][a-zåäö]+)\s+(?i:pa|sen|giv|gav|tran|rep)|"
++                        r"\b([A-ZÅÄÖ][a-zåäö]+)\s+(?:paid|owes|sent|gave)\b|\b(?i:maksoiko)\s+([A-ZÅÄÖ][a-zåäö]+)\b",
++                        message)
++        name = next((g for g in (who.groups() if who else ()) if g), None)
++        if name and name.lower() in ("i", "did", "has", "have", "will", "my", "she", "he", "they", "someone"):
++            name = None
++        args = {"type": "other_income", "period": period or "last_3_months"}
++        if day_dates:
++            args = {"type": "other_income", "from_date": day_dates[0], "to_date": day_dates[1]}
++        return "list_transactions", args, dict({"payback": name or ""}, **(span_words or {}))
++
+     # explicit SQL
+     if re.match(r"^\s*select\s", message, re.I):
+         return "explore_my_data", {"sql": message.strip().rstrip(";")}, {}
+@@ -1489,7 +1605,18 @@ def _route_en(message, ctx):
+ 
+     # --- receipts (simulated from the grocery payments)
+     rr = receipt_route(message, s, period, label) or receipt_route(message, s, period, label, fi=True)
++    if not rr and re.search(r"\bcoffee\b|\bkahvi(?!la)\w*", s) and label is None and pct is None \
++            and not _CUT_VERB.search(s) and re.search(r"\bhow much\b|\bpaljonko\b|\bspen[dt]\b|\bspending\b", s):
++        per = period
++        if per is None and is_finnish(message):
++            per = period_from_text(fi_to_en(message) or "", today)
++        rr = "product_habit", ({"query": "coffee", "period": per} if per else {"query": "coffee"}), {}
+     if rr:
++        if rr[0] == "product_habit" and re.search(r"coffee|kahvi(?!la)|espresso", str(rr[1].get("query") or ""), re.I):
++            rr = rr[0], rr[1], dict(rr[2], coffee=True)
++        if span_words and rr[0] in _WAVE3_TOOLS:
++            # the receipt tools take named periods only: say so instead of quietly answering another period
++            rr = rr[0], rr[1], dict(rr[2], span_ignored=span_words)
+         return rr
+ 
+     # --- wave 2 rules
+@@ -1547,7 +1674,7 @@ def _route_en(message, ctx):
+         args = {"period": period or "last_month"}
+         if day_dates:
+             args = {"from_date": day_dates[0], "to_date": day_dates[1]}
+-        return "_food", args, {}
++        return "_food", args, dict(span_words or {}, period_unclear=True) if span_unclear else (span_words or {})
+ 
+     afford_word =re.search(r"\bafford\b|\b(can|could|should) i (really |actually )?(buy|get|splurge|treat myself)\b|"
+                             r"\bam i able to buy\b|\bworth buying\b|what if i buy|"
+@@ -1557,7 +1684,8 @@ def _route_en(message, ctx):
+         item = item_from_text(message, (pr[1], pr[2]) if pr else None)
+         if pr:
+             return "can_i_afford", {"item": item, "price": pr[0]}, {}
+-        return "can_i_afford", {"item": item}, {"ask_price": True}
++        if not _INVEST_WORDS.search(s):      # "should I buy bitcoin?" is an investing question, not a purchase
++            return "can_i_afford", {"item": item}, {"ask_price": True}
+ 
+     if re.search(r"leak|small purchases|little purchases|small spend|forgotten|unused subscriptions?|recurring (charges?|payments?)|"
+                  r"repeating charges?|hidden (charges|fees|subscriptions?)|which day.{0,20}(spend|most)|spend.{0,20}by (weekday|hour)|"
+@@ -1640,8 +1768,8 @@ def _route_en(message, ctx):
+         return "check_mortgage", args, {}
+ 
+     # investing
+-    if re.search(r"\binvest\w*|\bstocks?\b|\betfs?\b|index funds?|\bcrypto\w*|bitcoin|\bshares\b|\bportfolio\b", s):
+-        return "get_invest_education", {}, {}
++    if _INVEST_WORDS.search(s):
++        return "get_invest_education", {}, ({"crypto": True} if _CRYPTO_WORDS.search(s) else {})
+ 
+     # what-if
+     basket_t = None
+@@ -1726,7 +1854,7 @@ def _route_en(message, ctx):
+             args["period"] = period
+         if label:
+             args["label"] = label
+-        return "list_transactions", args, {}
++        return "list_transactions", args, dict(span_words or {})
+ 
+     # biggest purchases
+     if re.search(r"biggest|largest|most expensive|top purchases", s):
+@@ -1737,6 +1865,8 @@ def _route_en(message, ctx):
+     if re.search(r"where did (all )?my (money|salary|income|pay|cash)|where (does|is) my money|overview|summary|"
+                  r"how did i do|my finances|financial picture|how am i doing|where.{0,12}(money|spending) go|"
+                  r"spending too much|financial health|how('s| is| was) my (month|money|budget)", s) and label is None:
++        if span_words:
++            return "get_spend", {"from_date": day_dates[0], "to_date": day_dates[1]}, dict(span_words, period_given=True)
+         mon = month_of_period(period, today) if period else None
+         if period and mon is None:
+             return "get_spend", {"period": period}, {}
+@@ -1750,7 +1880,13 @@ def _route_en(message, ctx):
+         if label:
+             args["label"] = label
+         hints = {"period_given": period is not None or bool(day_dates)}
+-        if day_dates and day_dates[0] != day_dates[1]:
++        if label == "Dining out" and re.search(r"\bcaf[eé]s?\b|\bcoffee (?:shops?|places?|bars?)\b", s):
++            hints["cafe"] = True
++        if span_words:
++            hints.update(span_words)
++        elif span_unclear:
++            hints["period_unclear"] = True
++        elif day_dates and day_dates[0] != day_dates[1]:
+             import datetime as _dt
+             nd = (_dt.date.fromisoformat(day_dates[1]) - _dt.date.fromisoformat(day_dates[0])).days + 1
+             hints["pw"] = ("in the last %d days" % nd) if nd % 7 else ("in the last %d week%s" % (nd // 7, "" if nd == 7 else "s"))
+@@ -1776,16 +1912,48 @@ _FI_HINT = re.compile(
+     r"viikolla|säästä\w*|sijoit\w*|asuntolain\w*|varaa|palkkapäiv\w*|vuota\w*|kori\w*|koria|kolme|euroa|euron|"
+     r"turvallisesti|ravintol\w*|ruoka\w*|apua|kuluttaja|eilen|tänään|viime|mitä|kuinka|riitt\w*|kuitti\w*|"
+     r"analysoi\w*|eniten|ostan|ostin|tienaan|ansaitsen|saldo\w*|olenko|entä\w*|tallenna\w*|kiitos|miksi|"
+-    r"tilillä|haaste\w*|anna|jakaisin|palkkani|säästän|minulle)\b", re.I)
++    r"tilillä|haaste\w*|jakaisin|palkkani|säästän|minulle|kuukautta|kuukauden|kuukaudet)\b|"
++    # "Anna minulle vinkki" is Finnish; "Did Anna pay me back?" is not: anna counts only as the first word,
++    # and not when an English verb follows the name
++    r"^\W*anna\b(?!\s+(?:pa(?:y|ys|id)|owes?|sen[dt]|gave|give|has|had|have|is|was|did|does|will|and|said|still|"
++    r"bought|borrowed|lent)\b)", re.I)
+ 
+ 
+ def is_finnish(message):
+     return bool(_FI_HINT.search(message or ""))
+ 
+ 
++_FI_NUM = {"kaksi": "2", "kahden": "2", "kolme": "3", "kolmen": "3", "neljä": "4", "viisi": "5", "kuusi": "6",
++           "kuuden": "6", "kaksitoista": "12"}
++_FI_MON_STEM = r"(tammi|helmi|maalis|huhti|touko|kesä|heinä|elo|syys|loka|marras|joulu)"
++# "kesä-elokuussa", "kesäkuu–elokuu", "kesäkuusta elokuuhun": a range of months, as English the router reads
++_FI_RANGE_RES = [
++    re.compile(r"\b" + _FI_MON_STEM + r"(?:kuu\w*)?\s*[-–—]\s*" + _FI_MON_STEM + r"kuu\w*(?:\s+(20\d\d))?", re.I),
++    re.compile(r"\b" + _FI_MON_STEM + r"kuusta(?:\s+(20\d\d))?\s+(?:alkaen\s+)?" + _FI_MON_STEM +
++               r"kuu(?:hun|n loppuun)(?:\s+(20\d\d))?", re.I),
++]
++
++
++def _fi_ranges(s):
++    """Finnish month ranges in s rewritten as "from june to august [2026]"."""
++    stems = [n[:-3] for n, _ in _FI_MONTHS]
++    def en(stem):
++        return _MONTH_NAMES[stems.index(stem.lower()) + 1].lower()
++    s = _FI_RANGE_RES[0].sub(lambda m: "from %s to %s%s" % (en(m.group(1)), en(m.group(2)),
++                                                            " " + m.group(3) if m.group(3) else ""), s)
++    s = _FI_RANGE_RES[1].sub(lambda m: "from %s%s to %s%s" % (en(m.group(1)), " " + m.group(2) if m.group(2) else "",
++                                                              en(m.group(3)), " " + m.group(4) if m.group(4) else ""), s)
++    s = re.sub(r"\b" + _FI_MON_STEM + r"kuusta(?:\s+(20\d\d))?\s+(?:alkaen|lähtien)\b",
++               lambda m: "since %s%s" % (en(m.group(1)), " " + m.group(2) if m.group(2) else ""), s, flags=re.I)
++    return s
++
++
+ _FI_PERIODS = [
+     (r"\bviimeisen (\d+|kolmen|12|kahdentoista) kuukauden\b", lambda m: "last %s months" % (
+         {"kolmen": "3", "kahdentoista": "12"}.get(m.group(1), m.group(1)))),
++    (r"\b(?:viimeiset|viimeisten|viime) (\d+|kaksi|kolme|neljä|viisi|kuusi|kaksitoista|kahden|kolmen|kuuden) "
++     r"kuukau(?:tta|den|det)\b|\b(\d+|kaksi|kolme|kuusi|kaksitoista) (?:viime|viimeistä) kuukautta\b",
++     lambda m: "last %s months" % _FI_NUM.get(m.group(1) or m.group(2), m.group(1) or m.group(2))),
+     (r"\bviime kuussa\b|\bedellisessä kuussa\b|\bviime kuun\b", "last month"),
+     (r"\btässä kuussa\b|\btämän kuun\b|\btämä kuu\b", "this month"),
+     (r"\bviime viikolla\b|\bedellisellä viikolla\b|\bviime viikon\b", "last week"),
+@@ -1803,7 +1971,8 @@ _FI_LABELS = [
+     (r"\btakse\w*|\btaksi\w*|\buber\w*", "taxis"),
+     (r"\bbaar[ie]\w*|\bkapakka\w*|\bpubi\w*|\bbaari\w*", "bars"),
+     (r"\bravintol\w*", "restaurants"),
+-    (r"\bkahvila\w*|\bkahvi\w*", "cafes"),
++    (r"\bkahvila\w*", "cafes"),
++    (r"\bkahvi\w*", "coffee"),
+     (r"\bruokakaup\w*|\bruokaostos\w*|\bruokaostoks\w*|\bpäivittäistavara\w*", "groceries"),
+     (r"\byöelämä\w*|\billanvietto\w*|\bbileet\b|\bbileisiin\b", "night out"),
+     (r"\bpolttoaine\w*|\bbensa\w*|\bbensiin\w*", "fuel"),
+@@ -1879,7 +2048,7 @@ _FI_INTENTS = [
+ 
+ def fi_to_en(message):
+     """Finnish question -> the English wording the built-in router already understands, or None."""
+-    s = (message or "").lower()
++    s = _fi_ranges((message or "").lower())
+     for pat, rp in _FI_PERIODS:
+         s = re.sub(pat, rp, s)
+     for stem, num in _FI_MONTHS:
+@@ -2035,7 +2204,8 @@ _FI_BASKETS = {"regular": "perusmenot", "unexpected": "odottamattomat menot", "e
+ _FI_TYPES = {"Stretched": "venyttäjä", "Saver": "säästäjä", "Social spender": "seurallinen kuluttaja",
+              "Explorer": "seikkailija", "Home-maker": "kodinrakentaja", "Balanced": "tasapainoinen kuluttaja"}
+ _FI_PRODUCTS = {"energiajuoma": "energiajuomia", "energy drinks": "energiajuomia", "karkit": "karkkeja",
+-                "olut": "olutta", "kahvi": "kahvia", "maito": "maitoa", "virvoitusjuoma": "virvoitusjuomia"}
++                "olut": "olutta", "kahvi": "kahvia", "coffee": "kahvia", "maito": "maitoa",
++                "virvoitusjuoma": "virvoitusjuomia"}
+ 
+ 
+ def _pct_fi(x):
+@@ -2063,23 +2233,28 @@ def fi_lead(tool, res, args, hints):
+     hints = hints or {}
+     if tool == "get_spend":
+         n = res.get("count") or 0
+-        pw = _period_fi(args)
++        pw = hints.get("pw_fi") or _period_fi(args)
+         lab = args.get("label")
+         obj = _FI_LABEL_ILL.get(lab) if lab else None
+         if lab and not obj:
+             obj = "kategoriaan %s" % lab.lower()
++        lead = ""
++        if hints.get("period_unclear"):
++            lead += "En saanut selvää ajanjaksosta, joten tässä on %s. " % pw
++        if hints.get("cafe"):
++            lead += "Kahviloilla ei ole omaa luokkaa: ne kirjautuvat ravintoloiksi tai pikaruoaksi. "
+         if not n and not res.get("total"):
+-            return ("Et käyttänyt %s mitään %s." % (obj, pw)) if obj else "Et käyttänyt mitään %s." % pw
++            return lead + (("Et käyttänyt %s mitään %s." % (obj, pw)) if obj else "Et käyttänyt mitään %s." % pw)
+         cnt = (" (%d ostosta)" % n) if n > 1 else ""
+         if not lab:
+-            return "Käytit %s %s%s." % (_eur_fi_x(res.get("total")), pw, cnt)
+-        return "Käytit %s %s %s%s." % (obj, _eur_fi_x(res.get("total")), pw, cnt)
++            return lead + "Käytit %s %s%s." % (_eur_fi_x(res.get("total")), pw, cnt)
++        return lead + "Käytit %s %s %s%s." % (obj, _eur_fi_x(res.get("total")), pw, cnt)
+     if tool == "_food":
+         parts = res.get("by_label") or []
+         g = next((p for p in parts if p.get("label") == "Groceries"), {})
+         d = next((p for p in parts if p.get("label") == "Dining out"), {})
+         return "Käytit ruokaan %s %s: ruokakauppaan %s ja ulkona syömiseen %s." % (
+-            _eur_fi_x(res.get("total")), _period_fi(args), _eur_fi_x(g.get("total") or 0),
++            _eur_fi_x(res.get("total")), hints.get("pw_fi") or _period_fi(args), _eur_fi_x(g.get("total") or 0),
+             _eur_fi_x(d.get("total") or 0))
+     if tool == "get_safe_to_spend":
+         try:
+@@ -2156,6 +2331,16 @@ def fi_lead(tool, res, args, hints):
+         return ("Tuloillasi noin %s euron laina näyttää mahdolliselta, eli noin %s euron asunto, jos omaa rahaa on "
+                 "15 %%. Tämä on suuntaa antava arvio, ei lainapäätös." % (
+                     _hundreds_fi(res.get("max_loan") or 0), _hundreds_fi(res.get("max_price_with_15pct_equity") or 0)))
++    if tool == "get_invest_education" and hints.get("crypto"):
++        bm = res.get("buffer_months")
++        buf = ""
++        if bm is not None:
++            buf = (" Tilisi on nyt miinuksella, joten se tulee ensin." if float(bm) <= 0 else
++                   " Tilisi kattaa nyt noin %s kuukauden menot." % _num_fi(bm))
++        return ("Krypto, kuten bitcoin, on riskisijoitus eikä budjetoitava ostos. Finanssivalvonnan mukaan kryptojen "
++                "hinnat heiluvat rajusti, bitcoinin arvoa ei taata mitenkään eikä mikään korvausrahasto suojaa "
++                "kryptosijoituksia. Jos silti haluat, laita siihen vain summa, jonka voisit menettää kokonaan, ja vasta "
++                "kun puskuri on kunnossa.%s Tämä on yleistä tietoa, ei sijoitusneuvo." % buf)
+     if tool == "get_invest_education":
+         bm = res.get("buffer_months")
+         if bm is None:
+@@ -2325,6 +2510,15 @@ def _fi_error(tool, res):
+ def _fi_lead2(tool, res, args, hints):
+     """Finnish replies for the remaining tools (latest and biggest purchases, last purchase, challenge,
+     patterns, comparisons). None where no Finnish wording exists yet."""
++    if tool == "list_transactions" and "payback" in hints:
++        who = hints.get("payback") or "hän"
++        rows = [r for r in (res.get("rows") or []) if isinstance(r, dict)][:3]
++        pw = hints.get("pw_fi") or _period_fi(args)
++        head = "Pankkitiedoistasi ei näy, kuka maksun lähetti, joten en näe, maksoiko %s sinulle takaisin. " % who
++        if not rows:
++            return head + "Palkan lisäksi tilillesi ei tullut rahaa %s." % pw
++        return head + "Palkan lisäksi tilillesi tuli rahaa %s: %s." % (pw, _join(
++            ["%s (%s)" % (_eur_fi_x(abs(r.get("amount") or 0)), _fi_day(r.get("d"))) for r in rows], "ja"))
+     if tool == "list_transactions":
+         rows = (res.get("rows") or [])[:3]
+         if not rows:
+@@ -2684,9 +2878,11 @@ def _render(tool, res, args=None, hints=None):
+             lead = "I couldn't read that time span, so this is %s. " % pw
+         if hints.get("unknown_target") and not lab and tool == "get_spend":
+             lead += "I don't have a category for \"%s\", so this is all your spending. " % hints["unknown_target"][:30]
++        if hints.get("cafe"):
++            lead += "Cafés have no category of their own: they are paid as restaurants or fast food, so this is both. "
+         if lead:
+             return lead + _render(tool, res, args, {k: v for k, v in hints.items()
+-                                                     if k not in ("period_unclear", "unknown_target")})
++                                                     if k not in ("period_unclear", "unknown_target", "cafe")})
+         n = _g(res, "count", 0) or 0
+         if not n and not _g(res, "total", 0):
+             return ("You spent nothing on %s %s." % (noun, pw)) if noun else "You spent nothing %s." % pw
+@@ -2902,6 +3098,23 @@ def _render(tool, res, args=None, hints=None):
+             return str(head)
+         return "I have no comparison group for that yet."
+ 
++    if tool == "get_invest_education" and hints.get("crypto"):
++        cf = hints.get("crypto_facts") or {}
++        risk = str(_g(cf.get("crypto_fiva"), "text", "") or
++                   "Crypto prices swing wildly, and no guarantee or compensation fund protects the money.")
++        bm = res.get("buffer_months")
++        buf = ""
++        if bm is not None:
++            if float(bm) <= 0:
++                buf = " Your account is below zero right now, so that comes first."
++            else:
++                buf = " Your account covers about %s months of costs today." % "{:g}".format(round(float(bm), 1))
++        etp = _g(cf.get("crypto_etp"), "text", "")
++        etp = (" " + str(etp)) if etp else ""
++        return ("Crypto such as bitcoin is a high-risk investment, not a purchase to budget for. %s If you still want "
++                "some, put in only an "
++                "amount you could lose completely without it hurting, and only once your buffer is in place.%s%s "
++                "This is general information, not investment advice." % (risk, buf, etp))
+     if tool == "get_invest_education":
+         bm = res.get("buffer_months")
+         if bm is None:
+@@ -2924,6 +3137,18 @@ def _render(tool, res, args=None, hints=None):
+         return "Saving %s a month, you'd reach %s in about %s months, around %s." % (
+             _eur(res.get("monthly")), _eur(res.get("target")), res.get("months"), _date_words(res.get("date")))
+ 
++    if tool == "list_transactions" and "payback" in hints:
++        who = hints.get("payback") or "they"
++        rows = [r for r in (_g(res, "rows", []) or []) if isinstance(r, dict)][:3]
++        pw = hints.get("pw") or period_words(args.get("period", "last_3_months"))
++        head = ("Your bank data doesn't show who sent a payment, so I can't tell whether %s paid you back. " % who)
++        if not rows:
++            return head + "Apart from your salary, no money came in %s." % pw
++        n = int(_g(res, "count", len(rows)) or len(rows))
++        return head + "Apart from your salary, money came in %s %s: %s." % (
++            _numword(n) + (" time" if n == 1 else " times"), pw,
++            _join(["%s on %s" % (_eur_x(abs(r.get("amount") or 0)), _day(r.get("d"))) for r in rows]))
++
+     if tool == "list_transactions":
+         rows = (_g(res, "rows", []) or [])[:3]
+         if not rows:
+@@ -3437,6 +3662,28 @@ def _enrich(tool, res):
+     return res
+ 
+ 
++def _coffee_cafes(reply, args, ctx, today, fi=False):
++    """Coffee: the receipts count coffee bought at the grocery; coffee at cafés cannot be picked out, because cafés
++    are paid as restaurants or fast food with no café code. Say so, with what went on those in the same period."""
++    per = args.get("period") or "last_3_months"
++    try:
++        sp = tools.call("get_spend", {"label": "Dining out", "period": per}, ctx)
++    except Exception:
++        sp = None
++    if not isinstance(sp, dict) or "error" in sp:
++        tail = ("Kahviloissa juotua kahvia en pysty erottamaan, koska kahvilat kirjautuvat ravintoloiksi tai "
++                "pikaruoaksi." if fi else
++                "Coffee bought at cafés I can't pick out: cafés are paid as restaurants or fast food, with no café code.")
++        return reply + " " + tail, None
++    if fi:
++        tail = ("Kahviloissa juotua kahvia en pysty erottamaan, koska kahvilat kirjautuvat ravintoloiksi tai "
++                "pikaruoaksi: niihin käytit %s %s." % (_eur_fi_x(sp.get("total") or 0), _period_fi({"period": per})))
++    else:
++        tail = ("Coffee bought at cafés I can't pick out: cafés are paid as restaurants or fast food, with no café "
++                "code, and those came to %s %s." % (_eur_x(sp.get("total") or 0), period_words(per)))
++    return reply + " " + _finish(tail, today, fi), sp
++
++
+ def _food(args, ctx):
+     """Food = groceries plus dining out, as one spend result."""
+     parts = []
+@@ -3661,6 +3908,14 @@ def _run_offline(message, ctx, history=None):
+         res = tools.call(tool, args, ctx)
+         tool_used = tool
+     res = _enrich(tool, res)
++    crypto_res = None
++    if tool == "get_invest_education" and hints.get("crypto"):
++        try:                      # the sourced statements on crypto (app/invest.py), when that module is there
++            from app import invest
++            crypto_res = invest.facts("crypto")
++            hints["crypto_facts"] = {f.get("id"): f for f in crypto_res.get("statements") or []}
++        except Exception:
++            crypto_res = None
+     if tool == "explore_my_data" and hints.get("biggest"):
+         res = _biggest(res, today)
+     if tool == "get_spend" and args.get("label") == "Fuel" and not args.get("from_date") \
+@@ -3683,6 +3938,17 @@ def _run_offline(message, ctx, history=None):
+     if fin and not hints.get("correction") and tool not in ("read_receipt", "explain_text"):
+         lead = fi_lead(tool, res, args, hints)
+         reply = _finish(lead, today, fi=True) if lead else reply + " (Vastaan tähän vielä englanniksi.)"
++    if hints.get("coffee") and isinstance(res, dict) and "error" not in res and res.get("matched") is not None:
++        reply, cafe_res = _coffee_cafes(reply, args, ctx, today, fin)
++        if cafe_res is not None:
++            extra.append(cafe_res)
++    if isinstance(hints.get("span_ignored"), dict):
++        sw = hints["span_ignored"]
++        pre = (("En osaa vielä lukea kuitteja ajalta %s, joten tässä on jakso, jonka osaan. " % sw.get("pw_fi")) if fin
++               else ("I can't read receipts %s yet, so this is the period I can read. " % sw.get("pw")))
++        reply = _finish(pre, today, fin) + " " + reply
++    if crypto_res is not None:
++        extra.append(crypto_res)
+     if not hints.get("correction") and not reply.endswith("(Vastaan tähän vielä englanniksi.)"):
+         try:
+             note, note_res = _personal_note(tool, res, args, hints, ctx, fin)

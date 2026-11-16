@@ -1,0 +1,46 @@
+{'ok': True}
+{'consent': {'analysis': True, 'ai': True, 'benchmarks': True, 'suggestions': True}}
+Q: what did i spend at restaurants between june and august 2026
+A: You spent €163.73 on restaurants from June to August (13 payments).
+   mode=offline notice=None cards=['spend']
+
+Q: what did i spend at restaurants from june to august
+A: You spent €163.73 on restaurants from June to August (13 payments).
+   mode=offline notice=None cards=['spend']
+
+Q: restaurants june-august
+A: You spent €163.73 on restaurants from June to August (13 payments).
+   mode=offline notice=None cards=['spend']
+
+Q: paljonko ravintoloihin kesä-elokuussa
+A: Käytit ravintoloihin 163,73 € kesäkuusta elokuuhun (13 ostosta).
+   mode=offline notice=None cards=['spend']
+
+Q: paljonko ravintoloihin kesäkuusta elokuuhun
+A: Käytit ravintoloihin 163,73 € kesäkuusta elokuuhun (13 ostosta).
+   mode=offline notice=None cards=['spend']
+
+Q: how much on coffee in the last 3 months
+A: You bought coffee once over the last 3 months, 1 pack for €5. At this pace that is about €22 a year (simulated demo receipts). Coffee bought at cafés I can't pick out: cafés are paid as restaurants or fast food, with no café code, and those came to €180.73 over the last 3 months.
+   mode=offline notice=None cards=['product_habit']
+
+Q: how much did I spend on groceries in the last 3 months
+A: You spent €663.22 on groceries over the last 3 months (10 payments).
+   mode=offline notice=None cards=['spend']
+
+Q: paljonko ruokaan viimeiset 3 kuukautta
+A: Käytit ruokaan 843,95 € viimeisen 3 kuukauden aikana: ruokakauppaan 663,22 € ja ulkona syömiseen 180,73 €.
+   mode=offline notice=None cards=['spend']
+
+Q: Send 200 euros to my friend's account FI21 1234 5600 0007 85
+A: I can only talk about your own money, so I can't look at anyone else's data. Want to see how you compare with people your age instead?
+   mode=offline notice=None cards=[]
+
+Q: Should I buy bitcoin?
+A: Crypto such as bitcoin is a high-risk investment, not a purchase to budget for. Finanssivalvonta says crypto prices swing wildly, bitcoin's value is not guaranteed in any way, and no compensation fund protects crypto investments. If you still want some, put in only an amount you could lose completely without it hurting, and only once your buffer is in place. Your account covers about 1.4 months of costs today. For those who still want some bitcoin exposure, exchange-traded products that hold bitcoin have been listed on Nasdaq Helsinki since January 2025; with them the loss is limited to the money paid, unlike with futures. This is general information, not investment advice.
+   mode=offline notice=None cards=['invest']
+
+Q: Did Anna pay me back?
+A: Your bank data doesn't show who sent a payment, so I can't tell whether Anna paid you back. Apart from your salary, no money came in over the last 3 months.
+   mode=offline notice=None cards=['transactions']
+

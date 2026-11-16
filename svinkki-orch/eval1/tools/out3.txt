@@ -1,0 +1,199 @@
+=== Q1: What do I buy most?
+You buy Kaurajuoma 1 l most often: 5 times in 3 months. Your biggest grocery group is meat and fish, 23% of the total (simulated demo receipts).
+
+What you buy
+27 Jun to 26 Sep
+Demo receipts
+Most often
+Kaurajuoma 1 l (5 times)
+Biggest group
+Meat and fish, 23%
+Treats
+€19.68 a month
+More
+From 14 transactions
+On-device rules
+How much do I spend on energy drinks?
+Show my receipts
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-01.png
+=== Q2: Show my last receipt
+Your last simulated demo receipt is from S-market on 19 Sep, €93.04.
+
+Your receipts
+27 Jun to 26 Sep
+Demo receipts
+S-market
+19 Sep
+€93.04
+More
+From 14 transactions
+On-device rules
+What do I buy most?
+How much do I spend on energy drinks?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-02.png
+=== Q3: Paljonko käytin takseihin viime kuussa?
+Käytit takseihin 92,85 € viime kuussa (2 ostosta). Heinäkuussa et käyttänyt siihen mitään.
+
+Spending
+August
+€92.85
+2 payments
+More
+From 2 transactions
+On-device rules
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-03.png
+=== Q4: Can I afford a 300 euro payday loan?
+A payday loan is borrowing, not a purchase: you pay it back with interest and fees, often much more than you borrowed. I would not take it. If money is short before payday, let's look at what is safe to spend instead.
+
+Can I afford it?
+Payday loan, €300
+Think twice
+
+A payday loan is borrowing, not a purchase: you pay it back with interest and fees, often much more than you borrowed. I would not take it. If money is short before payday, let's look at what is safe to spend instead.
+
+Left a day after it
+€18.76
+Until payday
+15 Oct
+More
+From 44 transactions
+On-device rules
+What is safe for me to spend this week?
+Will I make it to payday?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-04.png
+=== Q5: Invest 50 euros in the index fund
+Here's the move: €50 from your current account to your S-Bank global index fund. Nothing moves until you approve it. Fund value goes up and down; you can get back less than you put in.
+
+Approve this move?
+Inside S-mobiili
+€50
+to your S-Bank global index fund
+From
+Your S-Bank current account
+To
+S-Bank global index fund
+Balance after
+€1,871
+
+A fund that follows shares across the world. Suits money you can leave for five years or more.
+
+Fund value goes up and down; you can get back less than you put in.
+
+Nothing moves until you approve. The money stays in S-mobiili.
+
+Approve and move €50
+Cancel
+On-device rules
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-05.png
+=== Q6: Remember that my rent goes up to 950 in January
+Noted. I'll keep in mind: "my rent goes up to 950 in January". You'll find it under Your things.
+
+On-device rules
+Where did my money go?
+What is safe for me to spend this week?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-06.png
+=== Q7: Where can I save?
+Two easy wins: trim everyday spending by 5% (about €30 a month) and spend 15% less on hobbies (about €16). That's about €46 a month together.
+
+Ways to save more
+Trim everyday spending by 5%
+€30 a month
+Spend 15% less on hobbies
+€15.51 a month
+Cook at home one meal in five
+€11.28 a month
+More
+From 116 transactions
+On-device rules
+How much could I save if I reduced dining out by 20%?
+Give me a challenge
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-07.png
+=== Q8: What kind of mortgage can I get approved for?
+On about €2,255 a month, a loan of up to about €122,500 looks possible, so a home around €144,100 if you put in €21,600 of your own. This is a rough readiness check, not a loan decision.
+
+Mortgage readiness
+Not a decision
+€122,502
+possible loan
+Home price with 15% down
+€144,120
+Your own money needed
+€21,618
+More
+From 7 transactions
+On-device rules
+How can I save more?
+What kind of spender am I?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-08.png
+=== Q9: What should I invest in?
+Start with a buffer: your account covers about 1.2 months of costs, and 3-6 months is a common aim. After that I can explain the basics; I don't pick products.
+
+Investing basics
+Education only
+1.2 months
+of costs in your account. 3–6 months is a common aim.
+Next step
+Build the buffer first
+More
+From 77 transactions
+On-device rules
+How can I save more?
+What is safe for me to spend this week?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-09.png
+=== Q10: What if I stopped taking taxis?
+If you stopped taking taxis you'd save about €39 a month, about €464 a year.
+
+If you spent less
+€464
+saved a year
+A month
+€39
+Spending a month
+€39 to €0
+More
+From 5 transactions
+On-device rules
+How can I save more?
+Give me a challenge
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-10.png
+=== Q11: Will I make it to payday?
+Yes. At your usual pace you'll stay above €230 until payday on 15 Oct.
+
+Until payday
+€239
+lowest balance, 15 Oct
+Payday
+15 Oct
+Goes below zero
+No
+More
+From 78 transactions
+On-device rules
+What is safe for me to spend this week?
+How should I split my next salary?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-11.png
+=== Q12: that kebab was lunch
+Which one was it? Tap it below and I'll move it to Restaurant.
+
+Transactions
+121 found
+Restaurant
+25 Sep, 16:05
+-€6.63
+Fast food
+23 Sep, 20:54
+-€4.63
+Fast food
+18 Sep, 19:30
+-€3.95
+Restaurant
+14 Sep, 20:15
+-€6.87
+Restaurant
+13 Sep, 21:34
+-€3.35
+From 121 transactions
+On-device rules
+Where did my money go?
+What is safe for me to spend this week?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/70-demo-12.png

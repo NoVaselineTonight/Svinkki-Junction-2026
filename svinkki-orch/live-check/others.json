@@ -1,0 +1,898 @@
+[
+ {
+  "model": "claude-sonnet-5-5",
+  "question": "How much did I spend on taxis last month?",
+  "reply": "You spent €92.85 on taxis in August (2 payments).",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 2.89,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-sonnet-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.78,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-sonnet-5-5",
+    "usage": {
+     "input_tokens": 1053,
+     "cache_creation_input_tokens": 16896,
+     "cache_read_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 16896,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 74,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "get_spend"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-sonnet-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 0.98,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-sonnet-5-5",
+    "usage": {
+     "input_tokens": 1262,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 22,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "You spent €92.85 on taxis in August (2 payments)."
+   }
+  ],
+  "tools_used": [
+   "get_spend"
+  ],
+  "usage": {
+   "input_tokens": 2315,
+   "output_tokens": 96,
+   "cache_read_input_tokens": 16896,
+   "cache_creation_input_tokens": 16896
+  },
+  "cost_usd": 0.04952,
+  "model_raw_text": "You spent €92.85 on taxis in August (2 payments).",
+  "raw_equals_shown": true,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-sonnet-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "How much did I spend on taxis last month?",
+   "tool_results": [
+    {
+     "tool": "get_spend",
+     "args": {
+      "label": "Taxi",
+      "period": "last_month"
+     },
+     "result": {
+      "period": {
+       "from": "2026-08-01",
+       "to": "2026-08-31",
+       "name": "last_month"
+      },
+      "total": 92.85,
+      "count": 2,
+      "by_label": [
+       {
+        "label": "Taxi",
+        "total": 92.85,
+        "count": 2
+       }
+      ],
+      "explain": "Added up 2 outgoing payments for taxis in August.",
+      "night_out_part": {
+       "total": 0.0,
+       "count": 0
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "question": "Can I afford a 300 euro jacket?",
+  "reply": "Yes, the €300 jacket fits. You'd still have about €35 a day to spend until payday on 15 Oct, after bills and a buffer for surprises.\n\nYour pay has sometimes come up to 16 days late. If that happens again, the margin gets tighter, so keep some slack in the last week.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 3.52,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-sonnet-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.7,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-sonnet-5-5",
+    "usage": {
+     "input_tokens": 1055,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 73,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "can_i_afford"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-sonnet-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 1.66,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-sonnet-5-5",
+    "usage": {
+     "input_tokens": 1359,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 99,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Yes, the €300 jacket fits. You'd still have about €35 a day to spend until payday on 15 Oct, after bills and a buffer for surprises.\n\nYour pay has sometimes come up to 16 days late. If that happens again, the margin gets tighter, so keep some slack in the last week."
+   }
+  ],
+  "tools_used": [
+   "can_i_afford"
+  ],
+  "usage": {
+   "input_tokens": 2414,
+   "output_tokens": 172,
+   "cache_read_input_tokens": 33792,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0.00993,
+  "model_raw_text": "Yes, the €300 jacket fits. You'd still have about €35 a day to spend until payday on 15 Oct, after bills and a buffer for surprises.\n\nYour pay has sometimes come up to 16 days late. If that happens again, the margin gets tighter, so keep some slack in the last week.",
+  "raw_equals_shown": true,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-sonnet-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Can I afford a 300 euro jacket?",
+   "tool_results": [
+    {
+     "tool": "can_i_afford",
+     "args": {
+      "item": "jacket",
+      "price": 300
+     },
+     "result": {
+      "item": "jacket",
+      "price": 300.0,
+      "safe_total": 963.4,
+      "days_left": 19,
+      "next_payday": "2026-10-15",
+      "after": 663.4,
+      "per_day_after": 34.92,
+      "verdict": "yes",
+      "verdict_text": "Yes, the €300 jacket fits. You would still have about €35 a day until payday on 15 Oct.",
+      "share_of_safe": 0.311,
+      "typical_month_share": 0.493,
+      "goal_effect": null,
+      "alternatives": [],
+      "risk": null,
+      "explain": "Safe-to-spend is your balance minus bills before payday, a buffer for unexpected costs and planned savings (€963); the price is taken off it."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-sonnet-5-5",
+  "question": "Where can I save?",
+  "reply": "The biggest gains are small, because your month is tight. Over the last 12 months about €412 more went out than came in each month, and the ideas below are much smaller than that gap.\n\nThe three ideas I found:\n- Trim everyday spending by 5%, which frees about €30 a month.\n- Spend 15% less on hobbies, about €16 a month.\n- Cook at home one meal in five, about €11 a month.\n\nThese overlap, so don't add them together. Your housing payment (€1,108 in August) and fuel (€221) are the big items. Fuel is the only one you can easily change, but the tool didn't produce a figure for cutting it. If you'd like, I can model a fuel cut or a smaller everyday trim to see what it would free.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 4.56,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-sonnet-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.36,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-sonnet-5-5",
+    "usage": {
+     "input_tokens": 1046,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 28,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "get_save_more"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-sonnet-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 3.03,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-sonnet-5-5",
+    "usage": {
+     "input_tokens": 1735,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 236,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "The biggest gains are small, because your month is tight. Over the last 12 months about €412 more went out than came in each month, and the ideas below are much smaller than that gap.\n\nThe three ideas I found:\n- Trim everyday spending by 5%, which frees about €30 a month.\n- Spend 15% less on hobbies, about €16 a month.\n- Cook at home one meal in five, about €11 a month.\n\nThese overlap, so don't add them together. Your housing payment (€1,108 in August) and fuel (€221) are the big items. Fuel is the only one you can easily change, but the tool didn't produce a figure for cutting it. If you'd like, I can model a fuel cut or a smaller everyday trim to see what it would free."
+   }
+  ],
+  "tools_used": [
+   "get_save_more"
+  ],
+  "usage": {
+   "input_tokens": 2781,
+   "output_tokens": 264,
+   "cache_read_input_tokens": 33792,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0.01158,
+  "model_raw_text": "The biggest gains are small, because your month is tight. Over the last 12 months about €412 more went out than came in each month, and the ideas below are much smaller than that gap.\n\nThe three ideas I found:\n- Trim everyday spending by 5%, which frees about €30 a month.\n- Spend 15% less on hobbies, about €16 a month.\n- Cook at home one meal in five, about €11 a month.\n\nThese overlap, so don't add them together. Your housing payment (€1,108 in August) and fuel (€221) are the big items. Fuel is the only one you can easily change, but the tool didn't produce a figure for cutting it. If you'd like, I can model a fuel cut or a smaller everyday trim to see what it would free.",
+  "raw_equals_shown": true,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-sonnet-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Where can I save?",
+   "tool_results": [
+    {
+     "tool": "get_save_more",
+     "args": {},
+     "result": {
+      "ideas": [
+       {
+        "title": "Trim everyday spending by 5%",
+        "detail": "Everyday spending averages €609 a month. A small 5% trim across it is about €30 a month, without giving up anything big.",
+        "saved_monthly": 30.45,
+        "target": "everyday",
+        "evidence": {
+         "title": "Everyday spending",
+         "from": "2026-03-01",
+         "to": "2026-08-31",
+         "basket": "everyday"
+        }
+       },
+       {
+        "title": "Spend 15% less on hobbies",
+        "detail": "Your biggest flexible area after food and going out is hobbies, about €103 a month. Cutting it by 15% frees €16 a month.",
+        "saved_monthly": 15.51,
+        "target": "Hobbies",
+        "evidence": {
+         "title": "Hobbies",
+         "from": "2026-03-01",
+         "to": "2026-08-31",
+         "label": "Hobbies"
+        }
+       },
+       {
+        "title": "Cook at home one meal in five",
+        "detail": "Restaurants and fast food outside nights out cost you about €56 a month (groceries: €319 a month). Replacing one in five of those meals with home cooking saves up to €11 a month.",
+        "saved_monthly": 11.28,
+        "target": "Restaurant",
+        "evidence": [
+         {
+          "title": "Restaurants",
+          "from": "2026-03-01",
+          "to": "2026-08-31",
+          "label": "Restaurant",
+          "context": "none"
+         },
+         {
+          "title": "Fast food",
+          "from": "2026-03-01",
+          "to": "2026-08-31",
+          "label": "Fast food",
+          "context": "none"
+         }
+        ]
+       }
+      ],
+      "surplus_avg": 12.17,
+      "explain": "Each idea is a share of your own average monthly spend over the last 6 full months (March to August); the ideas overlap, so do not add them together.",
+      "period_note": "The averages in this result cover the last 6 full months. The usual month in the customer section covers 12. If the two tell different stories, do not put the bare figures side by side: say it in words, for example 'over the last 6 months you kept about X a month, but over the whole year more went out than came in'."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-haiku-5-5",
+  "question": "How much did I spend on taxis last month?",
+  "reply": "You spent €92.85 on taxis in August, across 2 payments. That is the same figure that shows in your August category breakdown, so it is a fair share of your €221 fuel-level transport costs...",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 3.84,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-haiku-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.5,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-haiku-5-5",
+    "usage": {
+     "input_tokens": 1053,
+     "cache_creation_input_tokens": 16896,
+     "cache_read_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 16896,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 74,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "get_spend"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-haiku-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 2.25,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-haiku-5-5",
+    "usage": {
+     "input_tokens": 1262,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 65,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "You spent €92.85 on taxis in August, across 2 payments. That is the same figure that shows in your August category breakdown, so it is a fair share of your €221 fuel-level transport costs..."
+   }
+  ],
+  "tools_used": [
+   "get_spend"
+  ],
+  "usage": {
+   "input_tokens": 2315,
+   "output_tokens": 139,
+   "cache_read_input_tokens": 16896,
+   "cache_creation_input_tokens": 16896
+  },
+  "cost_usd": 0.00258,
+  "model_raw_text": "You spent €92.85 on taxis in August, across 2 payments. That is the same figure that shows in your August category breakdown, so it is a fair share of your €221 fuel-level transport costs...",
+  "raw_equals_shown": true,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-haiku-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "How much did I spend on taxis last month?",
+   "tool_results": [
+    {
+     "tool": "get_spend",
+     "args": {
+      "label": "Taxi",
+      "period": "last_month"
+     },
+     "result": {
+      "period": {
+       "from": "2026-08-01",
+       "to": "2026-08-31",
+       "name": "last_month"
+      },
+      "total": 92.85,
+      "count": 2,
+      "by_label": [
+       {
+        "label": "Taxi",
+        "total": 92.85,
+        "count": 2
+       }
+      ],
+      "explain": "Added up 2 outgoing payments for taxis in August.",
+      "night_out_part": {
+       "total": 0.0,
+       "count": 0
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-haiku-5-5",
+  "question": "Can I afford a 300 euro jacket?",
+  "reply": "Yes, the €300 jacket fits. You'd still have about €663 safe to spend before payday on 15 Oct, which works out to about €35 a day.\n\nStill, your usual month runs about €412 more out than in, so this would use up roughly half of what you'd normally have left over. If you buy it, it's worth moving some of the cost out of the next few weeks' spending.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 3.73,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-haiku-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.3,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-haiku-5-5",
+    "usage": {
+     "input_tokens": 1055,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 73,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "can_i_afford"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-haiku-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 2.36,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-haiku-5-5",
+    "usage": {
+     "input_tokens": 1359,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 289,
+     "output_tokens_details": {
+      "thinking_tokens": 169
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Yes, the €300 jacket fits. You'd still have about €663 safe to spend before payday on 15 Oct, which works out to about €35 a day.\n\nStill, your usual month runs about €412 more out than in, so this would use up roughly half of what you'd normally have left over. If you buy it, it's worth moving some of the cost out of the next few weeks' spending."
+   }
+  ],
+  "tools_used": [
+   "can_i_afford"
+  ],
+  "usage": {
+   "input_tokens": 2414,
+   "output_tokens": 362,
+   "cache_read_input_tokens": 33792,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0.00076,
+  "model_raw_text": "Yes, the €300 jacket fits. You'd still have about €663 safe to spend before payday on 15 Oct, which works out to about €35 a day.\n\nStill, your usual month runs about €412 more out than in, so this would use up roughly half of what you'd normally have left over. If you buy it, it's worth moving some of the cost out of the next few weeks' spending.",
+  "raw_equals_shown": true,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-haiku-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Can I afford a 300 euro jacket?",
+   "tool_results": [
+    {
+     "tool": "can_i_afford",
+     "args": {
+      "item": "jacket",
+      "price": 300
+     },
+     "result": {
+      "item": "jacket",
+      "price": 300.0,
+      "safe_total": 963.4,
+      "days_left": 19,
+      "next_payday": "2026-10-15",
+      "after": 663.4,
+      "per_day_after": 34.92,
+      "verdict": "yes",
+      "verdict_text": "Yes, the €300 jacket fits. You would still have about €35 a day until payday on 15 Oct.",
+      "share_of_safe": 0.311,
+      "typical_month_share": 0.493,
+      "goal_effect": null,
+      "alternatives": [],
+      "risk": null,
+      "explain": "Safe-to-spend is your balance minus bills before payday, a buffer for unexpected costs and planned savings (€963); the price is taken off it."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-haiku-5-5",
+  "question": "Where can I save?",
+  "reply": "The biggest single lever is everyday spending: trimming it by 5% would free about €30 a month, without giving up anything large. Cutting hobbies by 15% would free about €16 a month, and cooking at home one meal in five instead of eating out or ordering in would save about €11 a month. These overlap, so don't add them up.\n\nOver the last 12 months more has gone out than came in by about €412 a month, so these cuts would narrow that gap rather than close it. Half of your everyday spending lands in the 8 days after payday, so that's the first place to look.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 4.38,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-haiku-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.41,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-haiku-5-5",
+    "usage": {
+     "input_tokens": 1046,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 108,
+     "output_tokens_details": {
+      "thinking_tokens": 79
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "get_save_more"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-haiku-5-5",
+    "timeout": 60,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 2.89,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-haiku-5-5",
+    "usage": {
+     "input_tokens": 1815,
+     "cache_creation_input_tokens": 0,
+     "cache_read_input_tokens": 16896,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 435,
+     "output_tokens_details": {
+      "thinking_tokens": 257
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "The biggest single lever is everyday spending: trimming it by 5% would free about €30 a month, without giving up anything large. Cutting hobbies by 15% would free about €16 a month, and cooking at home one meal in five instead of eating out or ordering in would save about €11 a month. These overlap, so don't add them up.\n\nOver the last 12 months more has gone out than came in by about €412 a month, so these cuts would narrow that gap rather than close it. Half of your everyday spending lands in the 8 days after payday, so that's the first place to look."
+   }
+  ],
+  "tools_used": [
+   "get_save_more"
+  ],
+  "usage": {
+   "input_tokens": 2861,
+   "output_tokens": 543,
+   "cache_read_input_tokens": 33792,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0.0009,
+  "model_raw_text": "The biggest single lever is everyday spending: trimming it by 5% would free about €30 a month, without giving up anything large. Cutting hobbies by 15% would free about €16 a month, and cooking at home one meal in five instead of eating out or ordering in would save about €11 a month. These overlap, so don't add them up.\n\nOver the last 12 months more has gone out than came in by about €412 a month, so these cuts would narrow that gap rather than close it. Half of your everyday spending lands in the 8 days after payday, so that's the first place to look.",
+  "raw_equals_shown": true,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-haiku-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Where can I save?",
+   "tool_results": [
+    {
+     "tool": "get_save_more",
+     "args": {},
+     "result": {
+      "ideas": [
+       {
+        "title": "Trim everyday spending by 5%",
+        "detail": "Everyday spending averages €609 a month. A small 5% trim across it is about €30 a month, without giving up anything big.",
+        "saved_monthly": 30.45,
+        "target": "everyday",
+        "evidence": {
+         "title": "Everyday spending",
+         "from": "2026-03-01",
+         "to": "2026-08-31",
+         "basket": "everyday"
+        }
+       },
+       {
+        "title": "Spend 15% less on hobbies",
+        "detail": "Your biggest flexible area after food and going out is hobbies, about €103 a month. Cutting it by 15% frees €16 a month.",
+        "saved_monthly": 15.51,
+        "target": "Hobbies",
+        "evidence": {
+         "title": "Hobbies",
+         "from": "2026-03-01",
+         "to": "2026-08-31",
+         "label": "Hobbies"
+        }
+       },
+       {
+        "title": "Cook at home one meal in five",
+        "detail": "Restaurants and fast food outside nights out cost you about €56 a month (groceries: €319 a month). Replacing one in five of those meals with home cooking saves up to €11 a month.",
+        "saved_monthly": 11.28,
+        "target": "Restaurant",
+        "evidence": [
+         {
+          "title": "Restaurants",
+          "from": "2026-03-01",
+          "to": "2026-08-31",
+          "label": "Restaurant",
+          "context": "none"
+         },
+         {
+          "title": "Fast food",
+          "from": "2026-03-01",
+          "to": "2026-08-31",
+          "label": "Fast food",
+          "context": "none"
+         }
+        ]
+       }
+      ],
+      "surplus_avg": 12.17,
+      "explain": "Each idea is a share of your own average monthly spend over the last 6 full months (March to August); the ideas overlap, so do not add them together.",
+      "period_note": "The averages in this result cover the last 6 full months. The usual month in the customer section covers 12. If the two tell different stories, do not put the bare figures side by side: say it in words, for example 'over the last 6 months you kept about X a month, but over the whole year more went out than came in'."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ }
+]

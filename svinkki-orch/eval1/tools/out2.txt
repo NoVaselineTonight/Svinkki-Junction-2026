@@ -1,0 +1,175 @@
+=== Q1: Where did my money go?
+In August you earned €2,336 and spent €2,029, so €307 was left. €1,583 went on essentials and €446 on everyday spending. You spent €503 less than in your usual month.
+
+Your month
+August
+€307
+left over
+Money in
+€2,336
+Spent
+€2,029
+More
+From 32 transactions
+On-device rules
+Where is my money leaking?
+How can I save more?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-01.png
+=== Q2: What kind of spender am I?
+You're a stretched spender: over the last 6 months you spent 99% of your income.
+
+Your spender type
+Stretched
+Spending takes nearly all of your income
+Kept
+0.5% of income
+Going out
+6% of income
+Housing
+41.1% of income
+More
+From 163 transactions
+On-device rules
+How can I save more?
+Where is my money leaking?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-02.png
+=== Q3: What can I safely spend this week?
+You can spend about €355 this week (€51 a day) and still cover your bills until payday on 15 Oct.
+
+Safe to spend
+On track
+€355
+this week
+A day
+€51
+Next payday
+15 Oct, in 19 days
+More
+From 43 transactions
+On-device rules
+Will I make it to payday?
+Can I afford a 50 euro dinner?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-03.png
+=== Q4: How could I save more?
+Two easy wins: trim everyday spending by 5% (about €30 a month) and spend 15% less on hobbies (about €16). That's about €46 a month together.
+
+Ways to save more
+Trim everyday spending by 5%
+€30 a month
+Spend 15% less on hobbies
+€15.51 a month
+Cook at home one meal in five
+€11.28 a month
+More
+From 116 transactions
+On-device rules
+How much could I save if I reduced dining out by 20%?
+Give me a challenge
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-04.png
+=== Q5: What if I cut dining out by 20%?
+Cutting dining out by 20% would save about €11 a month, about €135 a year.
+
+If you spent less
+€135
+saved a year
+A month
+€11.28
+Spending a month
+€56 to €45
+More
+From 30 transactions
+On-device rules
+How can I save more?
+Give me a challenge
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-05.png
+=== Q6: Show my spending in the three baskets
+In August, €1,583 (78%) went on regular essentials and €446 (22%) on everyday spending. Nothing went on unexpected costs or savings.
+
+Three baskets
+August
+Regular essentials
+€1,583
+78%
+Unexpected necessities
+€0
+0%
+Everyday spending
+€446
+22%
+More
+From 31 transactions
+On-device rules
+Where is my money leaking?
+What kind of spender am I?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-06.png
+=== Q7: Paljonko käytin ravintoloihin viime kuussa?
+Käytit ravintoloihin 63,10 € viime kuussa (5 ostosta). Se on 34 € enemmän kuin heinäkuussa.
+
+Spending
+August
+€63.10
+5 payments
+More
+From 5 transactions
+On-device rules
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-07.png
+=== Q8: Mihin rahani menivät?
+Elokuussa tienasit 2 336 € ja käytit 2 029 €, joten jäi 307 €. Kulutit 503 € vähemmän kuin tavallisena kuukautenasi.
+
+Your month
+August
+€307
+left over
+Money in
+€2,336
+Spent
+€2,029
+More
+From 32 transactions
+On-device rules
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-08.png
+=== Q9: Can I afford a 300 euro jacket?
+Yes, the €300 jacket fits. You'd still have about €35 a day until payday on 15 Oct.
+
+Can I afford it?
+Jacket, €300
+Yes
+Left a day after it
+€35
+Until payday
+15 Oct
+More
+From 43 transactions
+On-device rules
+What is safe for me to spend this week?
+Will I make it to payday?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-09.png
+=== Q10: How does my spending compare with people my age?
+Your income is about the same as most people your age nearby, but your regular essentials are higher: €1,949 a month against a typical €1,483.
+
+You and people like you
+184 people
+Monthly income
+Typical
+You
+€2,436
+Typical
+€2,429
+Regular essentials
+Above
+You
+€1,949
+Typical
+€1,483
+Unexpected necessities
+Typical
+You
+€138
+Typical
+€126
+More
+From 383 transactions
+On-device rules
+Where did my money go?
+What is safe for me to spend this week?
+C:/Users/onnik/Desktop/svinkki-orch/eval1/30-own-10.png

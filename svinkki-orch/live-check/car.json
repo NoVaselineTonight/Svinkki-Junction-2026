@@ -1,0 +1,1436 @@
+[
+ {
+  "model": "claude-opus-5-5",
+  "question": "Make me a plan to save up for a car",
+  "reply": "My plan is to put €100 aside every payday, and you'd have the car in May 2033. Most of that money comes from spending €41 less a month on clothes and €20 less on hobbies, plus smaller cuts to entertainment and taxis.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 5.36,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.62,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 25664,
+     "cache_read_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 25664,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 52,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "make_savings_plan"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 3.59,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 3391,
+     "cache_read_input_tokens": 25664,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 3391,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 283,
+     "output_tokens_details": {
+      "thinking_tokens": 78
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "My plan is to put {{f240}} aside every payday, and you'd have the car in May 2033. Most of that money comes from spending {{f233}} less a month on clothes and {{f235}} less on hobbies, plus smaller cuts to entertainment and taxis.\n\nI've guessed about {{f224}} for a reliable used car that's a few years old, so change it if you have a price in mind. A {{f225}} car would be within reach by November 2030, and you can add this plan to your home page with one tap.\n\nNEXT: Make it the €5,000 car instead | Which clothes cut is easiest for me? | How would a car loan compare?"
+   }
+  ],
+  "tools_used": [
+   "make_savings_plan"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 335,
+   "cache_read_input_tokens": 25664,
+   "cache_creation_input_tokens": 29055
+  },
+  "cost_usd": 0.15713,
+  "model_raw_text": "My plan is to put {{f240}} aside every payday, and you'd have the car in May 2033. Most of that money comes from spending {{f233}} less a month on clothes and {{f235}} less on hobbies, plus smaller cuts to entertainment and taxis.\n\nI've guessed about {{f224}} for a reliable used car that's a few years old, so change it if you have a price in mind. A {{f225}} car would be within reach by November 2030, and you can add this plan to your home page with one tap.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Make me a plan to save up for a car",
+   "tool_results": [
+    {
+     "tool": "make_savings_plan",
+     "args": {
+      "goal": "car"
+     },
+     "result": {
+      "goal": "car",
+      "target": 8000.0,
+      "estimate": {
+       "what": "a car",
+       "what_fi": "auto",
+       "low": 5000,
+       "high": 12000,
+       "basis": "a reliable used car, a few years old",
+       "basis_fi": "luotettava, muutaman vuoden vanha käytetty auto"
+      },
+      "saved": 0.0,
+      "usual_income": 2255,
+      "usual_spending": 2243,
+      "usual_leftover": 12,
+      "from_leftover": 0.0,
+      "cuts": [
+       {
+        "label": "Clothing",
+        "label_fi": "Vaatteet",
+        "now": 103,
+        "to": 62,
+        "saves": 41.0,
+        "how": "buy clothes only when something wears out",
+        "how_fi": "osta vaatteita vain kun vanha kuluu loppuun"
+       },
+       {
+        "label": "Hobbies",
+        "label_fi": "Harrastukset",
+        "now": 103,
+        "to": 83,
+        "saves": 20.0,
+        "how": "trim hobby spending a little",
+        "how_fi": "karsi harrastusmenoja vähän"
+       },
+       {
+        "label": "Entertainment",
+        "label_fi": "Viihde",
+        "now": 67,
+        "to": 47,
+        "saves": 20.0,
+        "how": "drop one paid entertainment habit",
+        "how_fi": "luovu yhdestä maksullisesta viihteestä"
+       },
+       {
+        "label": "Taxi",
+        "label_fi": "Taksit",
+        "now": 39,
+        "to": 20,
+        "saves": 19.0,
+        "how": "take the bus or walk for every other taxi trip",
+        "how_fi": "kulje joka toinen taksimatka bussilla tai kävellen"
+       }
+      ],
+      "cuts_total": 100.0,
+      "monthly": 100.0,
+      "months": 80,
+      "fits": true,
+      "needed_for_date": null,
+      "cheaper": {
+       "target": 5000.0,
+       "months": 50,
+       "when": "November 2030",
+       "when_fi": "marraskuussa 2030"
+      },
+      "decision": "My plan: put €100 aside every payday and you have your car in May 2033 (80 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in November 2030.",
+      "decision_fi": "Suunnitelmani: laita 100 € sivuun joka palkkapäivä, niin auto on koossa toukokuussa 2033 (80 kk). Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän. Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan. 5 000 € vaihtoehto olisi koossa marraskuussa 2030.",
+      "text": "My plan: put €100 aside every payday and you have your car in May 2033 (80 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in November 2030.",
+      "text_fi": "Suunnitelmani: laita 100 € sivuun joka palkkapäivä, niin auto on koossa toukokuussa 2033 (80 kk). Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän. Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan. 5 000 € vaihtoehto olisi koossa marraskuussa 2030.",
+      "explain": "Leftover, spending and categories are your own monthly averages over the last 6 full months. 80% of the leftover goes to the plan, the rest stays as a margin. Each cut is a share of that category's own average.",
+      "name": "car",
+      "deadline": "2033-05-26",
+      "series": [
+       {
+        "ym": "2026-09",
+        "planned": 0.0,
+        "actual": 0.0
+       },
+       {
+        "ym": "2026-11",
+        "planned": 200.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-02",
+        "planned": 500.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-04",
+        "planned": 700.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-06",
+        "planned": 900.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-08",
+        "planned": 1100.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-11",
+        "planned": 1400.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-01",
+        "planned": 1600.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-03",
+        "planned": 1800.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-06",
+        "planned": 2100.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-08",
+        "planned": 2300.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-10",
+        "planned": 2500.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-12",
+        "planned": 2700.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-03",
+        "planned": 3000.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-05",
+        "planned": 3200.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-07",
+        "planned": 3400.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-10",
+        "planned": 3700.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-12",
+        "planned": 3900.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-02",
+        "planned": 4100.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-04",
+        "planned": 4300.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-07",
+        "planned": 4600.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-09",
+        "planned": 4800.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-11",
+        "planned": 5000.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-02",
+        "planned": 5300.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-04",
+        "planned": 5500.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-06",
+        "planned": 5700.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-08",
+        "planned": 5900.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-11",
+        "planned": 6200.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-01",
+        "planned": 6400.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-03",
+        "planned": 6600.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-06",
+        "planned": 6900.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-08",
+        "planned": 7100.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-10",
+        "planned": 7300.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-12",
+        "planned": 7500.0,
+        "actual": null
+       },
+       {
+        "ym": "2033-03",
+        "planned": 7800.0,
+        "actual": null
+       },
+       {
+        "ym": "2033-05",
+        "planned": 8000.0,
+        "actual": null
+       }
+      ],
+      "note": "I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price.",
+      "note_fi": "Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan.",
+      "widget": {
+       "type": "plan",
+       "params": {
+        "name": "car",
+        "target": 8000.0,
+        "monthly": 100.0,
+        "deadline": "2033-05-26"
+       }
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,763 goes out, so about €327 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €87 kept back as a buffer for surprises and planned savings, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "Small step that fits their month, only for an answer that proposes a regular saving amount: €15 a month (what \"spend 15% less on hobbies\" would free) = €180 in a year, €360 in two; in an index fund for 10 years about €2,354 (€1,800 paid in; 5.2% a year after inflation, an illustration, only for answers about investing).",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157, €4,719 more than the €13,438 of income that came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Sunday is your biggest day for everyday spending (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "I want to buy a car by summer 2027, how?",
+  "reply": "A used car (I've estimated about €8,000) by summer 2027 would mean saving €889 a month, which is more than your money can manage right now. My plan is €118 a month, which gets you there in May 2032.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 5.61,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 2.42,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 88,
+     "cache_read_input_tokens": 25580,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 88,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 152,
+     "output_tokens_details": {
+      "thinking_tokens": 73
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "make_savings_plan"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 3.11,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 3834,
+     "cache_read_input_tokens": 25668,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 3834,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 229,
+     "output_tokens_details": {
+      "thinking_tokens": 65
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "A used car (I've estimated about {{f224}}) by summer 2027 would mean saving {{f245}} a month, which is more than your money can manage right now. My plan is {{f243}} a month, which gets you there in May 2032. Most of it comes from spending {{f233}} less on clothes and {{f235}} less on hobbies, and you can add the plan to your home page with one tap.\n\nNEXT: Add the car plan | What if the car costs 5,000? | Could a car loan get me there sooner?"
+   }
+  ],
+  "tools_used": [
+   "make_savings_plan"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 381,
+   "cache_read_input_tokens": 51248,
+   "cache_creation_input_tokens": 3922
+  },
+  "cost_usd": 0.0375,
+  "model_raw_text": "A used car (I've estimated about {{f224}}) by summer 2027 would mean saving {{f245}} a month, which is more than your money can manage right now. My plan is {{f243}} a month, which gets you there in May 2032. Most of it comes from spending {{f233}} less on clothes and {{f235}} less on hobbies, and you can add the plan to your home page with one tap.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "I want to buy a car by summer 2027, how?",
+   "tool_results": [
+    {
+     "tool": "make_savings_plan",
+     "args": {
+      "goal": "car",
+      "deadline": "2027-06"
+     },
+     "result": {
+      "goal": "car",
+      "target": 8000.0,
+      "estimate": {
+       "what": "a car",
+       "what_fi": "auto",
+       "low": 5000,
+       "high": 12000,
+       "basis": "a reliable used car, a few years old",
+       "basis_fi": "luotettava, muutaman vuoden vanha käytetty auto"
+      },
+      "saved": 0.0,
+      "usual_income": 2255,
+      "usual_spending": 2243,
+      "usual_leftover": 12,
+      "from_leftover": 0.0,
+      "cuts": [
+       {
+        "label": "Clothing",
+        "label_fi": "Vaatteet",
+        "now": 103,
+        "to": 62,
+        "saves": 41.0,
+        "how": "buy clothes only when something wears out",
+        "how_fi": "osta vaatteita vain kun vanha kuluu loppuun"
+       },
+       {
+        "label": "Hobbies",
+        "label_fi": "Harrastukset",
+        "now": 103,
+        "to": 83,
+        "saves": 20.0,
+        "how": "trim hobby spending a little",
+        "how_fi": "karsi harrastusmenoja vähän"
+       },
+       {
+        "label": "Entertainment",
+        "label_fi": "Viihde",
+        "now": 67,
+        "to": 47,
+        "saves": 20.0,
+        "how": "drop one paid entertainment habit",
+        "how_fi": "luovu yhdestä maksullisesta viihteestä"
+       },
+       {
+        "label": "Taxi",
+        "label_fi": "Taksit",
+        "now": 39,
+        "to": 20,
+        "saves": 19.0,
+        "how": "take the bus or walk for every other taxi trip",
+        "how_fi": "kulje joka toinen taksimatka bussilla tai kävellen"
+       },
+       {
+        "label": "Fuel",
+        "label_fi": "Polttoaine",
+        "now": 120,
+        "to": 102,
+        "saves": 18.0,
+        "how": "combine car trips",
+        "how_fi": "yhdistä automatkoja"
+       }
+      ],
+      "cuts_total": 118.0,
+      "monthly": 118.0,
+      "months": 68,
+      "fits": false,
+      "needed_for_date": 889.0,
+      "cheaper": {
+       "target": 5000.0,
+       "months": 43,
+       "when": "April 2030",
+       "when_fi": "huhtikuussa 2030"
+      },
+      "decision": "Your car by June 2027 would need €889 a month, more than your money can carry. My plan: €118 a month, and you have it in May 2032. It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less, fuel €18 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in April 2030.",
+      "decision_fi": "Jotta auto olisi koossa kesäkuussa 2027, tarvitsisit 889 € kuussa, enemmän kuin rahasi kestävät. Suunnitelmani: 118 € kuussa, niin se on koossa toukokuussa 2032. Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän, polttoaine 18 € vähemmän. Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan. 5 000 € vaihtoehto olisi koossa huhtikuussa 2030.",
+      "text": "Your car by June 2027 would need €889 a month, more than your money can carry. My plan: €118 a month, and you have it in May 2032. It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less, fuel €18 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in April 2030.",
+      "text_fi": "Jotta auto olisi koossa kesäkuussa 2027, tarvitsisit 889 € kuussa, enemmän kuin rahasi kestävät. Suunnitelmani: 118 € kuussa, niin se on koossa toukokuussa 2032. Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän, polttoaine 18 € vähemmän. Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan. 5 000 € vaihtoehto olisi koossa huhtikuussa 2030.",
+      "explain": "Leftover, spending and categories are your own monthly averages over the last 6 full months. 80% of the leftover goes to the plan, the rest stays as a margin. Each cut is a share of that category's own average.",
+      "name": "car",
+      "deadline": "2032-05-26",
+      "series": [
+       {
+        "ym": "2026-09",
+        "planned": 0.0,
+        "actual": 0.0
+       },
+       {
+        "ym": "2026-11",
+        "planned": 236.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-01",
+        "planned": 472.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-03",
+        "planned": 708.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-05",
+        "planned": 944.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-07",
+        "planned": 1180.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-09",
+        "planned": 1416.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-11",
+        "planned": 1652.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-01",
+        "planned": 1888.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-02",
+        "planned": 2006.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-04",
+        "planned": 2242.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-06",
+        "planned": 2478.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-08",
+        "planned": 2714.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-10",
+        "planned": 2950.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-12",
+        "planned": 3186.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-02",
+        "planned": 3422.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-04",
+        "planned": 3658.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-06",
+        "planned": 3894.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-08",
+        "planned": 4130.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-10",
+        "planned": 4366.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-12",
+        "planned": 4602.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-02",
+        "planned": 4838.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-04",
+        "planned": 5074.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-06",
+        "planned": 5310.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-08",
+        "planned": 5546.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-10",
+        "planned": 5782.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-12",
+        "planned": 6018.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-01",
+        "planned": 6136.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-03",
+        "planned": 6372.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-05",
+        "planned": 6608.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-07",
+        "planned": 6844.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-09",
+        "planned": 7080.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-11",
+        "planned": 7316.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-01",
+        "planned": 7552.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-03",
+        "planned": 7788.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-05",
+        "planned": 8000.0,
+        "actual": null
+       }
+      ],
+      "note": "I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price.",
+      "note_fi": "Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan.",
+      "widget": {
+       "type": "plan",
+       "params": {
+        "name": "car",
+        "target": 8000.0,
+        "monthly": 118.0,
+        "deadline": "2032-05-26"
+       }
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,763 goes out, so about €327 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €87 kept back as a buffer for surprises and planned savings, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "Small step that fits their month, only for an answer that proposes a regular saving amount: €15 a month (what \"spend 15% less on hobbies\" would free) = €180 in a year, €360 in two; in an index fund for 10 years about €2,354 (€1,800 paid in; 5.2% a year after inflation, an illustration, only for answers about investing).",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157, €4,719 more than the €13,438 of income that came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Sunday is your biggest day for everyday spending (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Tee minulle suunnitelma säästää autoon",
+  "reply": "Laittamalla 100 € sivuun joka palkkapäivä autorahat ovat koossa toukokuussa 2033. Arvioin hinnaksi noin 8 000 €, mikä riittää luotettavaan, muutaman vuoden vanhaan käytettyyn autoon, ja voit muuttaa hintaa, jos tiedät sen. Suurimmat säästöt tulevat vaatteista (41 € kuussa vähemmän) ja harrastuksista (20 € vähemmän), loput viihteestä ja takseista.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 7.52,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 2.25,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 90,
+     "cache_read_input_tokens": 25580,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 90,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 53,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "make_savings_plan"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 5.19,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 3397,
+     "cache_read_input_tokens": 25670,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 3397,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 409,
+     "output_tokens_details": {
+      "thinking_tokens": 92
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Laittamalla {{f240}} sivuun joka palkkapäivä autorahat ovat koossa toukokuussa 2033. Arvioin hinnaksi noin {{f224}}, mikä riittää luotettavaan, muutaman vuoden vanhaan käytettyyn autoon, ja voit muuttaa hintaa, jos tiedät sen.\n\nSuurimmat säästöt tulevat vaatteista ({{f233}} kuussa vähemmän) ja harrastuksista ({{f235}} vähemmän), loput viihteestä ja takseista. Jos auton hinta on {{f225}}, rahat ovat koossa jo marraskuussa 2030, ja minä valitsisin sen vaihtoehdon.\n\nNEXT: Tee suunnitelma 5 000 euron autoon | Pidä 8 000 euron suunnitelma | Paljonko autolaina maksaisi kuussa?"
+   }
+  ],
+  "tools_used": [
+   "make_savings_plan"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 462,
+   "cache_read_input_tokens": 51250,
+   "cache_creation_input_tokens": 3487
+  },
+  "cost_usd": 0.03695,
+  "model_raw_text": "Laittamalla {{f240}} sivuun joka palkkapäivä autorahat ovat koossa toukokuussa 2033. Arvioin hinnaksi noin {{f224}}, mikä riittää luotettavaan, muutaman vuoden vanhaan käytettyyn autoon, ja voit muuttaa hintaa, jos tiedät sen.\n\nSuurimmat säästöt tulevat vaatteista ({{f233}} kuussa vähemmän) ja harrastuksista ({{f235}} vähemmän), loput viihteestä ja takseista. Jos auton hinta on {{f225}}, rahat ovat koossa jo marraskuussa 2030, ja minä valitsisin sen vaihtoehdon.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Tee minulle suunnitelma säästää autoon",
+   "tool_results": [
+    {
+     "tool": "make_savings_plan",
+     "args": {
+      "goal": "auto"
+     },
+     "result": {
+      "goal": "auto",
+      "target": 8000.0,
+      "estimate": {
+       "what": "a car",
+       "what_fi": "auto",
+       "low": 5000,
+       "high": 12000,
+       "basis": "a reliable used car, a few years old",
+       "basis_fi": "luotettava, muutaman vuoden vanha käytetty auto"
+      },
+      "saved": 0.0,
+      "usual_income": 2255,
+      "usual_spending": 2243,
+      "usual_leftover": 12,
+      "from_leftover": 0.0,
+      "cuts": [
+       {
+        "label": "Clothing",
+        "label_fi": "Vaatteet",
+        "now": 103,
+        "to": 62,
+        "saves": 41.0,
+        "how": "buy clothes only when something wears out",
+        "how_fi": "osta vaatteita vain kun vanha kuluu loppuun"
+       },
+       {
+        "label": "Hobbies",
+        "label_fi": "Harrastukset",
+        "now": 103,
+        "to": 83,
+        "saves": 20.0,
+        "how": "trim hobby spending a little",
+        "how_fi": "karsi harrastusmenoja vähän"
+       },
+       {
+        "label": "Entertainment",
+        "label_fi": "Viihde",
+        "now": 67,
+        "to": 47,
+        "saves": 20.0,
+        "how": "drop one paid entertainment habit",
+        "how_fi": "luovu yhdestä maksullisesta viihteestä"
+       },
+       {
+        "label": "Taxi",
+        "label_fi": "Taksit",
+        "now": 39,
+        "to": 20,
+        "saves": 19.0,
+        "how": "take the bus or walk for every other taxi trip",
+        "how_fi": "kulje joka toinen taksimatka bussilla tai kävellen"
+       }
+      ],
+      "cuts_total": 100.0,
+      "monthly": 100.0,
+      "months": 80,
+      "fits": true,
+      "needed_for_date": null,
+      "cheaper": {
+       "target": 5000.0,
+       "months": 50,
+       "when": "November 2030",
+       "when_fi": "marraskuussa 2030"
+      },
+      "decision": "My plan: put €100 aside every payday and you have your auto in May 2033 (80 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in November 2030.",
+      "decision_fi": "Suunnitelmani: laita 100 € sivuun joka palkkapäivä, niin auto on koossa toukokuussa 2033 (80 kk). Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän. Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan. 5 000 € vaihtoehto olisi koossa marraskuussa 2030.",
+      "text": "My plan: put €100 aside every payday and you have your auto in May 2033 (80 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in November 2030.",
+      "text_fi": "Suunnitelmani: laita 100 € sivuun joka palkkapäivä, niin auto on koossa toukokuussa 2033 (80 kk). Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän. Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan. 5 000 € vaihtoehto olisi koossa marraskuussa 2030.",
+      "explain": "Leftover, spending and categories are your own monthly averages over the last 6 full months. 80% of the leftover goes to the plan, the rest stays as a margin. Each cut is a share of that category's own average.",
+      "name": "auto",
+      "deadline": "2033-05-26",
+      "series": [
+       {
+        "ym": "2026-09",
+        "planned": 0.0,
+        "actual": 0.0
+       },
+       {
+        "ym": "2026-11",
+        "planned": 200.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-02",
+        "planned": 500.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-04",
+        "planned": 700.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-06",
+        "planned": 900.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-08",
+        "planned": 1100.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-11",
+        "planned": 1400.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-01",
+        "planned": 1600.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-03",
+        "planned": 1800.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-06",
+        "planned": 2100.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-08",
+        "planned": 2300.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-10",
+        "planned": 2500.0,
+        "actual": null
+       },
+       {
+        "ym": "2028-12",
+        "planned": 2700.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-03",
+        "planned": 3000.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-05",
+        "planned": 3200.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-07",
+        "planned": 3400.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-10",
+        "planned": 3700.0,
+        "actual": null
+       },
+       {
+        "ym": "2029-12",
+        "planned": 3900.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-02",
+        "planned": 4100.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-04",
+        "planned": 4300.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-07",
+        "planned": 4600.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-09",
+        "planned": 4800.0,
+        "actual": null
+       },
+       {
+        "ym": "2030-11",
+        "planned": 5000.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-02",
+        "planned": 5300.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-04",
+        "planned": 5500.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-06",
+        "planned": 5700.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-08",
+        "planned": 5900.0,
+        "actual": null
+       },
+       {
+        "ym": "2031-11",
+        "planned": 6200.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-01",
+        "planned": 6400.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-03",
+        "planned": 6600.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-06",
+        "planned": 6900.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-08",
+        "planned": 7100.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-10",
+        "planned": 7300.0,
+        "actual": null
+       },
+       {
+        "ym": "2032-12",
+        "planned": 7500.0,
+        "actual": null
+       },
+       {
+        "ym": "2033-03",
+        "planned": 7800.0,
+        "actual": null
+       },
+       {
+        "ym": "2033-05",
+        "planned": 8000.0,
+        "actual": null
+       }
+      ],
+      "note": "I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price.",
+      "note_fi": "Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan.",
+      "widget": {
+       "type": "plan",
+       "params": {
+        "name": "auto",
+        "target": 8000.0,
+        "monthly": 100.0,
+        "deadline": "2033-05-26"
+       }
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,763 goes out, so about €327 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €87 kept back as a buffer for surprises and planned savings, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "Small step that fits their month, only for an answer that proposes a regular saving amount: €15 a month (what \"spend 15% less on hobbies\" would free) = €180 in a year, €360 in two; in an index fund for 10 years about €2,354 (€1,800 paid in; 5.2% a year after inflation, an illustration, only for answers about investing).",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157, €4,719 more than the €13,438 of income that came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Sunday is your biggest day for everyday spending (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "I want to save for a new sofa",
+  "reply": "I'd put €100 aside every payday, and you'd have your new sofa by September 2027. Most of that would come from spending €41 less on clothes and €20 less on hobbies each month.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 4.48,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.3,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 82,
+     "cache_read_input_tokens": 25580,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 82,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 55,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "make_savings_plan"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 3.09,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 2476,
+     "cache_read_input_tokens": 25662,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 2476,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 224,
+     "output_tokens_details": {
+      "thinking_tokens": 81
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "I'd put {{f240}} aside every payday, and you'd have your new sofa by September 2027. Most of that would come from spending {{f233}} less on clothes and {{f235}} less on hobbies each month.\n\nI've guessed the sofa will cost about {{f224}}, so change that if you already have one in mind.\n\nNEXT: Yes, I'll take this plan | My sofa costs less than that | What if I skip the clothes cut?"
+   }
+  ],
+  "tools_used": [
+   "make_savings_plan"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 279,
+   "cache_read_input_tokens": 51242,
+   "cache_creation_input_tokens": 2558
+  },
+  "cost_usd": 0.02864,
+  "model_raw_text": "I'd put {{f240}} aside every payday, and you'd have your new sofa by September 2027. Most of that would come from spending {{f233}} less on clothes and {{f235}} less on hobbies each month.\n\nI've guessed the sofa will cost about {{f224}}, so change that if you already have one in mind.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "I want to save for a new sofa",
+   "tool_results": [
+    {
+     "tool": "make_savings_plan",
+     "args": {
+      "goal": "new sofa"
+     },
+     "result": {
+      "goal": "new sofa",
+      "target": 1200.0,
+      "estimate": {
+       "what": "furniture",
+       "what_fi": "huonekalut",
+       "low": 500,
+       "high": 2500,
+       "basis": "a new sofa or similar",
+       "basis_fi": "uusi sohva tai vastaava"
+      },
+      "saved": 0.0,
+      "usual_income": 2255,
+      "usual_spending": 2243,
+      "usual_leftover": 12,
+      "from_leftover": 0.0,
+      "cuts": [
+       {
+        "label": "Clothing",
+        "label_fi": "Vaatteet",
+        "now": 103,
+        "to": 62,
+        "saves": 41.0,
+        "how": "buy clothes only when something wears out",
+        "how_fi": "osta vaatteita vain kun vanha kuluu loppuun"
+       },
+       {
+        "label": "Hobbies",
+        "label_fi": "Harrastukset",
+        "now": 103,
+        "to": 83,
+        "saves": 20.0,
+        "how": "trim hobby spending a little",
+        "how_fi": "karsi harrastusmenoja vähän"
+       },
+       {
+        "label": "Entertainment",
+        "label_fi": "Viihde",
+        "now": 67,
+        "to": 47,
+        "saves": 20.0,
+        "how": "drop one paid entertainment habit",
+        "how_fi": "luovu yhdestä maksullisesta viihteestä"
+       },
+       {
+        "label": "Taxi",
+        "label_fi": "Taksit",
+        "now": 39,
+        "to": 20,
+        "saves": 19.0,
+        "how": "take the bus or walk for every other taxi trip",
+        "how_fi": "kulje joka toinen taksimatka bussilla tai kävellen"
+       }
+      ],
+      "cuts_total": 100.0,
+      "monthly": 100.0,
+      "months": 12,
+      "fits": true,
+      "needed_for_date": null,
+      "cheaper": null,
+      "decision": "My plan: put €100 aside every payday and you have your new sofa in September 2027 (12 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €1,200 (a new sofa or similar); change it if you know the price.",
+      "decision_fi": "Suunnitelmani: laita 100 € sivuun joka palkkapäivä, niin huonekalut on koossa syyskuussa 2027 (12 kk). Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän. Arvioin hinnaksi noin 1 200 € (uusi sohva tai vastaava); muuta, jos tiedät hinnan.",
+      "text": "My plan: put €100 aside every payday and you have your new sofa in September 2027 (12 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €1,200 (a new sofa or similar); change it if you know the price.",
+      "text_fi": "Suunnitelmani: laita 100 € sivuun joka palkkapäivä, niin huonekalut on koossa syyskuussa 2027 (12 kk). Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän. Arvioin hinnaksi noin 1 200 € (uusi sohva tai vastaava); muuta, jos tiedät hinnan.",
+      "explain": "Leftover, spending and categories are your own monthly averages over the last 6 full months. 80% of the leftover goes to the plan, the rest stays as a margin. Each cut is a share of that category's own average.",
+      "name": "new sofa",
+      "deadline": "2027-09-26",
+      "series": [
+       {
+        "ym": "2026-09",
+        "planned": 0.0,
+        "actual": 0.0
+       },
+       {
+        "ym": "2026-10",
+        "planned": 100.0,
+        "actual": null
+       },
+       {
+        "ym": "2026-11",
+        "planned": 200.0,
+        "actual": null
+       },
+       {
+        "ym": "2026-12",
+        "planned": 300.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-01",
+        "planned": 400.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-02",
+        "planned": 500.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-03",
+        "planned": 600.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-04",
+        "planned": 700.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-05",
+        "planned": 800.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-06",
+        "planned": 900.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-07",
+        "planned": 1000.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-08",
+        "planned": 1100.0,
+        "actual": null
+       },
+       {
+        "ym": "2027-09",
+        "planned": 1200.0,
+        "actual": null
+       }
+      ],
+      "note": "I priced it at about €1,200 (a new sofa or similar); change it if you know the price.",
+      "note_fi": "Arvioin hinnaksi noin 1 200 € (uusi sohva tai vastaava); muuta, jos tiedät hinnan.",
+      "widget": {
+       "type": "plan",
+       "params": {
+        "name": "new sofa",
+        "target": 1200.0,
+        "monthly": 100.0,
+        "deadline": "2027-09-26"
+       }
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,763 goes out, so about €327 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €87 kept back as a buffer for surprises and planned savings, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "Small step that fits their month, only for an answer that proposes a regular saving amount: €15 a month (what \"spend 15% less on hobbies\" would free) = €180 in a year, €360 in two; in an index fund for 10 years about €2,354 (€1,800 paid in; 5.2% a year after inflation, an illustration, only for answers about investing).",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157, €4,719 more than the €13,438 of income that came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Sunday is your biggest day for everyday spending (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  }
+ }
+]

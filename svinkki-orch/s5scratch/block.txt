@@ -1,0 +1,15 @@
+    drop = {}           # index of a token -> the span removed with it
+    # a figure in digits right next to its own slot ("€92.85 {{f3}}", "{{f3}} (€92.85)") is dropped
+    for i, (a, b, k, p) in enumerate(found):
+        if k != "slot" or table.get(p) is None:
+            continue
+        for j in (i - 1, i + 1):
+            if 0 <= j < len(found) and found[j][2] in ("money", "percent", "number") and j not in drop:
+                ja, jb = found[j][0], found[j][1]
+                gap = sentence[jb:a] if j < i else sentence[b:ja]
+                if re.fullmatch(r"[\s(\[=:~]*", gap) and close(table.get(p)["value"], found[j][3]):
+                    if j < i:
+                        drop[j] = (ja, a)
+                    else:
+                        m = re.match(r"\s*[)\]]", sentence[jb:]) if ("(" in gap or "[" in gap) else None
+                        drop[j] = (b, jb + m.end() if m else jb)

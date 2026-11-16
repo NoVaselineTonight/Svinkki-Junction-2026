@@ -1,0 +1,3 @@
+#!/bin/sh
+# Installed by: python .agents/agentchat.py setup --name <agent>
+exec python "$(git rev-parse --show-toplevel)/.agents/agentchat.py" git-pre-push "$@"

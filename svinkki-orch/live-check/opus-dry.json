@@ -1,0 +1,310 @@
+[
+ {
+  "model": "claude-opus-5-5",
+  "question": "How much did I spend on taxis last month?",
+  "reply": "You spent €92.85 on taxis last month (2 payments). In July you spent nothing on taxis.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.11,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "get_spend"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:11 POST /api/chat 200 109ms sid=db3b33ec\n2026-11-14T11:31:11 GET /api/privacy/ai-payload 200 11ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "and the month before?",
+  "reply": "You spent nothing on taxis in July. That is €17 less than in June.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.05,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "get_spend"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:11 POST /api/chat 200 47ms sid=db3b33ec\n2026-11-14T11:31:11 GET /api/privacy/ai-payload 200 19ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Can I afford a 300 euro jacket?",
+  "reply": "Yes, the €300 jacket fits. You'd still have about €35 a day until payday on 15 Oct.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.09,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "can_i_afford"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:11 POST /api/chat 200 78ms sid=db3b33ec\n2026-11-14T11:31:11 GET /api/privacy/ai-payload 200 25ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "What do I buy most?",
+  "reply": "You buy Kaurajuoma 1 l most often: 5 times in 3 months. Your biggest grocery group is meat and fish, 23% of the total (simulated demo receipts).",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.14,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "receipt_insights"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 140ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 21ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Show my last receipt",
+  "reply": "Your last simulated demo receipt is from S-market on 19 Sep, €93.04.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.03,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "get_receipts"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 32ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 20ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "I want to go to Japan in 2027",
+  "reply": "Roughly how much will Japan cost? I won't guess a price.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.03,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "plan_goal_by_date"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 30ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 14ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "3000 euros",
+  "reply": "To have €3,000 for Japan by June 2027 you'd need about €334 a month for 9 months. You keep about €12 a month now, so that's a big step up. Want me to save it as your goal?",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.05,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "plan_goal_by_date"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 39ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 28ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "ok set it",
+  "reply": "Saved: Japan, €3,000 by June 2027. You'll find it under Your things.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.08,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 72ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 11ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Paljonko käytin takseihin viime kuussa?",
+  "reply": "Käytit takseihin 92,85 € viime kuussa (2 ostosta). Heinäkuussa et käyttänyt siihen mitään.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.05,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "get_spend"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 38ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 16ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Where can I save?",
+  "reply": "Two easy wins: trim everyday spending by 5% (about €30 a month) and spend 15% less on hobbies (about €16). That's about €46 a month together. Your Japan goal needs €334 a month, so this alone is not enough yet.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.05,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "get_save_more"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 37ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 19ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Remember that my rent goes up to 950 in January",
+  "reply": "Noted. I'll keep in mind: \"my rent goes up to 950 in January\". You'll find it under Your things.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.05,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 48ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 20ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Can I afford a 300 euro payday loan?",
+  "reply": "A payday loan is borrowing, not a purchase: you pay it back with interest and fees, often much more than you borrowed. I would not take it. If money is short before payday, let's look at what is safe to spend instead.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.06,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "can_i_afford"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": "2026-11-14T11:31:12 POST /api/chat 200 55ms sid=db3b33ec\n2026-11-14T11:31:12 GET /api/privacy/ai-payload 200 21ms sid=db3b33ec",
+  "http_error": null,
+  "what_the_ai_saw": null
+ }
+]

@@ -1,0 +1,210 @@
+[
+ {
+  "model": "claude-opus-5-5",
+  "question": "Make me a plan to save up for a car",
+  "reply": "My plan: put €100 aside every payday and you have your car in May 2033 (80 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in November 2030.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.03,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "make_savings_plan"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "I want to buy a car, help me save for it",
+  "reply": "My plan: put €100 aside every payday and you have your car in May 2033 (80 months). It comes from clothes €41 less, hobbies €20 less, entertainment €20 less, taxis €19 less. I priced it at about €8,000 (a reliable used car, a few years old); change it if you know the price. A €5,000 option would be ready in November 2030.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.02,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "make_savings_plan"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Tee minulle suunnitelma säästää autoon",
+  "reply": "Suunnitelmani: laita 100 € sivuun joka palkkapäivä, niin auto on koossa toukokuussa 2033 (80 kk). Rahat tulevat näin: vaatteet 41 € vähemmän, harrastukset 20 € vähemmän, viihde 20 € vähemmän, taksit 19 € vähemmän. Arvioin hinnaksi noin 8 000 € (luotettava, muutaman vuoden vanha käytetty auto); muuta, jos tiedät hinnan. 5 000 € vaihtoehto olisi koossa marraskuussa 2030. (Vastaan tähän vielä englanniksi.)",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.03,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "make_savings_plan"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "I want to save 3000 for a trip to Japan by June 2027",
+  "reply": "To have €3,000 for Japan by June 2027 you'd need about €334 a month for 9 months. You keep about €12 a month now, so that's a big step up. Want me to save it as your goal?",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.02,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "plan_goal_by_date"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "How can I save more?",
+  "reply": "Two easy wins: trim everyday spending by 5% (about €30 a month) and spend 15% less on hobbies (about €16). That's about €46 a month together.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.03,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "get_save_more"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Can I afford a 300 euro jacket?",
+  "reply": "Yes, the €300 jacket fits. You'd still have about €35 a day until payday on 15 Oct.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.02,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "can_i_afford"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "I want to go to Japan in 2027",
+  "reply": "Roughly how much will Japan cost? I won't guess a price.",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.02,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "plan_goal_by_date"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "3000 euros",
+  "reply": "To have €3,000 for Japan by June 2027 you'd need about €334 a month for 9 months. You keep about €12 a month now, so that's a big step up. Want me to save it as your goal?",
+  "mode": "offline",
+  "notice": null,
+  "latency_s": 0.03,
+  "n_requests": 0,
+  "requests": [],
+  "tools_used": [
+   "plan_goal_by_date"
+  ],
+  "usage": {
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "cache_read_input_tokens": 0,
+   "cache_creation_input_tokens": 0
+  },
+  "cost_usd": 0,
+  "model_raw_text": null,
+  "raw_equals_shown": null,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": null
+ }
+]

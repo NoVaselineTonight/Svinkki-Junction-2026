@@ -1,0 +1,2505 @@
+[
+ {
+  "model": "claude-opus-5-5",
+  "question": "How much did I spend on taxis last month?",
+  "reply": "You spent €92.85 on taxis in August (2 payments), and neither ride was part of a night out.\n\nThat made taxis your fourth-biggest cost last month, after housing, fuel and groceries.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 4.52,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.41,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 19814,
+     "cache_read_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 19814,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 74,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "get_spend"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 3.0,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 328,
+     "cache_read_input_tokens": 19814,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 328,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 172,
+     "output_tokens_details": {
+      "thinking_tokens": 60
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "You spent {{f202}} on taxis in August (2 payments), and neither ride was part of a night out.\n\nThat made taxis your fourth-biggest cost last month, after housing, fuel and groceries.\n\nNEXT: Has my taxi spending gone up this year? | How much do taxis cost me yearly? | What if I cut taxis by half?"
+   }
+  ],
+  "tools_used": [
+   "get_spend"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 246,
+   "cache_read_input_tokens": 19814,
+   "cache_creation_input_tokens": 20142
+  },
+  "cost_usd": 0.10962,
+  "model_raw_text": "You spent {{f202}} on taxis in August (2 payments), and neither ride was part of a night out.\n\nThat made taxis your fourth-biggest cost last month, after housing, fuel and groceries.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "How much did I spend on taxis last month?",
+   "tool_results": [
+    {
+     "tool": "get_spend",
+     "args": {
+      "label": "Taxi",
+      "period": "last_month"
+     },
+     "result": {
+      "period": {
+       "from": "2026-08-01",
+       "to": "2026-08-31",
+       "name": "last_month"
+      },
+      "total": 92.85,
+      "count": 2,
+      "by_label": [
+       {
+        "label": "Taxi",
+        "total": 92.85,
+        "count": 2
+       }
+      ],
+      "explain": "Added up 2 outgoing payments for taxis in August.",
+      "night_out_part": {
+       "total": 0.0,
+       "count": 0
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  },
+  "figures": [
+   {
+    "id": "f202",
+    "start": 10,
+    "end": 16,
+    "text": "€92.85",
+    "label": "total, category Taxi, one month, 2026-08",
+    "unit": "money",
+    "value": 92.85,
+    "source": {
+     "kind": "tool",
+     "tool": "get_spend",
+     "call": 9,
+     "path": "total",
+     "args": {
+      "label": "Taxi",
+      "period": "last_month"
+     },
+     "evidence": [
+      {
+       "title": "Taxi purchases",
+       "from": "2026-08-01",
+       "to": "2026-08-31",
+       "label": "Taxi"
+      }
+     ]
+    },
+    "written": "slot"
+   }
+  ],
+  "slots_in_raw": [
+   [
+    "{{f202}}"
+   ],
+   [
+    "{{f202}}"
+   ]
+  ]
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Can I afford a 300 euro jacket?",
+  "reply": "Yes, the €300 jacket fits. After buying it you'd still have about €35 a day until payday on 15 Oct.\n\nIt would take 31% of the €963 that's safe to spend before then. Your pay has sometimes come up to 16 days late, so going easy for the rest of the month after buying it would give you some room if that happens again.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 5.2,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.64,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 87,
+     "cache_read_input_tokens": 19729,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 87,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 73,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "can_i_afford"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 3.44,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 428,
+     "cache_read_input_tokens": 19816,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 428,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 213,
+     "output_tokens_details": {
+      "thinking_tokens": 48
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Yes, the {{f203}} jacket fits. After buying it you'd still have about {{f207}} a day until payday on 15 Oct.\n\nIt would take {{f209}} of the {{f204}} that's safe to spend before then. Your pay has sometimes come up to {{f16}} days late, so going easy for the rest of the month after buying it would give you some room if that happens again.\n\nNEXT: Will I make it to payday? | How much did I spend on clothes this year? | Where could I save on everyday spending?"
+   }
+  ],
+  "tools_used": [
+   "can_i_afford"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 286,
+   "cache_read_input_tokens": 39545,
+   "cache_creation_input_tokens": 515
+  },
+  "cost_usd": 0.01623,
+  "model_raw_text": "Yes, the {{f203}} jacket fits. After buying it you'd still have about {{f207}} a day until payday on 15 Oct.\n\nIt would take {{f209}} of the {{f204}} that's safe to spend before then. Your pay has sometimes come up to {{f16}} days late, so going easy for the rest of the month after buying it would give you some room if that happens again.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Can I afford a 300 euro jacket?",
+   "tool_results": [
+    {
+     "tool": "can_i_afford",
+     "args": {
+      "item": "jacket",
+      "price": 300
+     },
+     "result": {
+      "item": "jacket",
+      "price": 300.0,
+      "safe_total": 963.4,
+      "days_left": 19,
+      "next_payday": "2026-10-15",
+      "after": 663.4,
+      "per_day_after": 34.92,
+      "verdict": "yes",
+      "verdict_text": "Yes, the €300 jacket fits. You would still have about €35 a day until payday on 15 Oct.",
+      "share_of_safe": 0.311,
+      "typical_month_share": 0.493,
+      "goal_effect": null,
+      "alternatives": [],
+      "risk": null,
+      "explain": "Safe-to-spend is your balance minus bills before payday, a buffer for unexpected costs and planned savings (€963); the price is taken off it."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  },
+  "figures": [
+   {
+    "id": "f203",
+    "start": 9,
+    "end": 13,
+    "text": "€300",
+    "label": "price",
+    "unit": "money",
+    "value": 300.0,
+    "source": {
+     "kind": "tool",
+     "tool": "can_i_afford",
+     "call": 9,
+     "path": "price",
+     "args": {
+      "item": "jacket",
+      "price": 300
+     },
+     "evidence": [
+      {
+       "title": "Latest transactions",
+       "from": "2026-09-12",
+       "to": "2026-09-26"
+      },
+      {
+       "title": "Past housing payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "housing_payment"
+      },
+      {
+       "title": "Past utilities payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "utilities_payment"
+      },
+      {
+       "title": "Unexpected necessities, last 12 months",
+       "from": "2025-09-01",
+       "to": "2026-08-31",
+       "basket": "unexpected"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f207",
+    "start": 66,
+    "end": 69,
+    "text": "€35",
+    "label": "per_day_after, per day",
+    "unit": "money",
+    "value": 34.92,
+    "source": {
+     "kind": "tool",
+     "tool": "can_i_afford",
+     "call": 9,
+     "path": "per_day_after",
+     "args": {
+      "item": "jacket",
+      "price": 300
+     },
+     "evidence": [
+      {
+       "title": "Latest transactions",
+       "from": "2026-09-12",
+       "to": "2026-09-26"
+      },
+      {
+       "title": "Past housing payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "housing_payment"
+      },
+      {
+       "title": "Past utilities payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "utilities_payment"
+      },
+      {
+       "title": "Unexpected necessities, last 12 months",
+       "from": "2025-09-01",
+       "to": "2026-08-31",
+       "basket": "unexpected"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f209",
+    "start": 115,
+    "end": 118,
+    "text": "31%",
+    "label": "share_of_safe",
+    "unit": "percent",
+    "value": 31.1,
+    "source": {
+     "kind": "tool",
+     "tool": "can_i_afford",
+     "call": 9,
+     "path": "share_of_safe",
+     "args": {
+      "item": "jacket",
+      "price": 300
+     },
+     "evidence": [
+      {
+       "title": "Latest transactions",
+       "from": "2026-09-12",
+       "to": "2026-09-26"
+      },
+      {
+       "title": "Past housing payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "housing_payment"
+      },
+      {
+       "title": "Past utilities payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "utilities_payment"
+      },
+      {
+       "title": "Unexpected necessities, last 12 months",
+       "from": "2025-09-01",
+       "to": "2026-08-31",
+       "basket": "unexpected"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f204",
+    "start": 126,
+    "end": 130,
+    "text": "€963",
+    "label": "safe_total",
+    "unit": "money",
+    "value": 963.4,
+    "source": {
+     "kind": "tool",
+     "tool": "can_i_afford",
+     "call": 9,
+     "path": "safe_total",
+     "args": {
+      "item": "jacket",
+      "price": 300
+     },
+     "evidence": [
+      {
+       "title": "Latest transactions",
+       "from": "2026-09-12",
+       "to": "2026-09-26"
+      },
+      {
+       "title": "Past housing payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "housing_payment"
+      },
+      {
+       "title": "Past utilities payments",
+       "from": "2026-06-01",
+       "to": "2026-08-31",
+       "type": "utilities_payment"
+      },
+      {
+       "title": "Unexpected necessities, last 12 months",
+       "from": "2025-09-01",
+       "to": "2026-08-31",
+       "basket": "unexpected"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f16",
+    "start": 199,
+    "end": 201,
+    "text": "16",
+    "label": "customer picture: “up to 16 days later.”",
+    "unit": "number",
+    "value": 16.0,
+    "source": {
+     "kind": "snapshot",
+     "tool": "get_safe_to_spend",
+     "line": 4,
+     "path": "payday_may_be_late_days",
+     "evidence": []
+    },
+    "written": "slot"
+   }
+  ],
+  "slots_in_raw": [
+   [
+    "{{f203}}",
+    "{{f207}}",
+    "{{f209}}",
+    "{{f204}}",
+    "{{f16}}"
+   ],
+   [
+    "{{f203}}",
+    "{{f207}}",
+    "{{f209}}",
+    "{{f204}}",
+    "{{f16}}"
+   ]
+  ]
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "I want to go to Japan in 2027",
+  "reply": "Japan is doable, but it'll need a real plan. Two weeks there from Finland costs roughly €2,500 to €4,500, and that covers flights, mid-range hotels, food and a rail pass. If you aim for around €3,500 by September 2027, you'd need to set aside about €292 a month.\n\nRight now you keep only about €12.17 a month (over the last 6 months), so that leaves a gap of about €280. The winter months matter most. Last October to February, €4,719 more went out than came in, and groceries alone came to €4,987. Keeping this winter's grocery spending in check is where the Japan money is most likely to come from.\n\nI assumed one person, two weeks and a September trip. Want me to save this as your goal?",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 12.33,
+  "n_requests": 3,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 5.58,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 84,
+     "cache_read_input_tokens": 19729,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 84,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 508,
+     "output_tokens_details": {
+      "thinking_tokens": 180
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "general_estimate"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 1.97,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 1122,
+     "cache_read_input_tokens": 19813,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 1122,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 105,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "plan_goal_by_date"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 5,
+    "wall": 4.69,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 808,
+     "cache_read_input_tokens": 20935,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 808,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 362,
+     "output_tokens_details": {
+      "thinking_tokens": 66
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Japan is doable, but it'll need a real plan. Two weeks there from Finland costs roughly {{f202}} to {{f203}}, and that covers flights, mid-range hotels, food and a rail pass. If you aim for around {{f214}} by September 2027, you'd need to set aside about {{f217}} a month.\n\nRight now you keep only about {{f218}} a month (over the last 6 months), so that leaves a gap of about {{f219}}. The winter months matter most. Last October to February, {{f19}} more went out than came in, and groceries alone came to {{f20}}. Keeping this winter's grocery spending in check is where the Japan money is most likely to come from.\n\nI assumed one person, two weeks and a September trip. Want me to save this as your goal?\n\nNEXT: Yes, save the Japan goal | Make it spring 2028 instead | What would a cheaper Japan trip cost?"
+   }
+  ],
+  "tools_used": [
+   "general_estimate",
+   "plan_goal_by_date"
+  ],
+  "usage": {
+   "input_tokens": 8,
+   "output_tokens": 975,
+   "cache_read_input_tokens": 60477,
+   "cache_creation_input_tokens": 2014
+  },
+  "cost_usd": 0.0417,
+  "model_raw_text": "Japan is doable, but it'll need a real plan. Two weeks there from Finland costs roughly {{f202}} to {{f203}}, and that covers flights, mid-range hotels, food and a rail pass. If you aim for around {{f214}} by September 2027, you'd need to set aside about {{f217}} a month.\n\nRight now you keep only about {{f218}} a month (over the last 6 months), so that leaves a gap of about {{f219}}. The winter months matter most. Last October to February, {{f19}} more went out than came in, and groceries alone came to {{f20}}. Keeping this winter's grocery spending in check is where the Japan money is most likely to come from.\n\nI assumed one person, two weeks and a September trip. Want me to save this as your goal?",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "I want to go to Japan in 2027",
+   "tool_results": [
+    {
+     "tool": "general_estimate",
+     "args": {
+      "what": "two weeks in Japan for one person from Finland",
+      "low": 2500,
+      "high": 4500,
+      "basis": "Two weeks for one adult in 2027, return flights from Helsinki, mid-range hotels, food, local transport incl. a rail pass, and some sightseeing.",
+      "parts": [
+       {
+        "label": "Return flights Helsinki–Tokyo",
+        "low": 800,
+        "high": 1400
+       },
+       {
+        "label": "Hotels, 13 nights",
+        "low": 900,
+        "high": 1700
+       },
+       {
+        "label": "Food",
+        "low": 400,
+        "high": 700
+       },
+       {
+        "label": "Local transport and rail pass",
+        "low": 250,
+        "high": 450
+       },
+       {
+        "label": "Sightseeing and extras",
+        "low": 150,
+        "high": 250
+       }
+      ]
+     },
+     "result": {
+      "what": "two weeks in Japan for one person from Finland",
+      "per": "total",
+      "low": 2500.0,
+      "high": 4500.0,
+      "mid": 3500.0,
+      "basis": "Two weeks for one adult in 2027, return flights from Helsinki, mid-range hotels, food, local transport incl. a rail pass, and some sightseeing.",
+      "parts": [
+       {
+        "label": "Return flights Helsinki–Tokyo",
+        "low": 800.0,
+        "high": 1400.0
+       },
+       {
+        "label": "Hotels, 13 nights",
+        "low": 900.0,
+        "high": 1700.0
+       },
+       {
+        "label": "Food",
+        "low": 400.0,
+        "high": 700.0
+       },
+       {
+        "label": "Local transport and rail pass",
+        "low": 250.0,
+        "high": 450.0
+       },
+       {
+        "label": "Sightseeing and extras",
+        "low": 150.0,
+        "high": 250.0
+       }
+      ],
+      "source": "general knowledge, not your own data",
+      "text": "Rough estimate for two weeks in Japan for one person from Finland: about €2,500 to €4,500 (general knowledge, not your own data).",
+      "no_card": true
+     }
+    },
+    {
+     "tool": "plan_goal_by_date",
+     "args": {
+      "name": "Japan trip",
+      "target": 3500,
+      "deadline": "2027-09"
+     },
+     "result": {
+      "name": "Japan trip",
+      "target": 3500.0,
+      "deadline": "2027-09-30",
+      "months_left": 12,
+      "saved": 0.0,
+      "monthly_needed": 292.0,
+      "current_monthly_saving": 12.17,
+      "gap": 280.0,
+      "feasible": false,
+      "needs": [],
+      "text": "To have €3,500 for Japan trip by September 2027 you need to put aside about €292 a month for 12 months. You currently set aside or keep about €12 a month (what you keep after spending, averaged over the last 6 months), so about €280 a month is missing.",
+      "ways": [
+       {
+        "title": "Trim everyday spending by 5%",
+        "saved_monthly": 30.45
+       },
+       {
+        "title": "Spend 15% less on hobbies",
+        "saved_monthly": 15.51
+       },
+       {
+        "title": "Cook at home one meal in five",
+        "saved_monthly": 11.28
+       }
+      ],
+      "goal": {
+       "name": "Japan trip",
+       "target": 3500.0,
+       "saved": 0.0
+      },
+      "explain": "Monthly saving needed = (€3,500 target minus nothing saved) divided by 12 whole months left. Current saving is what you keep after spending, averaged over the last 6 months.",
+      "period_note": "The averages in this result cover the last 6 full months. The usual month in the customer section covers 12. If the two tell different stories, do not put the bare figures side by side: say it in words, for example 'over the last 6 months you kept about X a month, but over the whole year more went out than came in'."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  },
+  "figures": [
+   {
+    "id": "f202",
+    "start": 88,
+    "end": 94,
+    "text": "€2,500",
+    "label": "low",
+    "unit": "money",
+    "value": 2500.0,
+    "source": {
+     "kind": "tool",
+     "tool": "general_estimate",
+     "call": 9,
+     "path": "low",
+     "args": {
+      "what": "two weeks in Japan for one person from Finland",
+      "low": 2500,
+      "high": 4500,
+      "basis": "Two weeks for one adult in 2027, return flights from Helsinki, mid-range hotels, food, local transport incl. a rail pass, and some sightseeing.",
+      "parts": [
+       {
+        "label": "Return flights Helsinki–Tokyo",
+        "low": 800,
+        "high": 1400
+       },
+       {
+        "label": "Hotels, 13 nights",
+        "low": 900,
+        "high": 1700
+       },
+       {
+        "label": "Food",
+        "low": 400,
+        "high": 700
+       },
+       {
+        "label": "Local transport and rail pass",
+        "low": 250,
+        "high": 450
+       },
+       {
+        "label": "Sightseeing and extras",
+        "low": 150,
+        "high": 250
+       }
+      ]
+     },
+     "evidence": []
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f203",
+    "start": 98,
+    "end": 104,
+    "text": "€4,500",
+    "label": "high",
+    "unit": "money",
+    "value": 4500.0,
+    "source": {
+     "kind": "tool",
+     "tool": "general_estimate",
+     "call": 9,
+     "path": "high",
+     "args": {
+      "what": "two weeks in Japan for one person from Finland",
+      "low": 2500,
+      "high": 4500,
+      "basis": "Two weeks for one adult in 2027, return flights from Helsinki, mid-range hotels, food, local transport incl. a rail pass, and some sightseeing.",
+      "parts": [
+       {
+        "label": "Return flights Helsinki–Tokyo",
+        "low": 800,
+        "high": 1400
+       },
+       {
+        "label": "Hotels, 13 nights",
+        "low": 900,
+        "high": 1700
+       },
+       {
+        "label": "Food",
+        "low": 400,
+        "high": 700
+       },
+       {
+        "label": "Local transport and rail pass",
+        "low": 250,
+        "high": 450
+       },
+       {
+        "label": "Sightseeing and extras",
+        "low": 150,
+        "high": 250
+       }
+      ]
+     },
+     "evidence": []
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f214",
+    "start": 193,
+    "end": 199,
+    "text": "€3,500",
+    "label": "target",
+    "unit": "money",
+    "value": 3500.0,
+    "source": {
+     "kind": "tool",
+     "tool": "plan_goal_by_date",
+     "call": 10,
+     "path": "target",
+     "args": {
+      "name": "Japan trip",
+      "target": 3500,
+      "deadline": "2027-09"
+     },
+     "evidence": [
+      {
+       "title": "Income",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "type": "salary"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f217",
+    "start": 249,
+    "end": 253,
+    "text": "€292",
+    "label": "monthly_needed, per month",
+    "unit": "money",
+    "value": 292.0,
+    "source": {
+     "kind": "tool",
+     "tool": "plan_goal_by_date",
+     "call": 10,
+     "path": "monthly_needed",
+     "args": {
+      "name": "Japan trip",
+      "target": 3500,
+      "deadline": "2027-09"
+     },
+     "evidence": [
+      {
+       "title": "Income",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "type": "salary"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f218",
+    "start": 294,
+    "end": 300,
+    "text": "€12.17",
+    "label": "current_monthly_saving, per month",
+    "unit": "money",
+    "value": 12.17,
+    "source": {
+     "kind": "tool",
+     "tool": "plan_goal_by_date",
+     "call": 10,
+     "path": "current_monthly_saving",
+     "args": {
+      "name": "Japan trip",
+      "target": 3500,
+      "deadline": "2027-09"
+     },
+     "evidence": [
+      {
+       "title": "Income",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "type": "salary"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f219",
+    "start": 365,
+    "end": 369,
+    "text": "€280",
+    "label": "gap",
+    "unit": "money",
+    "value": 280.0,
+    "source": {
+     "kind": "tool",
+     "tool": "plan_goal_by_date",
+     "call": 10,
+     "path": "gap",
+     "args": {
+      "name": "Japan trip",
+      "target": 3500,
+      "deadline": "2027-09"
+     },
+     "evidence": [
+      {
+       "title": "Income",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "type": "salary"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f19",
+    "start": 428,
+    "end": 434,
+    "text": "€4,719",
+    "label": "customer picture: “€4,719 more than came in”",
+    "unit": "money",
+    "value": 4719.0,
+    "source": {
+     "kind": "snapshot",
+     "tool": "findings[0]",
+     "line": 6,
+     "path": "figures[2]",
+     "evidence": []
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f20",
+    "start": 491,
+    "end": 497,
+    "text": "€4,987",
+    "label": "customer picture: “and groceries alone came to €4,987.”",
+    "unit": "money",
+    "value": 4987.0,
+    "source": {
+     "kind": "snapshot",
+     "tool": "findings[0]",
+     "line": 6,
+     "path": "figures[3]",
+     "evidence": []
+    },
+    "written": "slot"
+   }
+  ],
+  "slots_in_raw": [
+   [
+    "{{f202}}",
+    "{{f203}}",
+    "{{f214}}",
+    "{{f217}}",
+    "{{f218}}",
+    "{{f219}}",
+    "{{f19}}",
+    "{{f20}}"
+   ],
+   [
+    "{{f202}}",
+    "{{f203}}",
+    "{{f214}}",
+    "{{f217}}",
+    "{{f218}}",
+    "{{f219}}",
+    "{{f19}}",
+    "{{f20}}"
+   ]
+  ]
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Where can I save?",
+  "reply": "Hobbies are the clearest place to save. They've cost you about €103 a month over the last 6 months, and spending 15% less there would free €16 a month. Next come small purchases under €10. Over the last 4 months they've added up to €39 a month, mostly at restaurants and fast-food places. Making one meal in five at home instead would save up to €11 a month.\n\nWhen you spend matters too. 50% of your everyday spending (€1,001) happens in the 8 days after payday. If it were spread evenly, that would be about 26%. Setting yourself a weekly amount for that first week could take the pressure off the end of the month.\n\nIn a usual month about €412 more goes out than comes in, so these changes help, but they won't close that gap alone.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 10.92,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.77,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 78,
+     "cache_read_input_tokens": 19729,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 78,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 119,
+     "output_tokens_details": {
+      "thinking_tokens": 65
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "get_save_more",
+     "find_leaks"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 9.06,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 2868,
+     "cache_read_input_tokens": 19807,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 2868,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 892,
+     "output_tokens_details": {
+      "thinking_tokens": 586
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Hobbies are the clearest place to save. They've cost you about {{f207}} a month over the last 6 months, and spending {{f206}} less there would free {{f208}} a month. Next come small purchases under {{f215}}. Over the last 4 months they've added up to {{f250}} a month, mostly at restaurants and fast-food places. Making one meal in five at home instead would save up to {{f212}} a month.\n\nWhen you spend matters too. {{f245}} of your everyday spending ({{f248}}) happens in the 8 days after payday. If it were spread evenly, that would be about {{f249}}. Setting yourself a weekly amount for that first week could take the pressure off the end of the month.\n\nIn a usual month about {{f6}} more goes out than comes in, so these changes help, but they won't close that gap alone.\n\nNEXT: Why does more go out than in? | What would a weekly limit after payday be? | Where does my fuel money go?"
+   }
+  ],
+  "tools_used": [
+   "get_save_more",
+   "find_leaks"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 1011,
+   "cache_read_input_tokens": 39536,
+   "cache_creation_input_tokens": 2946
+  },
+  "cost_usd": 0.04288,
+  "model_raw_text": "Hobbies are the clearest place to save. They've cost you about {{f207}} a month over the last 6 months, and spending {{f206}} less there would free {{f208}} a month. Next come small purchases under {{f215}}. Over the last 4 months they've added up to {{f250}} a month, mostly at restaurants and fast-food places. Making one meal in five at home instead would save up to {{f212}} a month.\n\nWhen you spend matters too. {{f245}} of your everyday spending ({{f248}}) happens in the 8 days after payday. If it were spread evenly, that would be about {{f249}}. Setting yourself a weekly amount for that first week could take the pressure off the end of the month.\n\nIn a usual month about {{f6}} more goes out than comes in, so these changes help, but they won't close that gap alone.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Where can I save?",
+   "tool_results": [
+    {
+     "tool": "get_save_more",
+     "args": {},
+     "result": {
+      "ideas": [
+       {
+        "title": "Trim everyday spending by 5%",
+        "detail": "Everyday spending averages €609 a month. A small 5% trim across it is about €30 a month, without giving up anything big.",
+        "saved_monthly": 30.45,
+        "target": "everyday",
+        "evidence": {
+         "title": "Everyday spending",
+         "from": "2026-03-01",
+         "to": "2026-08-31",
+         "basket": "everyday"
+        }
+       },
+       {
+        "title": "Spend 15% less on hobbies",
+        "detail": "Your biggest flexible area after food and going out is hobbies, about €103 a month. Cutting it by 15% frees €16 a month.",
+        "saved_monthly": 15.51,
+        "target": "Hobbies",
+        "evidence": {
+         "title": "Hobbies",
+         "from": "2026-03-01",
+         "to": "2026-08-31",
+         "label": "Hobbies"
+        }
+       },
+       {
+        "title": "Cook at home one meal in five",
+        "detail": "Restaurants and fast food outside nights out cost you about €56 a month (groceries: €319 a month). Replacing one in five of those meals with home cooking saves up to €11 a month.",
+        "saved_monthly": 11.28,
+        "target": "Restaurant",
+        "evidence": [
+         {
+          "title": "Restaurants",
+          "from": "2026-03-01",
+          "to": "2026-08-31",
+          "label": "Restaurant",
+          "context": "none"
+         },
+         {
+          "title": "Fast food",
+          "from": "2026-03-01",
+          "to": "2026-08-31",
+          "label": "Fast food",
+          "context": "none"
+         }
+        ]
+       }
+      ],
+      "surplus_avg": 12.17,
+      "explain": "Each idea is a share of your own average monthly spend over the last 6 full months (March to August); the ideas overlap, so do not add them together.",
+      "period_note": "The averages in this result cover the last 6 full months. The usual month in the customer section covers 12. If the two tell different stories, do not put the bare figures side by side: say it in words, for example 'over the last 6 months you kept about X a month, but over the whole year more went out than came in'."
+     }
+    },
+    {
+     "tool": "find_leaks",
+     "args": {},
+     "result": {
+      "period": {
+       "from": "2026-06-01",
+       "to": "2026-09-26"
+      },
+      "small": {
+       "threshold": 10,
+       "count": 22,
+       "total": 152.93,
+       "per_month": 39.45,
+       "top_labels": [
+        {
+         "label": "Restaurant",
+         "total": 59.88,
+         "count": 9
+        },
+        {
+         "label": "Fast food",
+         "total": 26.32,
+         "count": 5
+        },
+        {
+         "label": "Entertainment",
+         "total": 19.0,
+         "count": 2
+        }
+       ]
+      },
+      "by_weekday": [
+       {
+        "day": "Mon",
+        "total": 225.21,
+        "count": 9
+       },
+       {
+        "day": "Tue",
+        "total": 223.89,
+        "count": 5
+       },
+       {
+        "day": "Wed",
+        "total": 238.79,
+        "count": 10
+       },
+       {
+        "day": "Thu",
+        "total": 403.75,
+        "count": 10
+       },
+       {
+        "day": "Fri",
+        "total": 221.05,
+        "count": 11
+       },
+       {
+        "day": "Sat",
+        "total": 170.16,
+        "count": 12
+       },
+       {
+        "day": "Sun",
+        "total": 506.89,
+        "count": 8
+       }
+      ],
+      "by_hour": [
+       {
+        "hour": 0,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 1,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 2,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 3,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 4,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 5,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 6,
+        "total": 109.01,
+        "count": 1
+       },
+       {
+        "hour": 7,
+        "total": 288.59,
+        "count": 4
+       },
+       {
+        "hour": 8,
+        "total": 78.2,
+        "count": 2
+       },
+       {
+        "hour": 9,
+        "total": 58.26,
+        "count": 1
+       },
+       {
+        "hour": 10,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 11,
+        "total": 0.0,
+        "count": 0
+       },
+       {
+        "hour": 12,
+        "total": 34.71,
+        "count": 3
+       },
+       {
+        "hour": 13,
+        "total": 84.92,
+        "count": 3
+       },
+       {
+        "hour": 14,
+        "total": 398.01,
+        "count": 4
+       },
+       {
+        "hour": 15,
+        "total": 209.23,
+        "count": 6
+       },
+       {
+        "hour": 16,
+        "total": 191.64,
+        "count": 9
+       },
+       {
+        "hour": 17,
+        "total": 118.51,
+        "count": 3
+       },
+       {
+        "hour": 18,
+        "total": 176.53,
+        "count": 10
+       },
+       {
+        "hour": 19,
+        "total": 71.25,
+        "count": 6
+       },
+       {
+        "hour": 20,
+        "total": 28.34,
+        "count": 4
+       },
+       {
+        "hour": 21,
+        "total": 24.61,
+        "count": 3
+       },
+       {
+        "hour": 22,
+        "total": 17.38,
+        "count": 1
+       },
+       {
+        "hour": 23,
+        "total": 100.55,
+        "count": 5
+       }
+      ],
+      "peak": {
+       "day": "Sun",
+       "hour_range": "14:00-15:00",
+       "text": "Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00."
+      },
+      "payday_week": {
+       "share": 0.503,
+       "total": 1000.71,
+       "text": "50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%."
+      },
+      "subscriptions": [],
+      "headline": "Small purchases under €10 add up to €39 a month (22 of them over the last 4 months).",
+      "explain": "Built from your everyday purchases over the last 4 months; repeating charges are the same merchant about once a month at a similar price, in at least 3 of the last 6 months."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  },
+  "figures": [
+   {
+    "id": "f207",
+    "start": 63,
+    "end": 67,
+    "text": "€103",
+    "label": "get_save_more ideas[1].detail: “about €103 a month. Cutting it by”",
+    "unit": "money",
+    "value": 103.0,
+    "source": {
+     "kind": "tool",
+     "tool": "get_save_more",
+     "call": 9,
+     "path": "ideas[1].detail",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Hobbies",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "label": "Hobbies"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f206",
+    "start": 113,
+    "end": 116,
+    "text": "15%",
+    "label": "get_save_more ideas[1].title: “Spend 15% less on hobbies”",
+    "unit": "percent",
+    "value": 15.0,
+    "source": {
+     "kind": "tool",
+     "tool": "get_save_more",
+     "call": 9,
+     "path": "ideas[1].title",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Hobbies",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "label": "Hobbies"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f208",
+    "start": 139,
+    "end": 142,
+    "text": "€16",
+    "label": "get_save_more ideas[1].detail: “frees €16 a month.”",
+    "unit": "money",
+    "value": 16.0,
+    "source": {
+     "kind": "tool",
+     "tool": "get_save_more",
+     "call": 9,
+     "path": "ideas[1].detail",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Hobbies",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "label": "Hobbies"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f215",
+    "start": 184,
+    "end": 187,
+    "text": "€10",
+    "label": "small.threshold",
+    "unit": "money",
+    "value": 10.0,
+    "source": {
+     "kind": "tool",
+     "tool": "find_leaks",
+     "call": 10,
+     "path": "small.threshold",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Everyday spending",
+       "from": "2026-06-01",
+       "to": "2026-09-26",
+       "basket": "everyday"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f250",
+    "start": 232,
+    "end": 235,
+    "text": "€39",
+    "label": "find_leaks headline: “add up to €39 a month”",
+    "unit": "money",
+    "value": 39.0,
+    "source": {
+     "kind": "tool",
+     "tool": "find_leaks",
+     "call": 10,
+     "path": "headline",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Everyday spending",
+       "from": "2026-06-01",
+       "to": "2026-09-26",
+       "basket": "everyday"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f212",
+    "start": 346,
+    "end": 349,
+    "text": "€11",
+    "label": "get_save_more ideas[2].detail: “ng one in five of those meals with home cooking saves up to €11 a month.”",
+    "unit": "money",
+    "value": 11.0,
+    "source": {
+     "kind": "tool",
+     "tool": "get_save_more",
+     "call": 9,
+     "path": "ideas[2].detail",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Restaurants",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "label": "Restaurant",
+       "context": "none"
+      },
+      {
+       "title": "Fast food",
+       "from": "2026-03-01",
+       "to": "2026-08-31",
+       "label": "Fast food",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f245",
+    "start": 388,
+    "end": 391,
+    "text": "50%",
+    "label": "payday_week.share",
+    "unit": "percent",
+    "value": 50.3,
+    "source": {
+     "kind": "tool",
+     "tool": "find_leaks",
+     "call": 10,
+     "path": "payday_week.share",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Everyday spending",
+       "from": "2026-06-01",
+       "to": "2026-09-26",
+       "basket": "everyday"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f248",
+    "start": 419,
+    "end": 425,
+    "text": "€1,001",
+    "label": "find_leaks payday_week.text: “€1,001”",
+    "unit": "money",
+    "value": 1001.0,
+    "source": {
+     "kind": "tool",
+     "tool": "find_leaks",
+     "call": 10,
+     "path": "payday_week.text",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Everyday spending",
+       "from": "2026-06-01",
+       "to": "2026-09-26",
+       "basket": "everyday"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f249",
+    "start": 509,
+    "end": 512,
+    "text": "26%",
+    "label": "find_leaks payday_week.text: “an even spread would be about 26%.”",
+    "unit": "percent",
+    "value": 26.0,
+    "source": {
+     "kind": "tool",
+     "tool": "find_leaks",
+     "call": 10,
+     "path": "payday_week.text",
+     "args": {},
+     "evidence": [
+      {
+       "title": "Everyday spending",
+       "from": "2026-06-01",
+       "to": "2026-09-26",
+       "basket": "everyday"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f6",
+    "start": 641,
+    "end": 645,
+    "text": "€412",
+    "label": "customer picture: “so about €412 more goes out than comes in each month.”",
+    "unit": "money",
+    "value": 412.0,
+    "source": {
+     "kind": "snapshot",
+     "tool": "usual_month",
+     "line": 1,
+     "path": "difference",
+     "evidence": []
+    },
+    "written": "slot"
+   }
+  ],
+  "slots_in_raw": [
+   [
+    "{{f207}}",
+    "{{f206}}",
+    "{{f208}}",
+    "{{f215}}",
+    "{{f250}}",
+    "{{f212}}",
+    "{{f245}}",
+    "{{f248}}",
+    "{{f249}}",
+    "{{f6}}"
+   ],
+   [
+    "{{f207}}",
+    "{{f206}}",
+    "{{f208}}",
+    "{{f215}}",
+    "{{f250}}",
+    "{{f212}}",
+    "{{f245}}",
+    "{{f248}}",
+    "{{f249}}",
+    "{{f6}}"
+   ]
+  ]
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "Paljonko käytin takseihin viime kuussa?",
+  "reply": "Elokuussa käytit takseihin 92,85 € (2 maksua). Taksit olivat elokuussa neljänneksi suurin menoeräsi asumisen, polttoaineen ja ruokaostosten jälkeen, eikä yksikään matkoista osunut illanviettoon.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 6.97,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 2.41,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 91,
+     "cache_read_input_tokens": 19729,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 91,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 74,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "get_spend"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 4.48,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 328,
+     "cache_read_input_tokens": 19820,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 328,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 236,
+     "output_tokens_details": {
+      "thinking_tokens": 54
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Elokuussa käytit takseihin {{f202}} (2 maksua). Taksit olivat elokuussa neljänneksi suurin menoeräsi asumisen, polttoaineen ja ruokaostosten jälkeen, eikä yksikään matkoista osunut illanviettoon.\n\nNEXT: Miten taksikuluni ovat muuttuneet vuoden aikana? | Paljonko säästäisin, jos puolittaisin taksit? | Paljonko käytin polttoaineeseen viime kuussa?"
+   }
+  ],
+  "tools_used": [
+   "get_spend"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 310,
+   "cache_read_input_tokens": 39549,
+   "cache_creation_input_tokens": 419
+  },
+  "cost_usd": 0.01623,
+  "model_raw_text": "Elokuussa käytit takseihin {{f202}} (2 maksua). Taksit olivat elokuussa neljänneksi suurin menoeräsi asumisen, polttoaineen ja ruokaostosten jälkeen, eikä yksikään matkoista osunut illanviettoon.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "Paljonko käytin takseihin viime kuussa?",
+   "tool_results": [
+    {
+     "tool": "get_spend",
+     "args": {
+      "label": "Taxi",
+      "period": "last_month"
+     },
+     "result": {
+      "period": {
+       "from": "2026-08-01",
+       "to": "2026-08-31",
+       "name": "last_month"
+      },
+      "total": 92.85,
+      "count": 2,
+      "by_label": [
+       {
+        "label": "Taxi",
+        "total": 92.85,
+        "count": 2
+       }
+      ],
+      "explain": "Added up 2 outgoing payments for taxis in August.",
+      "night_out_part": {
+       "total": 0.0,
+       "count": 0
+      }
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  },
+  "figures": [
+   {
+    "id": "f202",
+    "start": 27,
+    "end": 34,
+    "text": "92,85 €",
+    "label": "total, category Taxi, one month, 2026-08",
+    "unit": "money",
+    "value": 92.85,
+    "source": {
+     "kind": "tool",
+     "tool": "get_spend",
+     "call": 9,
+     "path": "total",
+     "args": {
+      "label": "Taxi",
+      "period": "last_month"
+     },
+     "evidence": [
+      {
+       "title": "Taxi purchases",
+       "from": "2026-08-01",
+       "to": "2026-08-31",
+       "label": "Taxi"
+      }
+     ]
+    },
+    "written": "slot"
+   }
+  ],
+  "slots_in_raw": [
+   [
+    "{{f202}}"
+   ],
+   [
+    "{{f202}}"
+   ]
+  ]
+ },
+ {
+  "model": "claude-opus-5-5",
+  "question": "What do I buy most?",
+  "reply": "Over the last 3 months you bought oat drink (Kaurajuoma 1 l) most often, 5 times for €11.38 in total, with spaghetti also on 5 receipts. These receipt lines are simulated for this demo.\n\nWhere the money goes is a different story. Meat and fish is your biggest grocery group at €151.34 (23% of the total). Whole grilled chickens alone came to €68.55, a pace of about €274 a year. Ready meals come right behind at €133.13 (20%), so ready-to-eat food takes a large share of your grocery money even though it isn't what you buy most often.",
+  "mode": "claude",
+  "notice": null,
+  "latency_s": 5.97,
+  "n_requests": 2,
+  "requests": [
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 1,
+    "wall": 1.52,
+    "stop_reason": "tool_use",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 4,
+     "cache_creation_input_tokens": 79,
+     "cache_read_input_tokens": 19729,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 79,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 54,
+     "output_tokens_details": {
+      "thinking_tokens": 0
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [
+     "receipt_insights"
+    ],
+    "text": ""
+   },
+   {
+    "model": "claude-opus-5-5",
+    "timeout": 45,
+    "effort": "medium",
+    "allow_tools": true,
+    "n_messages": 3,
+    "wall": 4.36,
+    "stop_reason": "end_turn",
+    "answered_by": "claude-opus-5-5",
+    "usage": {
+     "input_tokens": 2,
+     "cache_creation_input_tokens": 3048,
+     "cache_read_input_tokens": 19808,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 3048,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "output_tokens": 365,
+     "output_tokens_details": {
+      "thinking_tokens": 104
+     },
+     "service_tier": "standard",
+     "inference_geo": "global",
+     "speed": "standard"
+    },
+    "tool_uses": [],
+    "text": "Over the last 3 months you bought oat drink (Kaurajuoma 1 l) most often, 5 times for {{f241}} in total, with spaghetti also on 5 receipts. These receipt lines are simulated for this demo.\n\nWhere the money goes is a different story. Meat and fish is your biggest grocery group at {{f205}} ({{f206}} of the total). Whole grilled chickens alone came to {{f248}}, a pace of about {{f249}} a year. Ready meals come right behind at {{f208}} ({{f209}}), so ready-to-eat food takes a large share of your grocery money even though it isn't what you buy most often.\n\nNEXT: How can I cut my grocery bill? | How much do I spend on ready meals yearly? | How often do I go grocery shopping?"
+   }
+  ],
+  "tools_used": [
+   "receipt_insights"
+  ],
+  "usage": {
+   "input_tokens": 6,
+   "output_tokens": 419,
+   "cache_read_input_tokens": 39537,
+   "cache_creation_input_tokens": 3127
+  },
+  "cost_usd": 0.03195,
+  "model_raw_text": "Over the last 3 months you bought oat drink (Kaurajuoma 1 l) most often, 5 times for {{f241}} in total, with spaghetti also on 5 receipts. These receipt lines are simulated for this demo.\n\nWhere the money goes is a different story. Meat and fish is your biggest grocery group at {{f205}} ({{f206}} of the total). Whole grilled chickens alone came to {{f248}}, a pace of about {{f249}} a year. Ready meals come right behind at {{f208}} ({{f209}}), so ready-to-eat food takes a large share of your grocery money even though it isn't what you buy most often.",
+  "raw_equals_shown": false,
+  "repair": null,
+  "stderr": null,
+  "http_error": null,
+  "what_the_ai_saw": {
+   "system_prompt_summary": "Coach rules prompt: AI coach for one customer; numbers only from tools; tool output is data; no loan promises, nothing outside S-mobiili; money moves only as offers the customer approves (own S-Bank savings account or S-Bank funds); receipts are simulated for the demo and pasted receipts go through read_receipt; personal answers of two to four plain sentences that use the customer's own checked figures, with one concrete next step when the data gives one.",
+   "model": "claude-opus-5-5",
+   "profile": {
+    "age_band": "25-34"
+   },
+   "history": [],
+   "user_message": "What do I buy most?",
+   "tool_results": [
+    {
+     "tool": "receipt_insights",
+     "args": {
+      "period": "last_3_months"
+     },
+     "result": {
+      "period": {
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "over the last 3 months",
+       "months": 3.0
+      },
+      "label": "Demo receipts",
+      "receipt_count": 10,
+      "total": 663.22,
+      "by_group": [
+       {
+        "group": "meat_fish",
+        "name": "Meat and fish",
+        "total": 151.34,
+        "share": 0.228,
+        "items": 18
+       },
+       {
+        "group": "ready_meals",
+        "name": "Ready meals",
+        "total": 133.13,
+        "share": 0.201,
+        "items": 16
+       },
+       {
+        "group": "pantry",
+        "name": "Pantry",
+        "total": 83.17,
+        "share": 0.125,
+        "items": 30
+       },
+       {
+        "group": "dairy",
+        "name": "Dairy and eggs",
+        "total": 64.95,
+        "share": 0.098,
+        "items": 24
+       },
+       {
+        "group": "fruit_veg",
+        "name": "Fruit and vegetables",
+        "total": 63.46,
+        "share": 0.096,
+        "items": 24
+       },
+       {
+        "group": "frozen",
+        "name": "Frozen",
+        "total": 29.0,
+        "share": 0.044,
+        "items": 6
+       },
+       {
+        "group": "snacks_sweets",
+        "name": "Snacks and sweets",
+        "total": 28.3,
+        "share": 0.043,
+        "items": 7
+       },
+       {
+        "group": "household",
+        "name": "Household",
+        "total": 27.41,
+        "share": 0.041,
+        "items": 5
+       },
+       {
+        "group": "bread",
+        "name": "Bread",
+        "total": 25.28,
+        "share": 0.038,
+        "items": 10
+       },
+       {
+        "group": "alcohol_mild",
+        "name": "Beer and cider",
+        "total": 21.6,
+        "share": 0.033,
+        "items": 6
+       },
+       {
+        "group": "coffee_tea",
+        "name": "Coffee and tea",
+        "total": 15.45,
+        "share": 0.023,
+        "items": 3
+       },
+       {
+        "group": "soft_drinks",
+        "name": "Soft drinks",
+        "total": 9.15,
+        "share": 0.014,
+        "items": 4
+       },
+       {
+        "group": "pet",
+        "name": "Pets",
+        "total": 6.99,
+        "share": 0.011,
+        "items": 1
+       },
+       {
+        "group": "hygiene",
+        "name": "Personal care",
+        "total": 3.99,
+        "share": 0.006,
+        "items": 1
+       }
+      ],
+      "top_products": [
+       {
+        "name": "Kaurajuoma 1 l",
+        "times": 5,
+        "qty": 7,
+        "total": 11.38,
+        "yearly": 45.52
+       },
+       {
+        "name": "Spagetti 500 g",
+        "times": 5,
+        "qty": 8,
+        "total": 10.32,
+        "yearly": 41.28
+       },
+       {
+        "name": "Grillikana kokonainen",
+        "times": 4,
+        "qty": 7,
+        "total": 68.55,
+        "yearly": 274.2
+       },
+       {
+        "name": "Broilerin rintafilee 600 g",
+        "times": 4,
+        "qty": 7,
+        "total": 59.03,
+        "yearly": 236.12
+       },
+       {
+        "name": "Broilerin koivet 900 g",
+        "times": 4,
+        "qty": 7,
+        "total": 34.93,
+        "yearly": 139.72
+       },
+       {
+        "name": "Maitosuklaalevy 200 g",
+        "times": 4,
+        "qty": 6,
+        "total": 17.94,
+        "yearly": 71.76
+       },
+       {
+        "name": "Grillimakkara 400 g",
+        "times": 4,
+        "qty": 4,
+        "total": 14.02,
+        "yearly": 56.08
+       },
+       {
+        "name": "Vehnäjauho 1 kg",
+        "times": 4,
+        "qty": 4,
+        "total": 5.96,
+        "yearly": 23.84
+       },
+       {
+        "name": "Rasvaton maito 1 l",
+        "times": 4,
+        "qty": 4,
+        "total": 5.0,
+        "yearly": 20.0
+       },
+       {
+        "name": "Sushiboksi 8 kpl",
+        "times": 3,
+        "qty": 3,
+        "total": 20.7,
+        "yearly": 82.8
+       }
+      ],
+      "treats": {
+       "total": 59.05,
+       "share": 0.089,
+       "monthly": 19.68,
+       "yearly": 236.2,
+       "groups": [
+        "Snacks and sweets",
+        "Soft drinks",
+        "Energy drinks",
+        "Beer and cider"
+       ]
+      },
+      "fuel": {
+       "total": 221.29,
+       "litres": 122.09,
+       "fills": 4,
+       "avg_price_per_litre": 1.813,
+       "monthly": 73.76,
+       "yearly": 885.16,
+       "fuel_type": "95 E10",
+       "shop_total": 0.0,
+       "receipts": 4
+      },
+      "highlights": [
+       "You buy Kaurajuoma 1 l most often: 5 times over the last 3 months, €11.38 in total.",
+       "Your biggest grocery group is meat and fish: €151, 23% of the total.",
+       "Snacks and sweets were on 7 receipts: about €9 a month, €113 a year.",
+       "You filled up 4 times: about 122 litres for €221, roughly €74 a month at an average of €1.81 a litre."
+      ],
+      "bonus": {
+       "estimated_total": 13.25,
+       "note": "A purchase rebate that grows with monthly grocery spend, not your real Bonus balance."
+      },
+      "note": "Simulated receipt lines for the demo: the challenge data has payment amounts only. A real version would read your S Group purchase data, with your consent.",
+      "explain": "Grocery receipts over the last 3 months were summed by product group. Balancing lines such as a plastic bag or a deposit count in the group totals but never as a top product or the biggest group. Fuel is counted separately from groceries. Yearly figures scale the period to 12 months."
+     }
+    }
+   ],
+   "what_the_coach_knows": [
+    "In August: income €2,336, spending €2,029, left over €307.",
+    "Their usual month, on the last 12 full months: about €2,436 comes in and about €2,848 goes out, so about €412 more goes out than comes in each month. Use this figure, and only this one, when you speak of their usual month or usual leftover.",
+    "Biggest categories in August: housing €1,108, fuel €221, groceries €131, taxis €93.",
+    "Spender type, on the last 6 months only: Over the last 6 months you spent 99% of your income.",
+    "Right now: account balance €2,228, next payday 15 Oct (19 days away), bills of €1,177 expected before then, €963 safe to spend until payday. Their pay has sometimes come at the end of the month instead, up to 16 days later.",
+    "They have not set a savings goal yet.",
+    "Last October to February you spent €18,157 against €13,438 of income: €4,719 more than came in, and groceries alone came to €4,987.",
+    "Your account was below zero on 80 days in the last year.",
+    "The lowest your account has been is €425 below zero, reached in 3 different months, which looks like your limit.",
+    "Your balance went from €6,655 a year ago to €2,228 now.",
+    "The year before, the same months had €2,834 more going out than coming in.",
+    "If these months go the same way, your €2,228 would not cover it: you would end up about €2,491 below zero.",
+    "Your balance of €2,228 covers about 0.8 months of your usual spending of €2,763 a month.",
+    "Saving ideas worked out from their spending: trim everyday spending by 5% (about €30 a month); spend 15% less on hobbies (about €15.51 a month); cook at home one meal in five (about €11.28 a month).",
+    "Spending habits: Most of your everyday spending happens on Sundays (25% of it), and the busiest hour is 14:00 to 15:00. 50% of your everyday spending (€1,001) lands in the 8 days after payday; an even spread would be about 26%.",
+    "From their grocery receipts over the last 3 months (the receipt lines are simulated for the demo; say so once if you use this): biggest group meat and fish (23% of the total); treats (snacks and sweets, soft drinks, energy drinks, beer and cider) about €19.68 a month; bought most often: Kaurajuoma 1 l (5 times); fuel about €74 a month."
+   ]
+  },
+  "figures": [
+   {
+    "id": "f241",
+    "start": 85,
+    "end": 91,
+    "text": "€11.38",
+    "label": "top_products[0].total, several months",
+    "unit": "money",
+    "value": 11.38,
+    "source": {
+     "kind": "tool",
+     "tool": "receipt_insights",
+     "call": 9,
+     "path": "top_products[0].total",
+     "args": {
+      "period": "last_3_months"
+     },
+     "evidence": [
+      {
+       "title": "Grocery purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Groceries",
+       "context": "none"
+      },
+      {
+       "title": "Fuel purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Fuel",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f205",
+    "start": 277,
+    "end": 284,
+    "text": "€151.34",
+    "label": "by_group[0].total, several months",
+    "unit": "money",
+    "value": 151.34,
+    "source": {
+     "kind": "tool",
+     "tool": "receipt_insights",
+     "call": 9,
+     "path": "by_group[0].total",
+     "args": {
+      "period": "last_3_months"
+     },
+     "evidence": [
+      {
+       "title": "Grocery purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Groceries",
+       "context": "none"
+      },
+      {
+       "title": "Fuel purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Fuel",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f206",
+    "start": 286,
+    "end": 289,
+    "text": "23%",
+    "label": "by_group[0].share",
+    "unit": "percent",
+    "value": 22.8,
+    "source": {
+     "kind": "tool",
+     "tool": "receipt_insights",
+     "call": 9,
+     "path": "by_group[0].share",
+     "args": {
+      "period": "last_3_months"
+     },
+     "evidence": [
+      {
+       "title": "Grocery purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Groceries",
+       "context": "none"
+      },
+      {
+       "title": "Fuel purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Fuel",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f248",
+    "start": 342,
+    "end": 348,
+    "text": "€68.55",
+    "label": "top_products[2].total, several months",
+    "unit": "money",
+    "value": 68.55,
+    "source": {
+     "kind": "tool",
+     "tool": "receipt_insights",
+     "call": 9,
+     "path": "top_products[2].total",
+     "args": {
+      "period": "last_3_months"
+     },
+     "evidence": [
+      {
+       "title": "Grocery purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Groceries",
+       "context": "none"
+      },
+      {
+       "title": "Fuel purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Fuel",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f249",
+    "start": 366,
+    "end": 370,
+    "text": "€274",
+    "label": "top_products[2].yearly, per year",
+    "unit": "money",
+    "value": 274.2,
+    "source": {
+     "kind": "tool",
+     "tool": "receipt_insights",
+     "call": 9,
+     "path": "top_products[2].yearly",
+     "args": {
+      "period": "last_3_months"
+     },
+     "evidence": [
+      {
+       "title": "Grocery purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Groceries",
+       "context": "none"
+      },
+      {
+       "title": "Fuel purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Fuel",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f208",
+    "start": 412,
+    "end": 419,
+    "text": "€133.13",
+    "label": "by_group[1].total, several months",
+    "unit": "money",
+    "value": 133.13,
+    "source": {
+     "kind": "tool",
+     "tool": "receipt_insights",
+     "call": 9,
+     "path": "by_group[1].total",
+     "args": {
+      "period": "last_3_months"
+     },
+     "evidence": [
+      {
+       "title": "Grocery purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Groceries",
+       "context": "none"
+      },
+      {
+       "title": "Fuel purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Fuel",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   },
+   {
+    "id": "f209",
+    "start": 421,
+    "end": 424,
+    "text": "20%",
+    "label": "by_group[1].share",
+    "unit": "percent",
+    "value": 20.1,
+    "source": {
+     "kind": "tool",
+     "tool": "receipt_insights",
+     "call": 9,
+     "path": "by_group[1].share",
+     "args": {
+      "period": "last_3_months"
+     },
+     "evidence": [
+      {
+       "title": "Grocery purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Groceries",
+       "context": "none"
+      },
+      {
+       "title": "Fuel purchases",
+       "from": "2026-06-27",
+       "to": "2026-09-26",
+       "label": "Fuel",
+       "context": "none"
+      }
+     ]
+    },
+    "written": "slot"
+   }
+  ],
+  "slots_in_raw": [
+   [
+    "{{f241}}",
+    "{{f205}}",
+    "{{f206}}",
+    "{{f248}}",
+    "{{f249}}",
+    "{{f208}}",
+    "{{f209}}"
+   ],
+   [
+    "{{f241}}",
+    "{{f205}}",
+    "{{f206}}",
+    "{{f248}}",
+    "{{f249}}",
+    "{{f208}}",
+    "{{f209}}"
+   ]
+  ]
+ }
+]
